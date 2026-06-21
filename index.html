@@ -192,7 +192,7 @@
 
   /* Letter */
   .letter-layout{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
-  .letter-preview{background:white;border:1px solid var(--border-card);border-radius:var(--radius-lg);padding:24px 28px;line-height:1.35;font-size:12px;box-shadow:var(--shadow);color:#1e293b;}
+  .letter-preview{background:#fff!important;border:1px solid var(--border-card);border-radius:var(--radius-lg);padding:24px 28px;line-height:1.35;font-size:12px;box-shadow:var(--shadow);color:#1e293b!important;}
   .letter-preview p{margin:6px 0;}
   .letter-preview ul{margin:6px 0 6px 20px;padding:0;}
   .letter-header{text-align:center;font-weight:700;margin-bottom:12px;line-height:1.2;padding-bottom:10px;border-bottom:2px solid var(--grey-800);}
@@ -415,6 +415,8 @@
 
             <div class="card" style="margin:0;">
               <div class="card-header"><h3>Visit entry</h3><span class="small" id="visitPatientIndicator">Select a patient from the worklist above</span></div>
+              <!-- Missed bloods warning -->
+              <div id="missedBloodsWarning" class="hidden" style="background:#fee2e2;border:1px solid #ef4444;border-radius:6px;padding:10px;margin:0 0 10px;font-size:13px;color:#7f1d1d;">⚠ <strong>Missed blood tests on 2+ consecutive reviews.</strong> Consider returning this patient to the consultant-led clinic.</div>
               <div class="grid2">
                 <label>Selected patient<input id="visitSelectedPatient" readonly></label>
                 <label>Hospital number<input id="visitHospitalNumber" readonly></label>
@@ -432,6 +434,8 @@
                   </select>
                 </label>
               </div>
+              <!-- Rebook notice -->
+              <div id="rebookNotice" class="hidden" style="background:var(--warning-bg,#fff3cd);border:1px solid var(--warning,#e6a817);border-radius:6px;padding:10px;margin:0 0 10px;font-size:13px;">ℹ Patient will be <strong>rebooked</strong> — this visit will <strong>not</strong> be marked as completed. A rebook letter will be generated.</div>
               <div id="bloodFieldsWrap">
                 <div class="grid2">
                   <label>Date of blood test<input id="visitBloodDate" type="date"></label>
@@ -439,7 +443,7 @@
                 </div>
                 <div class="grid3">
                   <label>Haemoglobin (g/L)<input id="visitHaemoglobin" type="number" step="1" placeholder="e.g. 140"><div class="field-hint" id="hbFlag"></div></label>
-                  <label>Haematocrit (L/L)<input id="visitHaematocrit" type="number" step="0.01" placeholder="e.g. 0.45"><div class="field-hint" id="hctFlag"></div></label>
+                  <label>Haematocrit (L/L)<input id="visitHaematocrit" type="number" step="0.01" placeholder="e.g. 0.45"><div class="field-hint" id="hctFlag"></div><div class="field-hint" id="hctTargetHint" style="color:var(--blue);font-weight:600;"></div></label>
                   <label>White cell count (×10⁹/L)<input id="visitWcc" type="number" step="0.1" placeholder="e.g. 7.5"><div class="field-hint" id="wccFlag"></div></label>
                 </div>
                 <div class="grid2">
@@ -448,6 +452,18 @@
                 </div>
                 <!-- Clinical alerts panel -->
                 <div id="alertsPanel" class="hidden"></div>
+                <!-- Venesection (shown for PV patients) -->
+                <div id="venesectionWrap" class="hidden" style="margin-top:10px;padding:10px;background:var(--bg-input);border-radius:6px;">
+                  <label style="display:flex;align-items:center;gap:8px;margin:0;"><input type="checkbox" id="visitVenesection"> <strong>Venesection performed this visit</strong></label>
+                  <div id="venesectionVolumeWrap" class="hidden" style="margin-top:6px;">
+                    <label>Volume (ml)<input id="visitVenesectionVolume" type="number" placeholder="e.g. 450" style="width:140px;"></label>
+                  </div>
+                </div>
+                <!-- Splenomegaly -->
+                <div style="margin-top:10px;">
+                  <label>Spleen assessment<select id="visitSplenomegaly"><option value="">Not assessed</option><option>Absent</option><option>Palpable</option><option>Enlarged on USS</option></select></label>
+                  <label id="spleenSizeWrap" class="hidden">Spleen size (cm)<input id="visitSpleenSize" type="number" step="0.1" placeholder="e.g. 18"></label>
+                </div>
               </div>
               <div id="regimenFieldsWrap">
                 <div style="margin-bottom:12px;">
@@ -520,6 +536,8 @@
                   <tr><td>Haematocrit</td><td><span id="letterHct">–</span> L/L</td></tr>
                 </table>
                 <p><strong>Questionnaire (MPN-10 score and further information):</strong><br><span id="letterQuestionnaire">None</span></p>
+                <p id="letterVenesectionLine" class="hidden">A venesection of <span id="letterVenesectionVolume"></span> ml was performed at this appointment.</p>
+                <p id="letterSpleenLine" class="hidden">Spleen: <span id="letterSpleenValue"></span>.</p>
                 <p><strong>Based on these results, you are advised to:</strong><br><span id="letterDose">«Advice»</span></p>
                 <p>With this letter, you will find:</p>
                 <ul>
@@ -549,6 +567,7 @@
               </div>
               <p>Yours sincerely,</p>
               <div id="letterSignature" style="font-weight:600;">Reviewer signature</div>
+              <div id="letterGpCc" class="hidden" style="margin-top:12px;font-size:11px;color:#666;border-top:1px solid #e2e8f0;padding-top:6px;">cc: <span id="letterGpName"></span>, <span id="letterGpPractice"></span></div>
             </div>
           </div>
         </div>
@@ -614,6 +633,11 @@
           </div>
           <label id="dbSupplyOtherWrap" class="hidden">Other supply route<input id="dbSupplyOther"></label>
           <label>Current hydroxycarbamide regimen<textarea id="dbCurrentHydroxy" placeholder="e.g. Hydroxycarbamide 500mg (1 capsule) once daily" style="min-height:50px;"></textarea></label>
+          <div class="grid2">
+            <label>GP name<input id="dbGpName" placeholder="e.g. Dr Sarah Jones"></label>
+            <label>GP practice<input id="dbGpPractice" placeholder="e.g. Cwmbran Medical Centre"></label>
+          </div>
+          <label>Contact phone number<input id="dbPhone" type="tel" placeholder="e.g. 01234 567890"></label>
           <!-- Regimen history collapsible -->
           <details class="regimen-history-wrap" id="regimenHistoryDetails" style="display:none;">
             <summary>Regimen history <span id="regimenHistoryCount" class="small"></span></summary>
@@ -621,6 +645,7 @@
           </details>
           <div class="toolbar" style="margin-top:12px;">
             <button class="btn primary" id="savePatientDatabaseBtn">Save patient</button>
+            <button type="button" class="btn soft" id="cancelPatientBtn">Cancel</button>
           </div>
         </div>
         <div>
@@ -847,9 +872,9 @@ function applyLoadedData(parsed){
 }
 
 function migratePatient(p){
-  return Object.assign({regimenHistory:[],hcActive:true,missedBloods:0,missedBloodsConsecutive:0},p);
+  return Object.assign({regimenHistory:[],hcActive:true,missedBloods:0,missedBloodsConsecutive:0,gpName:'',gpPractice:'',phone:''},p);
 }
-function migrateVisit(v){return Object.assign({alertsTriggered:[],doseAtVisit:'',mpn10:null},v);}
+function migrateVisit(v){return Object.assign({alertsTriggered:[],doseAtVisit:'',mpn10:null,venesectionPerformed:false,venesectionVolume:'',splenomegaly:'',spleenSize:''},v);}
 
 function startChangeWatcher(){
   if(state._changeWatcher)clearInterval(state._changeWatcher);
@@ -1171,7 +1196,7 @@ function updateClinicProgress(){
 /* ===== PATIENT CRUD ===== */
 function clearPatientForm(){
   state.editingPatientId=null;el('dbFormTitle').textContent='Add patient';
-  ['dbHospitalNumber','dbFirstName','dbLastName','dbNhsNumber','dbDiagnosisOther','dbVariantOther','dbThrombosisOther','dbThrombosisDose','dbSupplyOther','dbCurrentHydroxy'].forEach(id=>{const e=el(id);if(e)e.value='';});
+  ['dbHospitalNumber','dbFirstName','dbLastName','dbNhsNumber','dbDiagnosisOther','dbVariantOther','dbThrombosisOther','dbThrombosisDose','dbSupplyOther','dbCurrentHydroxy','dbGpName','dbGpPractice','dbPhone'].forEach(id=>{const e=el(id);if(e)e.value='';});
   el('dbDob').value='';el('dbYearDiagnosis').value='';
   el('dbDiagnosis').value='Essential thrombocythaemia';el('dbVariant').value='JAK2';
   el('dbThrombosisType').value='Aspirin';el('dbSupplyRoute').value='Repeat prescription';
@@ -1189,11 +1214,14 @@ function savePatient(){
     thrombosisType:el('dbThrombosisType').value,thrombosisOther:el('dbThrombosisOther').value.trim(),
     thrombosisDose:el('dbThrombosisDose').value.trim(),supplyRoute:el('dbSupplyRoute').value,supplyOther:el('dbSupplyOther').value.trim(),
     currentHydroxy:el('dbCurrentHydroxy').value.trim(),
+    gpName:(el('dbGpName')?el('dbGpName').value.trim():''),
+    gpPractice:(el('dbGpPractice')?el('dbGpPractice').value.trim():''),
+    phone:(el('dbPhone')?el('dbPhone').value.trim():''),
     regimenHistory:[],hcActive:true,missedBloods:0,missedBloodsConsecutive:0
   };
   // Preserve regimenHistory and counters if editing existing
   const existing=state.patients.find(p=>p.id===patient.id||p.hospitalNumber===patient.hospitalNumber);
-  if(existing){patient.regimenHistory=existing.regimenHistory||[];patient.missedBloods=existing.missedBloods||0;patient.missedBloodsConsecutive=existing.missedBloodsConsecutive||0;patient.hcActive=existing.hcActive!==false;}
+  if(existing){patient.regimenHistory=existing.regimenHistory||[];patient.missedBloods=existing.missedBloods||0;patient.missedBloodsConsecutive=existing.missedBloodsConsecutive||0;patient.hcActive=existing.hcActive!==false;if(!patient.gpName)patient.gpName=existing.gpName||'';if(!patient.gpPractice)patient.gpPractice=existing.gpPractice||'';if(!patient.phone)patient.phone=existing.phone||'';}
   let found=false;
   for(let i=0;i<state.patients.length;i++){if(state.patients[i].id===patient.id||state.patients[i].hospitalNumber===patient.hospitalNumber){state.patients[i]=patient;found=true;break;}}
   if(!found)state.patients.push(patient);
@@ -1212,6 +1240,8 @@ function editPatient(id){
   el('dbThrombosisType').value=p.thrombosisType||'Aspirin';el('dbThrombosisOther').value=p.thrombosisOther||'';
   el('dbThrombosisDose').value=p.thrombosisDose||'';el('dbSupplyRoute').value=p.supplyRoute||'Repeat prescription';
   el('dbSupplyOther').value=p.supplyOther||'';el('dbCurrentHydroxy').value=p.currentHydroxy||'';
+  const gn=el('dbGpName');if(gn)gn.value=p.gpName||'';const gp=el('dbGpPractice');if(gp)gp.value=p.gpPractice||'';
+  const ph=el('dbPhone');if(ph)ph.value=p.phone||'';
   renderRegimenHistoryPanel(p);updateConditionalFields();switchView('database');
 }
 
@@ -1269,7 +1299,7 @@ function renderClinicTable(){
     const missedBadge=(p.missedBloodsConsecutive||0)>=2?'<span class="missed-bloods-badge">⚠ Missed ×'+p.missedBloodsConsecutive+'</span>':'';
     return'<tr'+(isSelected?' style="background:var(--blue-light);"':'')+'>'+
       '<td>'+(i+1)+'</td>'+
-      '<td><strong>'+fullName(p)+'</strong>'+missedBadge+'</td>'+
+      '<td><strong>'+fullName(p)+'</strong>'+missedBadge+(p.phone?'<br><span class="small" style="color:var(--text-muted);">📞 '+p.phone+'</span>':'')+'</td>'+
       '<td>'+p.hospitalNumber+'</td>'+
       '<td>'+diagnosisDisplay(p)+'</td>'+
       '<td style="font-size:12px;">'+((p.currentHydroxy||'').substring(0,60)||(entry.status==='completed'?'See visit':''))+'</td>'+
@@ -1291,6 +1321,11 @@ function resetVisitFormFields(){
   const nh=el('nextReviewHint');if(nh)nh.textContent='';
   const mpnWrap=el('visitMpn10Wrap');if(mpnWrap)mpnWrap.innerHTML='';
   const alertsPanel=el('alertsPanel');if(alertsPanel){alertsPanel.innerHTML='';alertsPanel.classList.add('hidden');}
+  const vc=el('visitVenesection');if(vc)vc.checked=false;const vvw=el('venesectionVolumeWrap');if(vvw)vvw.classList.add('hidden');const vvol=el('visitVenesectionVolume');if(vvol)vvol.value='';
+  const sp=el('visitSplenomegaly');if(sp)sp.value='';const ssw=el('spleenSizeWrap');if(ssw)ssw.classList.add('hidden');const ss=el('visitSpleenSize');if(ss)ss.value='';
+  const vw=el('venesectionWrap');if(vw)vw.classList.add('hidden');const hctHint=el('hctTargetHint');if(hctHint)hctHint.textContent='';
+  const mbw=el('missedBloodsWarning');if(mbw)mbw.classList.add('hidden');
+  const rb=el('rebookNotice');if(rb)rb.classList.add('hidden');
   updateConditionalFields();
 }
 
@@ -1305,6 +1340,13 @@ function selectPatientForVisit(id){
   el('bloodFieldsWrap').classList.remove('hidden');el('regimenFieldsWrap').classList.remove('hidden');el('questionnaireFieldsWrap').classList.remove('hidden');
   el('letterBodyNormal').classList.remove('hidden');el('letterBodyRebook').classList.add('hidden');el('letterRemindersNormal').classList.remove('hidden');
   state.visitFormDirty=false;
+  // PV-specific: show venesection section
+  const isPV=diagnosisDisplay(p).toLowerCase().includes('polycythaemia');
+  const vw=el('venesectionWrap');if(vw)vw.classList.toggle('hidden',!isPV);
+  // HCT target hint
+  const hctHint=el('hctTargetHint');if(hctHint)hctHint.textContent=isPV?'PV target: ≤0.45':'';
+  // Missed bloods warning
+  const mbw=el('missedBloodsWarning');if(mbw)mbw.classList.toggle('hidden',(p.missedBloodsConsecutive||0)<2);
   renderSparklines(p);renderVisitHistoryPanel(p);renderLetter();
 }
 
@@ -1327,6 +1369,7 @@ function clearVisitFields(){
   el('visitPatientIndicator').textContent='Select a patient from the worklist above';
   el('bloodFieldsWrap').classList.remove('hidden');el('regimenFieldsWrap').classList.remove('hidden');el('questionnaireFieldsWrap').classList.remove('hidden');
   el('letterBodyNormal').classList.remove('hidden');el('letterBodyRebook').classList.add('hidden');el('letterRemindersNormal').classList.remove('hidden');
+  document.title='MPN Virtual Clinic';
   renderSparklines(null);renderVisitHistoryPanel(null);renderLetter();
 }
 
@@ -1347,7 +1390,11 @@ function readVisit(){
     currentHydroxy:p.currentHydroxy||'',doseDecision:decision,regimenAfterReview:regimen,
     doseAlterationWording:composeDoseWording(decision,regimen),
     nextVirtualAppointmentDate:el('visitNextReview').value||'',
-    reviewerSignature:el('visitReviewerSignature').value||'',pdfFilename:fileNameForVisit(p)
+    reviewerSignature:el('visitReviewerSignature').value||'',pdfFilename:fileNameForVisit(p),
+    venesectionPerformed:!!(el('visitVenesection')&&el('visitVenesection').checked),
+    venesectionVolume:(el('visitVenesectionVolume')?el('visitVenesectionVolume').value.trim():''),
+    splenomegaly:(el('visitSplenomegaly')?el('visitSplenomegaly').value:''),
+    spleenSize:(el('visitSpleenSize')?el('visitSpleenSize').value.trim():'')
   };
 }
 
@@ -1381,6 +1428,8 @@ function formatDecisionSummary(decision,regimen){
 function archiveClinic(){
   const completeRows=state.clinic.patients.filter(x=>x.status==='completed');
   if(!completeRows.length){toast('No completed patients to archive.','warning');return;}
+  const total=state.clinic.patients.length;
+  if(!confirm('Archive this clinic session?\n\n'+completeRows.length+' of '+total+' patient'+(total!==1?'s':'')+' completed.\n\nCompleted patients will be moved to Archived Sessions. This cannot be undone.'))return;
   state.archivedClinics.unshift({
     id:uid('clinic'),title:state.clinic.title||'MPN Virtual Clinic',
     date:state.clinic.date||todayISO(),notes:state.clinic.notes||'',
@@ -1533,7 +1582,9 @@ function renderLetter(){
   if(!p){
     ['letterName','letterDiagnosis','letterMutation','letterYear','letterCurrentTreatment','letterThrombosis','letterBloodDate','letterQuestionnaire','letterDose','letterNextReview'].forEach(id=>{const e=el(id);if(e)e.textContent='«'+id.replace('letter','')+'»';});
     ['letterHb','letterWcc','letterNeutrophils','letterPlatelets','letterHct'].forEach(id=>{const e=el(id);if(e)e.textContent='–';});
-    const ls=el('letterSignature');if(ls)ls.textContent='Reviewer signature';return;
+    const ls=el('letterSignature');if(ls)ls.textContent='Reviewer signature';
+    const gc=el('letterGpCc');if(gc)gc.classList.add('hidden');
+    document.title='MPN Virtual Clinic';return;
   }
   const decision=el('visitDoseDecision').value;const regimen=el('visitRegimenAfterReview').value.trim();
   const isNoBloods=(decision==='no_bloods');
@@ -1554,8 +1605,18 @@ function renderLetter(){
     else if(qMode==='Free text')qText=el('visitQuestionnaireText').value.trim()||'None';
     el('letterQuestionnaire').textContent=qText;
     el('letterDose').textContent=composeDoseWording(decision,regimen);el('letterNextReview').textContent=formatDate(el('visitNextReview').value);
+    // Venesection line
+    const vCheck=el('visitVenesection');const lvl=el('letterVenesectionLine');
+    if(lvl){const performed=vCheck&&vCheck.checked;lvl.classList.toggle('hidden',!performed);if(performed){const vol=el('visitVenesectionVolume');const lv=el('letterVenesectionVolume');if(lv)lv.textContent=vol?(vol.value||'–'):'–';}}
+    // Spleen line
+    const spVal=el('visitSplenomegaly')?el('visitSplenomegaly').value:'';const lsl=el('letterSpleenLine');
+    if(lsl){const show=spVal&&spVal!=='Not assessed'&&spVal!=='';lsl.classList.toggle('hidden',!show);if(show){const lsv=el('letterSpleenValue');if(lsv){const sz=el('visitSpleenSize');lsv.textContent=spVal+(sz&&sz.value?' ('+sz.value+' cm)':'');}}}
   }
   el('letterSignature').textContent=el('visitReviewerSignature').value||'Reviewer signature';
+  // GP cc line
+  const gc=el('letterGpCc');if(gc){const gpName=p.gpName||'';const gpP=p.gpPractice||'';gc.classList.toggle('hidden',!gpName);if(gpName){const gn=el('letterGpName');if(gn)gn.textContent=gpName;const gpp=el('letterGpPractice');if(gpp)gpp.textContent=gpP;}}
+  // Print title
+  document.title='MPN Review — '+fullName(p)+' — '+formatDate(el('visitReviewDate').value||todayISO());
 }
 
 /* ===== COPY ===== */
@@ -1713,6 +1774,7 @@ function updateDoseDecisionUI(){
   const decision=el('visitDoseDecision').value;const p=currentPatient();const current=p?(p.currentHydroxy||''):'';
   const bw=el('bloodFieldsWrap');const rfw=el('regimenFieldsWrap');const rlw=el('visitRegimenWrap');const ri=el('visitRegimenAfterReview');const hint=el('regimenHint');const qw=el('questionnaireFieldsWrap');const isNoBloods=(decision==='no_bloods');
   bw.classList.toggle('hidden',isNoBloods);rfw.classList.toggle('hidden',isNoBloods);qw.classList.toggle('hidden',isNoBloods);
+  const rb=el('rebookNotice');if(rb)rb.classList.toggle('hidden',!isNoBloods);
   if(isNoBloods){renderLetter();return;}
   switch(decision){
     case'continue':rlw.classList.remove('hidden');ri.value=current;hint.textContent='Auto-populated with current regimen. Edit if needed.';hint.className='field-hint';break;
@@ -1764,6 +1826,11 @@ safeBind('exportClinicTxtBtn','click',()=>downloadClinicReport('txt'));
 
 ['dbDiagnosis','dbVariant','dbThrombosisType','dbSupplyRoute','visitQuestionnaireMode'].forEach(id=>safeBind(id,'change',updateConditionalFields));
 ['dashboardSearch','databaseSearch','clinicPatientSearch'].forEach(id=>safeBind(id,'input',renderAll));
+safeBind('cancelPatientBtn','click',clearPatientForm);
+safeBind('visitVenesection','change',function(){const vvw=el('venesectionVolumeWrap');if(vvw)vvw.classList.toggle('hidden',!this.checked);renderLetter();});
+safeBind('visitSplenomegaly','change',function(){const ssw=el('spleenSizeWrap');if(ssw)ssw.classList.toggle('hidden',!['Palpable','Enlarged on USS'].includes(this.value));renderLetter();});
+safeBind('visitSpleenSize','input',renderLetter);
+safeBind('visitVenesectionVolume','input',renderLetter);
 
 const visitFields=['visitReviewDate','visitBloodDate','visitHaemoglobin','visitHaematocrit','visitWcc','visitNeutrophils','visitPlatelets','visitRegimenAfterReview','visitNextReview','visitQuestionnaireMode','visitQuestionnaireText','visitReviewerSignature','visitDoseDecision'];
 visitFields.forEach(id=>{safeBind(id,'input',()=>{markVisitFormDirty();renderLetter();flagBloodCounts();});safeBind(id,'change',()=>{markVisitFormDirty();renderLetter();flagBloodCounts();});});
