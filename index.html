@@ -367,6 +367,14 @@
           </div>
           <label>Or search patients<input id="clinicPatientSearch" placeholder="Search by name or hospital number"></label>
           <div id="clinicSearchResults"></div>
+          <hr style="margin:12px 0;border:none;border-top:1px solid var(--border);">
+          <div style="font-size:13px;font-weight:600;color:var(--text-label);margin-bottom:6px;">Import clinic list from CSV</div>
+          <label>Clinic list CSV<input id="clinicImportFile" type="file" accept=".csv"></label>
+          <div class="toolbar" style="margin-top:6px;">
+            <button class="btn soft" id="importClinicListBtn">Import clinic list</button>
+            <button class="btn" id="downloadClinicTemplateBtn">⬇ Download template</button>
+          </div>
+          <div class="field-hint" style="margin-top:4px;">CSV must include: Hospital Number, Patient Name (optional). One patient per row.</div>
         </div>
       </div>
 
@@ -459,11 +467,6 @@
                     <label>Volume (ml)<input id="visitVenesectionVolume" type="number" placeholder="e.g. 450" style="width:140px;"></label>
                   </div>
                 </div>
-                <!-- Splenomegaly -->
-                <div style="margin-top:10px;">
-                  <label>Spleen assessment<select id="visitSplenomegaly"><option value="">Not assessed</option><option>Absent</option><option>Palpable</option><option>Enlarged on USS</option></select></label>
-                  <label id="spleenSizeWrap" class="hidden">Spleen size (cm)<input id="visitSpleenSize" type="number" step="0.1" placeholder="e.g. 18"></label>
-                </div>
               </div>
               <div id="regimenFieldsWrap">
                 <div style="margin-bottom:12px;">
@@ -537,7 +540,6 @@
                 </table>
                 <p><strong>Questionnaire (MPN-10 score and further information):</strong><br><span id="letterQuestionnaire">None</span></p>
                 <p id="letterVenesectionLine" class="hidden">A venesection of <span id="letterVenesectionVolume"></span> ml was performed at this appointment.</p>
-                <p id="letterSpleenLine" class="hidden">Spleen: <span id="letterSpleenValue"></span>.</p>
                 <p><strong>Based on these results, you are advised to:</strong><br><span id="letterDose">«Advice»</span></p>
                 <p>With this letter, you will find:</p>
                 <ul>
@@ -567,7 +569,6 @@
               </div>
               <p>Yours sincerely,</p>
               <div id="letterSignature" style="font-weight:600;">Reviewer signature</div>
-              <div id="letterGpCc" class="hidden" style="margin-top:12px;font-size:11px;color:#666;border-top:1px solid #e2e8f0;padding-top:6px;">cc: <span id="letterGpName"></span>, <span id="letterGpPractice"></span></div>
             </div>
           </div>
         </div>
@@ -633,11 +634,6 @@
           </div>
           <label id="dbSupplyOtherWrap" class="hidden">Other supply route<input id="dbSupplyOther"></label>
           <label>Current hydroxycarbamide regimen<textarea id="dbCurrentHydroxy" placeholder="e.g. Hydroxycarbamide 500mg (1 capsule) once daily" style="min-height:50px;"></textarea></label>
-          <div class="grid2">
-            <label>GP name<input id="dbGpName" placeholder="e.g. Dr Sarah Jones"></label>
-            <label>GP practice<input id="dbGpPractice" placeholder="e.g. Cwmbran Medical Centre"></label>
-          </div>
-          <label>Contact phone number<input id="dbPhone" type="tel" placeholder="e.g. 01234 567890"></label>
           <!-- Regimen history collapsible -->
           <details class="regimen-history-wrap" id="regimenHistoryDetails" style="display:none;">
             <summary>Regimen history <span id="regimenHistoryCount" class="small"></span></summary>
@@ -652,7 +648,10 @@
           <div class="card">
             <div class="card-header"><h3>Import patients</h3></div>
             <label>Import CSV file<input id="importFile" type="file" accept=".csv"></label>
-            <button class="btn soft" id="importPatientsBtn">Import CSV</button>
+            <div class="toolbar" style="margin-top:6px;">
+              <button class="btn soft" id="importPatientsBtn">Import CSV</button>
+              <button class="btn" id="downloadPatientTemplateBtn">⬇ Download template</button>
+            </div>
             <div class="field-hint" style="margin-top:6px;">Expected columns: Name, Hospital Number, Diagnosis, Year of Diagnosis, Driver mutation, Current Hydroxycarbamide Dosing Regime, Antiplatelet/anticoagulant, Antiplatelet/anticoagulant dose, Supply route.</div>
           </div>
           <div class="card">
@@ -872,9 +871,9 @@ function applyLoadedData(parsed){
 }
 
 function migratePatient(p){
-  return Object.assign({regimenHistory:[],hcActive:true,missedBloods:0,missedBloodsConsecutive:0,gpName:'',gpPractice:'',phone:''},p);
+  return Object.assign({regimenHistory:[],hcActive:true,missedBloods:0,missedBloodsConsecutive:0},p);
 }
-function migrateVisit(v){return Object.assign({alertsTriggered:[],doseAtVisit:'',mpn10:null,venesectionPerformed:false,venesectionVolume:'',splenomegaly:'',spleenSize:''},v);}
+function migrateVisit(v){return Object.assign({alertsTriggered:[],doseAtVisit:'',mpn10:null,venesectionPerformed:false,venesectionVolume:''},v);}
 
 function startChangeWatcher(){
   if(state._changeWatcher)clearInterval(state._changeWatcher);
@@ -1196,7 +1195,7 @@ function updateClinicProgress(){
 /* ===== PATIENT CRUD ===== */
 function clearPatientForm(){
   state.editingPatientId=null;el('dbFormTitle').textContent='Add patient';
-  ['dbHospitalNumber','dbFirstName','dbLastName','dbNhsNumber','dbDiagnosisOther','dbVariantOther','dbThrombosisOther','dbThrombosisDose','dbSupplyOther','dbCurrentHydroxy','dbGpName','dbGpPractice','dbPhone'].forEach(id=>{const e=el(id);if(e)e.value='';});
+  ['dbHospitalNumber','dbFirstName','dbLastName','dbNhsNumber','dbDiagnosisOther','dbVariantOther','dbThrombosisOther','dbThrombosisDose','dbSupplyOther','dbCurrentHydroxy'].forEach(id=>{const e=el(id);if(e)e.value='';});
   el('dbDob').value='';el('dbYearDiagnosis').value='';
   el('dbDiagnosis').value='Essential thrombocythaemia';el('dbVariant').value='JAK2';
   el('dbThrombosisType').value='Aspirin';el('dbSupplyRoute').value='Repeat prescription';
@@ -1214,14 +1213,11 @@ function savePatient(){
     thrombosisType:el('dbThrombosisType').value,thrombosisOther:el('dbThrombosisOther').value.trim(),
     thrombosisDose:el('dbThrombosisDose').value.trim(),supplyRoute:el('dbSupplyRoute').value,supplyOther:el('dbSupplyOther').value.trim(),
     currentHydroxy:el('dbCurrentHydroxy').value.trim(),
-    gpName:(el('dbGpName')?el('dbGpName').value.trim():''),
-    gpPractice:(el('dbGpPractice')?el('dbGpPractice').value.trim():''),
-    phone:(el('dbPhone')?el('dbPhone').value.trim():''),
     regimenHistory:[],hcActive:true,missedBloods:0,missedBloodsConsecutive:0
   };
   // Preserve regimenHistory and counters if editing existing
   const existing=state.patients.find(p=>p.id===patient.id||p.hospitalNumber===patient.hospitalNumber);
-  if(existing){patient.regimenHistory=existing.regimenHistory||[];patient.missedBloods=existing.missedBloods||0;patient.missedBloodsConsecutive=existing.missedBloodsConsecutive||0;patient.hcActive=existing.hcActive!==false;if(!patient.gpName)patient.gpName=existing.gpName||'';if(!patient.gpPractice)patient.gpPractice=existing.gpPractice||'';if(!patient.phone)patient.phone=existing.phone||'';}
+  if(existing){patient.regimenHistory=existing.regimenHistory||[];patient.missedBloods=existing.missedBloods||0;patient.missedBloodsConsecutive=existing.missedBloodsConsecutive||0;patient.hcActive=existing.hcActive!==false;}
   let found=false;
   for(let i=0;i<state.patients.length;i++){if(state.patients[i].id===patient.id||state.patients[i].hospitalNumber===patient.hospitalNumber){state.patients[i]=patient;found=true;break;}}
   if(!found)state.patients.push(patient);
@@ -1240,8 +1236,6 @@ function editPatient(id){
   el('dbThrombosisType').value=p.thrombosisType||'Aspirin';el('dbThrombosisOther').value=p.thrombosisOther||'';
   el('dbThrombosisDose').value=p.thrombosisDose||'';el('dbSupplyRoute').value=p.supplyRoute||'Repeat prescription';
   el('dbSupplyOther').value=p.supplyOther||'';el('dbCurrentHydroxy').value=p.currentHydroxy||'';
-  const gn=el('dbGpName');if(gn)gn.value=p.gpName||'';const gp=el('dbGpPractice');if(gp)gp.value=p.gpPractice||'';
-  const ph=el('dbPhone');if(ph)ph.value=p.phone||'';
   renderRegimenHistoryPanel(p);updateConditionalFields();switchView('database');
 }
 
@@ -1299,7 +1293,7 @@ function renderClinicTable(){
     const missedBadge=(p.missedBloodsConsecutive||0)>=2?'<span class="missed-bloods-badge">⚠ Missed ×'+p.missedBloodsConsecutive+'</span>':'';
     return'<tr'+(isSelected?' style="background:var(--blue-light);"':'')+'>'+
       '<td>'+(i+1)+'</td>'+
-      '<td><strong>'+fullName(p)+'</strong>'+missedBadge+(p.phone?'<br><span class="small" style="color:var(--text-muted);">📞 '+p.phone+'</span>':'')+'</td>'+
+      '<td><strong>'+fullName(p)+'</strong>'+missedBadge+'</td>'+
       '<td>'+p.hospitalNumber+'</td>'+
       '<td>'+diagnosisDisplay(p)+'</td>'+
       '<td style="font-size:12px;">'+((p.currentHydroxy||'').substring(0,60)||(entry.status==='completed'?'See visit':''))+'</td>'+
@@ -1322,7 +1316,6 @@ function resetVisitFormFields(){
   const mpnWrap=el('visitMpn10Wrap');if(mpnWrap)mpnWrap.innerHTML='';
   const alertsPanel=el('alertsPanel');if(alertsPanel){alertsPanel.innerHTML='';alertsPanel.classList.add('hidden');}
   const vc=el('visitVenesection');if(vc)vc.checked=false;const vvw=el('venesectionVolumeWrap');if(vvw)vvw.classList.add('hidden');const vvol=el('visitVenesectionVolume');if(vvol)vvol.value='';
-  const sp=el('visitSplenomegaly');if(sp)sp.value='';const ssw=el('spleenSizeWrap');if(ssw)ssw.classList.add('hidden');const ss=el('visitSpleenSize');if(ss)ss.value='';
   const vw=el('venesectionWrap');if(vw)vw.classList.add('hidden');const hctHint=el('hctTargetHint');if(hctHint)hctHint.textContent='';
   const mbw=el('missedBloodsWarning');if(mbw)mbw.classList.add('hidden');
   const rb=el('rebookNotice');if(rb)rb.classList.add('hidden');
@@ -1392,9 +1385,7 @@ function readVisit(){
     nextVirtualAppointmentDate:el('visitNextReview').value||'',
     reviewerSignature:el('visitReviewerSignature').value||'',pdfFilename:fileNameForVisit(p),
     venesectionPerformed:!!(el('visitVenesection')&&el('visitVenesection').checked),
-    venesectionVolume:(el('visitVenesectionVolume')?el('visitVenesectionVolume').value.trim():''),
-    splenomegaly:(el('visitSplenomegaly')?el('visitSplenomegaly').value:''),
-    spleenSize:(el('visitSpleenSize')?el('visitSpleenSize').value.trim():'')
+    venesectionVolume:(el('visitVenesectionVolume')?el('visitVenesectionVolume').value.trim():'')
   };
 }
 
@@ -1583,7 +1574,6 @@ function renderLetter(){
     ['letterName','letterDiagnosis','letterMutation','letterYear','letterCurrentTreatment','letterThrombosis','letterBloodDate','letterQuestionnaire','letterDose','letterNextReview'].forEach(id=>{const e=el(id);if(e)e.textContent='«'+id.replace('letter','')+'»';});
     ['letterHb','letterWcc','letterNeutrophils','letterPlatelets','letterHct'].forEach(id=>{const e=el(id);if(e)e.textContent='–';});
     const ls=el('letterSignature');if(ls)ls.textContent='Reviewer signature';
-    const gc=el('letterGpCc');if(gc)gc.classList.add('hidden');
     document.title='MPN Virtual Clinic';return;
   }
   const decision=el('visitDoseDecision').value;const regimen=el('visitRegimenAfterReview').value.trim();
@@ -1608,13 +1598,8 @@ function renderLetter(){
     // Venesection line
     const vCheck=el('visitVenesection');const lvl=el('letterVenesectionLine');
     if(lvl){const performed=vCheck&&vCheck.checked;lvl.classList.toggle('hidden',!performed);if(performed){const vol=el('visitVenesectionVolume');const lv=el('letterVenesectionVolume');if(lv)lv.textContent=vol?(vol.value||'–'):'–';}}
-    // Spleen line
-    const spVal=el('visitSplenomegaly')?el('visitSplenomegaly').value:'';const lsl=el('letterSpleenLine');
-    if(lsl){const show=spVal&&spVal!=='Not assessed'&&spVal!=='';lsl.classList.toggle('hidden',!show);if(show){const lsv=el('letterSpleenValue');if(lsv){const sz=el('visitSpleenSize');lsv.textContent=spVal+(sz&&sz.value?' ('+sz.value+' cm)':'');}}}
   }
   el('letterSignature').textContent=el('visitReviewerSignature').value||'Reviewer signature';
-  // GP cc line
-  const gc=el('letterGpCc');if(gc){const gpName=p.gpName||'';const gpP=p.gpPractice||'';gc.classList.toggle('hidden',!gpName);if(gpName){const gn=el('letterGpName');if(gn)gn.textContent=gpName;const gpp=el('letterGpPractice');if(gpp)gpp.textContent=gpP;}}
   // Print title
   document.title='MPN Review — '+fullName(p)+' — '+formatDate(el('visitReviewDate').value||todayISO());
 }
@@ -1736,6 +1721,49 @@ function importPatients(){
   reader.readAsText(file);
 }
 
+function downloadPatientTemplate(){
+  const header='Name,Hospital Number,Diagnosis,Year of Diagnosis,Driver mutation,Current Hydroxycarbamide Dosing Regime,Antiplatelet/anticoagulant,Antiplatelet/anticoagulant dose,Supply route';
+  const example='Jane Smith,123456,Polycythaemia vera,2018,JAK2,Hydroxycarbamide 500mg (1 capsule) once daily,Aspirin,75mg once daily,Repeat prescription';
+  downloadText(header+'\n'+example,'mpn_patient_import_template.csv','text/csv');
+}
+
+function downloadClinicTemplate(){
+  const header='Hospital Number,Patient Name';
+  const example='123456,Jane Smith';
+  downloadText(header+'\n'+example,'mpn_clinic_list_template.csv','text/csv');
+}
+
+function importClinicList(){
+  const file=el('clinicImportFile').files&&el('clinicImportFile').files[0];
+  if(!file){toast('Choose a CSV file first.','warning');return;}
+  const reader=new FileReader();
+  reader.onload=function(evt){
+    const text=String(evt.target.result||'');
+    const lines=text.split(/\r?\n/).filter(l=>l.trim());
+    if(lines.length<2){toast('File appears empty.','warning');return;}
+    const headers=parseCsvLine(lines[0]).map(h=>h.trim().toLowerCase());
+    const hospIdx=headers.indexOf('hospital number');
+    if(hospIdx<0){toast('Column "Hospital Number" not found in file.','error');return;}
+    let added=0,notFound=0,already=0;
+    for(let i=1;i<lines.length;i++){
+      const cols=parseCsvLine(lines[i]);
+      const hospNum=(cols[hospIdx]||'').trim();
+      if(!hospNum)continue;
+      const patient=state.patients.find(p=>p.hospitalNumber===hospNum);
+      if(!patient){notFound++;continue;}
+      if(state.clinic.patients.some(x=>x.patientId===patient.id)){already++;continue;}
+      state.clinic.patients.push({patientId:patient.id,status:'not started',visitId:''});
+      added++;
+    }
+    markDirty();saveToFile(true);renderAll();
+    let msg=added+' patient'+(added!==1?'s':'')+' added to clinic.';
+    if(notFound)msg+=' '+notFound+' hospital number'+(notFound!==1?'s':'')+' not found.';
+    if(already)msg+=' '+already+' already in clinic.';
+    toast(msg,added>0?'success':'warning');
+  };
+  reader.readAsText(file);
+}
+
 /* ===== DEMO DATA ===== */
 function seedDemo(){
   state.patients=[
@@ -1818,6 +1846,9 @@ safeBind('copyLetterInlineBtn','click',copyLetterText);
 safeBind('printPdfBtn','click',()=>window.print());
 safeBind('applySettingsBtn','click',()=>{applySettings();renderLetter();toast('Header updated.','success');});
 safeBind('importPatientsBtn','click',importPatients);
+safeBind('downloadPatientTemplateBtn','click',downloadPatientTemplate);
+safeBind('downloadClinicTemplateBtn','click',downloadClinicTemplate);
+safeBind('importClinicListBtn','click',importClinicList);
 safeBind('addSignatureBtn','click',function(){const name=el('newSignatureName').value.trim();if(!name){toast('Enter a name.','warning');return;}if(state.signatures.includes(name)){toast('Signature already exists.','warning');return;}state.signatures.push(name);el('newSignatureName').value='';markDirty();saveToFile(true);renderSignatures();toast('Signature added.','success');});
 safeBind('selectFolderBtn','click',selectOneDriveFolder);
 safeBind('syncNowBtn','click',()=>saveToFile(true).then(()=>toast('Saved to file.','success')));
@@ -1828,8 +1859,6 @@ safeBind('exportClinicTxtBtn','click',()=>downloadClinicReport('txt'));
 ['dashboardSearch','databaseSearch','clinicPatientSearch'].forEach(id=>safeBind(id,'input',renderAll));
 safeBind('cancelPatientBtn','click',clearPatientForm);
 safeBind('visitVenesection','change',function(){const vvw=el('venesectionVolumeWrap');if(vvw)vvw.classList.toggle('hidden',!this.checked);renderLetter();});
-safeBind('visitSplenomegaly','change',function(){const ssw=el('spleenSizeWrap');if(ssw)ssw.classList.toggle('hidden',!['Palpable','Enlarged on USS'].includes(this.value));renderLetter();});
-safeBind('visitSpleenSize','input',renderLetter);
 safeBind('visitVenesectionVolume','input',renderLetter);
 
 const visitFields=['visitReviewDate','visitBloodDate','visitHaemoglobin','visitHaematocrit','visitWcc','visitNeutrophils','visitPlatelets','visitRegimenAfterReview','visitNextReview','visitQuestionnaireMode','visitQuestionnaireText','visitReviewerSignature','visitDoseDecision'];
