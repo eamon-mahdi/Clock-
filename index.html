@@ -268,6 +268,11 @@
   <button class="btn sm" onclick="hideReloadBanner()">Keep working</button>
 </div>
 
+<!-- Local-only banner (shown until OneDrive folder is selected) -->
+<div id="localOnlyBanner" class="reload-banner" style="background:var(--warning-bg,#fff3cd);border-color:var(--warning,#e6a817);color:#856404;">
+  ⚠ Data is saved to <strong>this browser only</strong>. To share with colleagues, <button class="btn soft sm" onclick="switchView('settings')" style="margin:0 4px;">set up OneDrive sync in Settings</button>
+</div>
+
 <div class="app">
   <aside class="sidebar">
     <div class="sidebar-brand">
@@ -884,6 +889,7 @@ function updateSyncStatusUI(s,errMsg){
 
 function renderSyncSettings(){
   const n=el('syncFolderName');if(n)n.textContent=state.folderName||'No folder selected';
+  const b=el('localOnlyBanner');if(b)b.classList.toggle('hidden',!!state.folderName);
 }
 
 /* ===== MARK DIRTY & SAVE ===== */
@@ -895,7 +901,7 @@ function markVisitFormDirty(){state.visitFormDirty=true;}
 
 /* ===== SAVE INDICATOR ===== */
 function renderSaveIndicator(){
-  const ind=el('saveIndicator');
+  const ind=el('saveIndicator');if(!ind)return;
   if(state.dirty){ind.innerHTML='<span class="dot unsaved"></span> Unsaved changes';ind.className='save-indicator unsaved';}
   else{const t=state.lastSaved?new Date(state.lastSaved).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):'';ind.innerHTML='<span class="dot saved"></span> Saved'+(t?' at '+t:'');ind.className='save-indicator';}
 }
@@ -948,6 +954,7 @@ function flagBloodCounts(){
 
 function setFlag(flagId,inputEl,val,low,high,lowMsg,highMsg){
   const f=el(flagId);if(!f)return;
+  if(!inputEl)return;
   inputEl.classList.remove('warn','alert');
   if(isNaN(val)||val===''){f.textContent='';return;}
   if(val<low){f.textContent='⚠ '+lowMsg+' (<'+low+')';f.className=val<low*0.8?'field-alert':'field-warning';inputEl.classList.add(val<low*0.8?'alert':'warn');}
@@ -1058,12 +1065,12 @@ document.querySelectorAll('.nav-btn').forEach(btn=>btn.addEventListener('click',
 
 /* ===== CONDITIONAL FIELDS ===== */
 function updateConditionalFields(){
-  el('dbDiagnosisOtherWrap').classList.toggle('hidden',el('dbDiagnosis').value!=='Other');
-  el('dbVariantOtherWrap').classList.toggle('hidden',el('dbVariant').value!=='Other');
-  el('dbThrombosisOtherWrap').classList.toggle('hidden',el('dbThrombosisType').value!=='Other');
-  el('dbSupplyOtherWrap').classList.toggle('hidden',el('dbSupplyRoute').value!=='Other');
-  const qMode=el('visitQuestionnaireMode').value;
-  el('visitQuestionnaireWrap').classList.toggle('hidden',qMode!=='Free text');
+  const dbDx=el('dbDiagnosis');const dbDxW=el('dbDiagnosisOtherWrap');if(dbDx&&dbDxW)dbDxW.classList.toggle('hidden',dbDx.value!=='Other');
+  const dbVar=el('dbVariant');const dbVarW=el('dbVariantOtherWrap');if(dbVar&&dbVarW)dbVarW.classList.toggle('hidden',dbVar.value!=='Other');
+  const dbThr=el('dbThrombosisType');const dbThrW=el('dbThrombosisOtherWrap');if(dbThr&&dbThrW)dbThrW.classList.toggle('hidden',dbThr.value!=='Other');
+  const dbSup=el('dbSupplyRoute');const dbSupW=el('dbSupplyOtherWrap');if(dbSup&&dbSupW)dbSupW.classList.toggle('hidden',dbSup.value!=='Other');
+  const qModeEl=el('visitQuestionnaireMode');const qMode=qModeEl?qModeEl.value:'';
+  const qWrap=el('visitQuestionnaireWrap');if(qWrap)qWrap.classList.toggle('hidden',qMode!=='Free text');
   const mpnWrap=el('visitMpn10Wrap');
   if(mpnWrap){
     mpnWrap.classList.toggle('hidden',qMode!=='MPN-10');
@@ -1078,8 +1085,8 @@ function applySettings(){
 
 /* ===== SIGNATURES ===== */
 function renderSignatures(){
-  el('signatureList').innerHTML=state.signatures.map((s,i)=>'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;"><span style="flex:1;font-size:14px;">'+s+'</span><button class="btn sm danger" onclick="removeSignature('+i+')">Remove</button></div>').join('');
-  const sel=el('visitReviewerSignature');const cur=sel.value;
+  const sl=el('signatureList');if(sl)sl.innerHTML=state.signatures.map((s,i)=>'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;"><span style="flex:1;font-size:14px;">'+s+'</span><button class="btn sm danger" onclick="removeSignature('+i+')">Remove</button></div>').join('');
+  const sel=el('visitReviewerSignature');if(!sel)return;const cur=sel.value;
   sel.innerHTML='<option value="">Select reviewer...</option>'+state.signatures.map(s=>'<option'+(s===cur?' selected':'')+'>'+s+'</option>').join('');
 }
 window.removeSignature=function(i){state.signatures.splice(i,1);markDirty();saveToFile(true);renderSignatures();};
