@@ -24,27 +24,28 @@ ONCALL = {"NIGHTS", "LONG DAY", "TWILIGHT", "WARD COVER", "OFF PRE ON-CALL", "EA
 LEAVE_LABELS = {"AL": "ANNUAL LEAVE", "SL": "STUDY LEAVE", "SICK": "SICK LEAVE", "AL?": "ANNUAL LEAVE (PENDING)"}
 
 START = date(2026, 11, 16)
-RESIDENTS = [("F1", "E. Ward"), ("F2", "P. Nair"), ("F2 (on calls NHH)", "T. Hughes"),
+RESIDENTS = [("F1", "E. Ward"), ("F2", "P. Nair"), ("F2 (left 06/11)", "J. Reid"), ("F2 (on calls NHH)", "T. Hughes"),
              ("IMT2", "S. Malik"), ("IMT3", "B. Carter"), ("JCF", "L. Osei")]
 REGISTRARS = ["Omar", "Hannah", "Daniel", "Zara", "Meera", "Yusuf"]
 RES = [
     "GUH|GUH|OFF|GUH|GUH|-|-|GUH|AL|AL|AL|AL|-|-",
     "RGH|NHH|NHH|NHH|NIGHTS|NIGHTS|NIGHTS|OFF|OFF|NHH|NHH|NHH|-|-",
+    "X|X|X|X|X|X|X|X|X|X|X|X|X|X",
     "TWILIGHT|TWILIGHT|SL|TWILIGHT|OFF|-|-|GUH|GUH|GUH|GUH|OFF PRE ON-CALL|LONG DAY|LONG DAY",
     "GUH|RGH|RGH|RGH|RGH|-|-|RGH|RGH|WARD COVER|RGH|RGH|-|-",
     "GUH|GUH LAB|GUH|RGH DAY UNIT|GUH|-|-|GUH|NHH|RGH|RGH AM; PM ANNUAL LEAVE|GUH|-|-",
     "RGH|RGH|RGH|LONG DAY|LONG DAY|LONG DAY|LONG DAY|OFF|OFF|GUH|GUH|RGH|-|-",
 ]
 REG = [
-    "GUH|GUH|GUH|GUH|GUH|-|-|RGH|RGH|RGH|RGH|RGH|-|-",
-    "RGH|RGH|AL|AL|AL|-|-|GUH|GUH|GUH|SpR TRAINING DAY|GUH|-|-",
-    "NHH|NHH|NHH|NHH|NHH|-|-|NHH - DAY UNIT|NHH|NHH|NHH|OFF|-|-",
-    "RGH - DAY UNIT|RGH|RGH|RGH|RGH|-|-|AL|AL|AL|AL|AL|-|-",
+    "GUH|GUH|GUH|GUH|GUH|-|-|RGH - DAY UNIT|RGH - DAY UNIT|RGH - DAY UNIT|RGH - DAY UNIT|RGH - DAY UNIT|-|-",
+    "RGH - DAY UNIT|RGH - DAY UNIT|AL|AL|AL|-|-|GUH|GUH|GUH|SpR TRAINING DAY|GUH|-|-",
+    "GUH LAB|NHH - DAY UNIT|NHH - DAY UNIT|NHH - DAY UNIT|NHH - DAY UNIT|-|-|OFF|NHH - DAY UNIT|NHH - DAY UNIT|NHH - DAY UNIT|OFF|-|-",
+    "RGH|RGH|RGH - DAY UNIT|RGH - DAY UNIT|RGH - DAY UNIT|-|-|AL|AL|AL|AL|AL|-|-",
     "GUH LAB|GUH LAB|GUH|GUH|OFF|-|-|GUH LAB|GUH|OFF|AL?|GUH|-|-",
     "RGH MDCU|RGH|RGH|RGH|RGH|-|-|RGH|RGH MDCU|RGH|OFF|SICK|-|-",
 ]
 CONSULTANT_OF_WEEK = {0: "Dr Fraser", 1: "Dr Lin"}
-RESTRICTED = {0: "AVOID", 1: "AVOID", 7: "NO AL"}
+RESTRICTED = {0: "NO AL", 1: "NO AL", 4: "AVOID"}
 
 
 def site(code):
@@ -58,6 +59,11 @@ def style_cell(cell, code, weekend):
     cell.border = BORDER
     cell.alignment = CENTRE
     cell.font = Font(name="Calibri", size=10)
+    if code == "X":
+        cell.value = "NOT IN POST"
+        cell.fill = PatternFill("solid", fgColor="595959")
+        cell.font = Font(name="Calibri", size=9, color="FFFFFF")
+        return
     if code == "-":
         cell.value = None
         if weekend:
@@ -77,27 +83,43 @@ def style_cell(cell, code, weekend):
         cell.fill = PatternFill("solid", fgColor=FILL["LEAVE"])
 
 
-def cover_text(codes, dow, residents):
-    """Residents need GUH and RGH daily and NHH Tue-Fri; registrars must have GUH."""
+def resident_cover(codes, dow):
+    """Residents: 1 at GUH and RGH Mon-Fri, 1 at NHH Tue-Fri."""
     parts = []
     for s in ("GUH", "RGH", "NHH"):
-        if residents and s == "NHH" and dow == 0:
+        if s == "NHH" and dow == 0:
             parts.append("NHH n/a")
-        elif any(site(c) == s for c in codes):
-            parts.append(f"{s} OK")
-        elif "AL?" in codes and (s == "GUH" or residents):
-            parts.append(f"{s} AT RISK (pending leave)")
-        elif not residents and s != "GUH":
-            parts.append(f"{s} none (ideal only)")
         else:
-            parts.append(f"{s} GAP")
+            parts.append(f"{s} {'OK' if any(site(c) == s for c in codes) else 'GAP'}")
+    return " · ".join(parts)
+
+
+def middle_grade_cover(codes, res_codes, dow):
+    """Middle grade: GUH ward mandatory; RGH day unit Mon-Fri and NHH day unit Tue-Fri must be covered
+    (by middle grade, or by a resident as an exception)."""
+    if any(c == "GUH" for c in codes):
+        guh = "GUH OK"
+    elif "AL?" in codes:
+        guh = "GUH AT RISK (leave requested)"
+    else:
+        guh = "GUH GAP"
+    parts = [guh]
+    for s, open_days in (("RGH", range(0, 5)), ("NHH", range(1, 5))):
+        if dow not in open_days:
+            parts.append(f"{s} DU closed")
+        elif any(site(c) == s and "LAB" not in c for c in codes):
+            parts.append(f"{s} DU OK")
+        elif any(site(c) == s for c in res_codes):
+            parts.append(f"{s} DU resident only")
+        else:
+            parts.append(f"{s} DU GAP")
     return " · ".join(parts)
 
 
 def build_roster(ws):
     headers = ["Date", "Day", "Consultant", "Leave restriction"]
-    headers += [f"{g}\n{n}" for g, n in RESIDENTS] + [f"Registrar\n{n}" for n in REGISTRARS]
-    headers += ["Resident cover", "Registrar cover"]
+    headers += [f"{g}\n{n}" for g, n in RESIDENTS] + [f"Middle grade\n{n}" for n in REGISTRARS]
+    headers += ["Resident cover", "Middle grade / day units"]
     ws.append(headers)
     for col, _ in enumerate(headers, start=1):
         c = ws.cell(row=1, column=col)
@@ -131,8 +153,9 @@ def build_roster(ws):
             ws.cell(row=row, column=1).font = Font(size=10, color="FFFFFF", bold=True)
         for j, col_codes in enumerate(res + reg):
             style_cell(ws.cell(row=row, column=5 + j), col_codes[i], weekend)
-        res_cov = ws.cell(row=row, column=17)
-        reg_cov = ws.cell(row=row, column=18)
+        cover_col = 5 + len(RESIDENTS) + len(REGISTRARS)
+        res_cov = ws.cell(row=row, column=cover_col)
+        reg_cov = ws.cell(row=row, column=cover_col + 1)
         for c in (res_cov, reg_cov):
             c.border = BORDER
             c.alignment = CENTRE
@@ -140,15 +163,15 @@ def build_roster(ws):
             if weekend:
                 c.fill = PatternFill("solid", fgColor=FILL["WEEKEND"])
         if not weekend:
-            res_cov.value = cover_text([r[i] for r in res], dow, residents=True)
-            reg_cov.value = cover_text([r[i] for r in reg], dow, residents=False)
+            res_cov.value = resident_cover([r[i] for r in res], dow)
+            reg_cov.value = middle_grade_cover([r[i] for r in reg], [r[i] for r in res], dow)
             if "GAP" in (res_cov.value or ""):
                 res_cov.font = Font(size=9, bold=True, color="C00000")
-            if "GUH GAP" in reg_cov.value or "AT RISK" in reg_cov.value:
+            if "GAP" in reg_cov.value or "AT RISK" in reg_cov.value:
                 reg_cov.font = Font(size=9, bold=True, color="C00000")
         ws.row_dimensions[row].height = 30
 
-    widths = [12, 11, 14, 11] + [14] * 12 + [26, 26]
+    widths = [12, 11, 14, 11] + [14] * (len(RESIDENTS) + len(REGISTRARS)) + [26, 40]
     for idx, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(idx)].width = w
     ws.freeze_panes = "E2"
