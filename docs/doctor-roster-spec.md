@@ -1,7 +1,92 @@
-# Doctor Roster: Research & Specification (v0.1)
+# Doctor Roster: Research & Specification (v0.2, Haematology)
 
 **Status:** draft for review. No code yet.
 **Goal:** replace the Excel rota plus the Power Automate leave form with one web-hosted system. Leave, swaps and redeployments should update the live rota automatically.
+
+---
+
+## 0. Haematology: current setup and what changes (v0.2)
+
+> This section is the most current and overrides the generic parts of §2–§7 where they disagree.
+
+### What exists today
+- **Roster (Excel):** dates run down the rows and doctors across the columns.
+  - Columns: Date, Day, Consultant (of the week), then resident doctors (F1, F2, F2 on calls NHH, IMT2, IMT3, JCF), then registrars (middle grade).
+  - Each cell holds free text, colour-coded:
+    - **GUH** red, **RGH** blue, **NHH** green
+    - sub-units: *day unit*, *LAB*, *MDCU*
+    - leave and off in yellow: ANNUAL / STUDY / SICK LEAVE, OFF, day off in lieu, SpR training day
+    - general medical on-call shifts: LONG DAY, NIGHTS, WARD COVER, (EARLY) TWILIGHT, W/E SD, FLEXIBLE W/C, OFF pre on-call
+    - half days, e.g. "RGH AM; PM Annual Leave"
+  - Weekends are blacked out except for on-call.
+  - Red and purple date cells mark days when leave is discouraged because the department is short-staffed.
+- **On-call shifts** come from the **trust medical rota** and are copied in by hand.
+- **Leave request (MS Forms + Power Automate):** fields are:
+  1. date of request
+  2. requestor (free text)
+  3. NHS email
+  4. leave type (Annual / Study / Sick / Other)
+  5. start date
+  6. end date
+  7. total days (typed by the doctor)
+  8. doctor covering the day unit (free text)
+  9. doctor covering GUH (free text)
+  10. remaining AL/SL (typed by the doctor)
+  11. notes
+
+  The output is a summary with an **empty approval section** (name, date, signature), which is emailed around. Nothing updates the roster.
+- **Consultants** are not on the roster apart from the consultant-of-the-week column.
+
+### Problems this causes
+Everything is retyped by hand. Names, day counts and balances are self-reported and unchecked. Approval isn't recorded. The roster doesn't change when leave is approved. Cover is arranged by free text. There's no automatic check that the sites are staffed.
+
+### Staffing rules (configurable in Settings)
+| Group | GUH | RGH | NHH |
+|---|---|---|---|
+| **Resident doctors** (F1/F2/IMT/JCF, interchangeable) | 1 every weekday | 1 every weekday | 1 **Tue–Fri** (not Mon) |
+| **Registrars** (middle grade) | **1 mandatory** every weekday | 1 ideally | 1 ideally |
+
+The cover check shows ✓ / ✕ for the mandatory posts, "–" (amber) for the ideal posts, and "at risk" when a *pending* request would create a gap.
+
+### Decisions from you
+| Topic | Decision |
+|---|---|
+| On-call shifts | Imported from the **trust medical rota** (CSV/Excel upload each rotation). They're shown with a ⇣ marker and locked against accidental edits |
+| Coloured dates | Become **leave-restricted dates**: "NO AL" (red: requests are flagged to the rota lead) and "AVOID" (purple: warning to the requester) |
+| Consultants | Their own **Consultants tab** in the same layout (site, clinic, MDT, LAB, SPA, on call, leave). Consultant of the week still appears on the residents' tab |
+| Excel | **The website is the master copy.** After every change it rewrites an Excel file in SharePoint/OneDrive in today's layout and colours, plus a *Leave log* sheet. The file is read-only, and edits are made on the website |
+| Approver | **Rota lead consultant.** For the rota lead's own leave, the clinical director (to confirm) |
+| Cover | **The system suggests and the doctor confirms.** It lists colleagues who can move without breaking a mandatory post. When leave is approved, the covering doctor's cell moves automatically |
+| Allowances | **NHS standard defaults, editable in Settings** (see below) |
+
+### Default allowances (editable)
+These are starting values to check with medical staffing, not confirmed figures.
+
+| Grade | Annual leave / year | Study leave |
+|---|---|---|
+| Resident doctors (2016 TCS) | 27 days (32 after 5 years' NHS service), pro-rata to rotation length and LTFT % | 30 days / year. Foundation doctors' study leave follows foundation school rules |
+| Registrars / SAS | 27–32 days depending on contract and service | Per contract |
+| Consultants | 32 days (34 after 7 years as a consultant) | 30 days over 3 years |
+
+Bank holidays are handled separately. "Total days" excludes weekends and bank holidays and supports half days.
+
+### New leave form (replaces MS Forms)
+| Old field | New behaviour |
+|---|---|
+| Date of request, requestor, email | Filled in automatically from the sign-in |
+| Leave type | Annual, study, professional/exam, teaching (not from SL allowance), sick, compassionate, day off in lieu, other |
+| Start / end, total days | Date pickers with AM/PM. **Days calculated automatically** |
+| Remaining AL/SL | **Calculated automatically** from allowances and approved leave |
+| Doctor covering (day unit / GUH) | **Suggested by the system** from the roster for each affected site, then confirmed by the doctor |
+| Approval section | Electronic sign-off by the rota lead (name, role, timestamp). A PDF in the old layout is emailed to the requester, the covering doctor and the rota admin |
+
+### Excel export
+`docs/samples/haematology-roster-export-sample.xlsx` (generated by `tools/sample_excel_export.py`) shows the planned output:
+- a *Residents & Registrars* sheet in your layout, with cover-check columns
+- a *Leave log* sheet listing every request, status, approver and timestamp
+- an *About* sheet
+
+The real system writes it with Microsoft Graph to a SharePoint/OneDrive file after each change. This needs the trust's M365 tenant. As a fallback, the file can be downloaded on demand.
 
 ---
 
