@@ -40,33 +40,78 @@
 ### Problems this causes
 Everything is retyped by hand. Names, day counts and balances are self-reported and unchecked. Approval isn't recorded. The roster doesn't change when leave is approved. Cover is arranged by free text. There's no automatic check that the sites are staffed.
 
-### Staffing rules (configurable in Settings)
-| Group | GUH | RGH | NHH |
-|---|---|---|---|
-| **Resident doctors** (F1/F2/IMT/JCF, interchangeable) | 1 every weekday | 1 every weekday | 1 **Tue–Fri** (not Mon) |
-| **Registrars** (middle grade) | **1 mandatory** every weekday | 1 ideally | 1 ideally |
+### Scope for the first version
+- **Who:** the resident doctors and middle-grade doctors on the current Excel sheet.
+- **Consultants:** their tab is a later phase, because their leave is less critical.
+- **What it is:** a **standalone web app**. It doesn't depend on SharePoint, which you don't have access to.
 
-The cover check shows ✓ / ✕ for the mandatory posts, "–" (amber) for the ideal posts, and "at risk" when a *pending* request would create a gap.
+### Staffing rules (configurable in Settings)
+| Post | Days | Who must cover | If missing |
+|---|---|---|---|
+| **GUH** (inpatient): resident | Mon–Fri | 1 resident (F1/F2/IMT/JCF, interchangeable) | ✕ gap |
+| **GUH** (inpatient): middle grade | Mon–Fri | 1 middle grade, **mandatory** | ✕ gap |
+| **RGH**: resident | Mon–Fri | 1 resident | ✕ gap |
+| **RGH day unit** | Mon–Fri | 1 middle grade expected | A resident only = **amber "exception"**. Nobody = ✕ gap |
+| **NHH**: resident | **Tue–Fri** | 1 resident | ✕ gap |
+| **NHH day unit** | **Tue–Fri** | 1 middle grade expected | A resident only = amber "exception". Nobody = ✕ gap |
+
+**Assumptions to confirm:**
+- A middle grade marked RGH, "RGH – day unit" or RGH MDCU counts as covering the RGH day unit (and the same for NHH).
+- "LAB" (e.g. GUH LAB) does **not** count as ward or day-unit cover.
+
+Which codes count for which post will be a setting.
+
+A *requested but not yet authorised* leave day shows as "at risk" if authorising it would open a gap.
 
 ### Decisions from you
 | Topic | Decision |
 |---|---|
-| On-call shifts | Imported from the **trust medical rota** (CSV/Excel upload each rotation). They're shown with a ⇣ marker and locked against accidental edits |
-| Coloured dates | Become **leave-restricted dates**: "NO AL" (red: requests are flagged to the rota lead) and "AVOID" (purple: warning to the requester) |
-| Consultants | Their own **Consultants tab** in the same layout (site, clinic, MDT, LAB, SPA, on call, leave). Consultant of the week still appears on the residents' tab |
-| Excel | **The website is the master copy.** After every change it rewrites an Excel file in SharePoint/OneDrive in today's layout and colours, plus a *Leave log* sheet. The file is read-only, and edits are made on the website |
-| Approver | **Rota lead consultant.** For the rota lead's own leave, the clinical director (to confirm) |
-| Cover | **The system suggests and the doctor confirms.** It lists colleagues who can move without breaking a mandatory post. When leave is approved, the covering doctor's cell moves automatically |
-| Allowances | **NHS standard defaults, editable in Settings** (see below) |
+| **Leave authorisation (minimum requirement)** | **No annual leave reaches the roster unless the rota coordinator authorises it.** Doctors can only *request*. Requests show as hatched "AL requested" but the doctor stays rostered. Declining needs a reason. Who holds the rota coordinator role is a setting (it could be the rota lead consultant) |
+| Allowances | **Set per person** by the coordinator: an NHS default pro-rata to time in post, which can be overridden by hand. Every override is logged with a reason |
+| Sickness | **Reported by the doctor**, and the admin/coordinator is notified at once. It shows as "Sick" (no reason) and **never counts against annual leave** |
+| On-call shifts | Imported from the **trust medical rota Excel** (on-calls only). They're shown with ⇣ and locked, and change only by re-import or a logged coordinator override |
+| Regular work pattern | From a **weekly plan**: each doctor's usual site for each weekday, typed once per rotation or uploaded from the weekly plan sheet, with Week A/B patterns allowed. The roster is generated as weekly plan + imported on-calls + authorised leave + one-off changes |
+| Rotations / leavers | Each doctor has in-post dates. Suggested rotation lengths: Foundation 4 months, IMT 6 months, others set by hand. Doctors who leave early show as **"Not in post"** (replacing today's blacked-out columns) and lose access |
+| Coloured dates | Become **leave-restricted dates**: "NO AL" (red, the coordinator must override) and "AVOID" (purple, a warning) |
+| Views | (1) **Roster** in today's Excel layout. (2) **Day by site**: pick a day to see who is at GUH, RGH and NHH, who is on call, on leave, off/sick or not in post. Both have **filters** (everyone / residents / middle grade; highlight GUH / RGH / NHH / leave / on call / off; name search) |
+| Excel | The website is the master copy. An Excel file in today's layout (plus a Leave log sheet) can be **downloaded** at any time, or emailed weekly. There's no SharePoint dependency |
+| Cover | **The system suggests and the doctor confirms.** It only offers moves that keep GUH and both day units covered, flagging resident-only day-unit cover as an exception |
 
-### Default allowances (editable)
+### Preventing unauthorised changes
+- **Everyone signs in.** Only listed NHS email addresses can log in, using a one-time code sent to that email. There are no shared passwords.
+- **Roles:**
+
+  | Role | Can do |
+  |---|---|
+  | **Doctor** | View everything, request leave, report sickness. Can't edit the roster |
+  | **Rota coordinator** | Edit the roster and weekly plans, import on-calls, authorise or decline leave, set allowances |
+  | **Viewer** | Optional, read-only |
+
+- **The server enforces the permissions**, not just the screen, so hiding a button isn't the only protection.
+- **Audit log** of every change: who, when, before and after, and why. Nothing is ever silently overwritten, and any change can be undone.
+- When a doctor leaves, their access is removed automatically on their end date.
+
+### Hosting options (no SharePoint needed)
+| Option | How it works | Pros | Cons |
+|---|---|---|---|
+| **A. Managed web app (recommended for a pilot)** | Web app on a UK-region managed platform (e.g. Supabase London for the database and login, plus a static web host) | Quick to set up. Cheap (free tier or roughly £20–50/month). Works on any phone or PC. No SharePoint or trust servers needed | Holds staff personal data outside trust systems, so it needs **Information Governance approval / a DPIA** before real names go in |
+| **B. Trust-hosted** | Same app on trust infrastructure (intranet server or the trust's Azure) | Best for IG, and can use trust single sign-on | Depends on trust IT time and approval |
+| **C. Microsoft 365 only (Power Apps + Lists)** | Built inside your existing M365 licence | Data stays in M365 | Needs Power Apps licensing and maker access. Less flexible. Harder to get the Excel-style view |
+
+**Suggested path:**
+1. Build the app with **fictional data** (no IG issue).
+2. Show it to the department and the trust IG/IT team.
+3. Run the pilot on **A** or **B**, depending on what IG approves.
+
+The app is built the same way either way, so moving from A to B later is a re-deploy, not a rewrite.
+
+### Default allowances (editable per person)
 These are starting values to check with medical staffing, not confirmed figures.
 
-| Grade | Annual leave / year | Study leave |
+| Grade | Annual leave / year (pro-rata to time in post) | Study leave |
 |---|---|---|
-| Resident doctors (2016 TCS) | 27 days (32 after 5 years' NHS service), pro-rata to rotation length and LTFT % | 30 days / year. Foundation doctors' study leave follows foundation school rules |
-| Registrars / SAS | 27–32 days depending on contract and service | Per contract |
-| Consultants | 32 days (34 after 7 years as a consultant) | 30 days over 3 years |
+| Resident doctors (2016 TCS) | 27 days (32 after 5 years' NHS service) | Per contract / foundation school |
+| Middle grade (SAS / registrars) | 27–32 days depending on contract and service | Per contract |
 
 Bank holidays are handled separately. "Total days" excludes weekends and bank holidays and supports half days.
 
@@ -78,7 +123,7 @@ Bank holidays are handled separately. "Total days" excludes weekends and bank ho
 | Start / end, total days | Date pickers with AM/PM. **Days calculated automatically** |
 | Remaining AL/SL | **Calculated automatically** from allowances and approved leave |
 | Doctor covering (day unit / GUH) | **Suggested by the system** from the roster for each affected site, then confirmed by the doctor |
-| Approval section | Electronic sign-off by the rota lead (name, role, timestamp). A PDF in the old layout is emailed to the requester, the covering doctor and the rota admin |
+| Approval section | Electronic authorisation by the **rota coordinator** (name, role, timestamp). Until then the leave isn't on the roster. A PDF in the old layout is emailed to the requester, the covering doctor and the rota admin |
 
 ### Excel export
 `docs/samples/haematology-roster-export-sample.xlsx` (generated by `tools/sample_excel_export.py`) shows the planned output:
@@ -86,7 +131,7 @@ Bank holidays are handled separately. "Total days" excludes weekends and bank ho
 - a *Leave log* sheet listing every request, status, approver and timestamp
 - an *About* sheet
 
-The real system writes it with Microsoft Graph to a SharePoint/OneDrive file after each change. This needs the trust's M365 tenant. As a fallback, the file can be downloaded on demand.
+Because SharePoint isn't available, the file is **downloaded on demand** (or emailed weekly) instead of being synced live. A live SharePoint sync can be added later if the trust allows it.
 
 ---
 
