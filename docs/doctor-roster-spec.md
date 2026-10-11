@@ -473,3 +473,74 @@ Breaches show as:
   | Specialty doctor, after 2 years | 34 (6 weeks + 4 days) |
 
 - **Hosting:** see [sharepoint-hosting-guide.md](sharepoint-hosting-guide.md).
+
+---
+
+## Round 4 decisions (mocked up, not yet built)
+
+**Access**
+- **Viewing** the rota and **sending a leave request** need no password.
+- **Authorisers** (3) sign in with their name plus an authoriser password. On a hosted version:
+  - the password is checked by the server (Supabase Auth) and never appears in the page;
+  - 5 wrong tries locks sign-in for 15 minutes;
+  - any authoriser can change it, which signs everyone out.
+- **Checking a request** needs the requester's name and NHS email to match the staff list.
+
+**Leave form**
+It keeps the old form's 11 questions in the same order. Changes:
+- The requestor is chosen from the staff list (no free typing).
+- Email, date of request, total days and remaining leave are filled in automatically.
+- "Doctor covering (day unit)" and "Doctor covering (GUH)" must be **named doctors**, shown with their availability each day. A field shows "Not needed" when the requester isn't rostered there.
+- Study leave needs a tick confirming it has also been requested in Intrepid (or CODI).
+- "Other" has a free-text description.
+
+**Staffing check (shown to the requester, flagged to the authorisers)**
+For each working day of the request:
+1. Start from the settled roster: approved leave, sickness, imported on-calls, EDT/SDT and doctors not in post.
+2. Remove the requester and apply their named cover.
+3. Check the minimums:
+
+   | Group | GUH | RGH | NHH |
+   |---|---|---|---|
+   | Residents | Mon–Fri | Mon–Fri | Tue–Fri |
+   | Senior doctors | Ward, Mon–Fri | Day unit, Mon–Fri | Day unit, Tue–Fri |
+
+4. Check the named cover is really free and isn't covering someone else, and that moving them leaves no new gap.
+5. Run the check again as if every other waiting request were approved, to catch clashes. The earliest request is shown first.
+6. If a day is short, list possible cover, EDT/SDT sessions that could move, and the nearest dates with enough doctors.
+
+Each day gets one of three results: ✓ enough, ! no one spare or an exception, ✕ not enough.
+
+The requester can still send a request that has short days. It goes to the top of the authorisers' list and is emailed to them. The authoriser can then:
+- approve all days (a ✕ day needs a logged reason);
+- approve only the days with cover, with an alternative date offered;
+- hold it and ask the requester a question;
+- decline it, with a reason.
+
+**Notifications**
+- **Emails** go out for: request received, decision (to the requester and named cover), flagged request (to the authorisers), daily reminders for requests waiting more than 3 working days, and site changes within 14 days.
+- **In-app messages** appear under "Check my request".
+- **Phone notifications** work if the doctor adds the site to their home screen.
+
+**Senior doctors**
+Registrars, specialty doctors, specialist grade doctors and senior clinical fellows are one group.
+
+**EDT/SDT**
+- Booked as a morning or an afternoon.
+- **Residents** (F1, F2, IMT, JCF): at GUH only, and only when at least 2 other residents are working at GUH in that session. This number is a setting.
+- **Senior doctors:** at any site, as long as the site keeps its senior cover.
+- Shown on the roster as a dark, raised half-cell (e.g. "GUH AM | SDT PM"). The doctor isn't counted as cover for that half-day.
+
+**Layout**
+- Fits the window, with Comfortable and Compact density.
+- Laptops use short names and codes, with the date column fixed.
+- Phones switch to the list view by default.
+
+**Rules tab**
+The placement email, rewritten for the app: placement dates, live rota link, minimum resident and senior cover, moving between sites, how to request leave, EDT/SDT, induction, locations (GUH Ward B4; NHH Ward 2/4, Raglan Ward; RGH MDCU, 3rd floor, opposite the canteen) and who to contact.
+
+**Hosting (chosen)**
+- Netlify (static site) plus Supabase (London) for the database, authoriser sign-in, security rules and email triggers. Resend for email.
+- Viewers can only read and add leave requests. Authorisers can change everything, with each change logged.
+- Sickness is stored only as "Unavailable".
+- Inform the health board's Data Protection Officer before real names go in.
