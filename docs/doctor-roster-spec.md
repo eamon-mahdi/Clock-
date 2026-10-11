@@ -428,3 +428,48 @@ Breaches show as:
 - BMA exception reporting in England (2026 reforms): https://www.bma.org.uk/our-campaigns/resident-doctor-campaigns/pay-in-england/exception-reporting-in-england-summary-and-faqs
 - Open-source rota checker: https://github.com/RudolfCardinal/rota
 - HealthRota evaluation: https://transform.england.nhs.uk/documents/145/HealthRota_Evaluation_-_Future_Healthcare_Journal.pdf
+
+---
+
+## Round 3 changes (mocked up, not yet built)
+
+- **Naming:** "Middle grade" becomes **"Senior doctors"** everywhere.
+- **Two sign-ins:**
+  - **Viewer**: view only. Whether viewers can send a leave request is still to confirm.
+  - **Authoriser**: the 3 coordinators, with all permissions.
+
+  On SharePoint, these map to the groups "Rota Viewers" and "Rota Authorisers".
+- **List view:** for each day, "GUH: Name (grade), …" plus RGH, NHH, Lab, EDT/SDT/SPA, On call, Leave, Off and Not in post. It has a **Copy as text** button for email or messages.
+- **Opens on today**, with an **Original layout** toggle that shows the whole rotation from its first day, like the Excel sheet.
+- **Rotations:**
+  - A post-by-post timeline with changeovers: Foundation 4-month, IMT 6-month, plus any other date.
+  - A **blue band across the roster** on each changeover date.
+  - **Add a doctor** blank, or by **copying another doctor**. This copies the post, grade, weekly plan and name matching; leave and EDT are recalculated.
+- **EDT/SDT/SPA:**
+  - Worked out as hours per week × LTFT % × weeks in post, and rostered as half-day sessions only where site cover allows.
+  - Status compares hours taken with hours due by today.
+  - Wales defaults below are editable settings, still to verify against HEIW's current EDT key principles and the new Wales resident doctor contract (being introduced from August 2026).
+
+  | Grade | Type | Hours / week (full time) |
+  |---|---|---|
+  | F1 | SDT | 1 |
+  | F2 | SDT | 3 |
+  | Core / IMT | EDT | 2 |
+  | ST3+ | EDT | 4 |
+  | Specialty doctor | SPA | 4 (1 PA minimum; Welsh good practice suggests 2 PA) |
+  | JCF | EDT | Set locally (default 2) |
+
+- **Annual leave per period:**
+  - Residents: their time in post. Senior doctors: their leave year.
+  - Calculated as days a year × days in period ÷ 365 × LTFT, rounded to the nearest half day.
+  - Changes need a reason.
+  - Wales defaults, from BMA guidance and to verify with medical staffing:
+
+  | Grade | Days a year |
+  |---|---|
+  | F1, F2 and the first two trainee pay points | 28 (5 weeks + 3 days) |
+  | 3rd trainee pay point and above | 33 (6 weeks + 3 days) |
+  | Specialty doctor, first 2 years | 29 (5 weeks + 4 days) |
+  | Specialty doctor, after 2 years | 34 (6 weeks + 4 days) |
+
+- **Hosting:** see [sharepoint-hosting-guide.md](sharepoint-hosting-guide.md).
