@@ -1,0 +1,9 @@
+{
+  "name": "haematology-rota",
+  "private": true,
+  "description": "Haematology rota and leave prototype",
+  "scripts": {
+    "build": "node tools/build.js",
+    "test": "node --test tests/rota.test.js"
+  }
+}

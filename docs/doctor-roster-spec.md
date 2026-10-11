@@ -55,9 +55,11 @@ Everything is retyped by hand. Names, day counts and balances are self-reported 
 | **NHH**: resident | **Tue–Fri** | 1 resident | ✕ gap |
 | **NHH day unit** | **Tue–Fri** | 1 middle grade expected | A resident only = amber "exception". Nobody = ✕ gap |
 
-**Assumptions to confirm:**
-- A middle grade marked RGH, "RGH – day unit" or RGH MDCU counts as covering the RGH day unit (and the same for NHH).
-- "LAB" (e.g. GUH LAB) does **not** count as ward or day-unit cover.
+**Confirmed:**
+- Day-unit cover is any RGH code: `RGH`, `RGH - DAY UNIT` and `RGH MDCU`. NHH is the same.
+- Lab is completely separate and never counts as cover.
+- There are **three rota coordinators** with special access.
+- On-calls arrive weekly from the trust. They are loaded through the import template in `templates/oncall-import-template.xlsx` (list or grid layout); see `docs/prototype-guide.md`.
 
 Which codes count for which post will be a setting.
 
