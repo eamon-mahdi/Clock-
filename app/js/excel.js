@@ -96,9 +96,9 @@
   }
 
   function staffTemplate(state) {
-    const rows = [[head('Name'), head('Grade'), head('Group (Resident or Middle grade)'), head('Email'), head('In post from'), head('In post to'), head('Annual leave days'), head('Study leave days'), head('Other spellings in the on-call sheet (comma separated)')]];
+    const rows = [[head('Name'), head('Grade'), head('Group (Resident or Senior doctor)'), head('Email'), head('In post from'), head('In post to'), head('Annual leave days'), head('Study leave days'), head('Other spellings in the on-call sheet (comma separated)')]];
     for (const d of state.doctors) {
-      rows.push([d.name, d.grade, d.group === 'mg' ? 'Middle grade' : 'Resident', d.email || '', d.start ? { v: d.start, date: true } : '', d.end ? { v: d.end, date: true } : '', d.alEntitlement, d.slEntitlement, (d.aliases || []).join(', ')]);
+      rows.push([d.name, d.grade, d.group === 'mg' ? 'Senior doctor' : 'Resident', d.email || '', d.start ? { v: d.start, date: true } : '', d.end ? { v: d.end, date: true } : '', d.alEntitlement, d.slEntitlement, (d.aliases || []).join(', ')]);
     }
     return X.write([{ name: 'Staff', rows, widths: [20, 18, 18, 30, 14, 14, 12, 12, 40], freeze: { row: 1, col: 1 } }]);
   }
@@ -236,7 +236,7 @@
       if (!name) continue;
       const groupTxt = cellText(row[c.group]).toLowerCase();
       const grade = cellText(row[c.grade]);
-      const group = /middle|registrar|spr|sas|mg/.test(groupTxt + ' ' + grade.toLowerCase()) && !/resident/.test(groupTxt) ? 'mg' : 'res';
+      const group = /senior|middle|registrar|spr|sas|mg|specialty|specialist|\bst[3-9]/.test(groupTxt + ' ' + grade.toLowerCase()) && !/resident/.test(groupTxt) ? 'mg' : 'res';
       const num = (v) => { const n = Number(cellText(v)); return isFinite(n) ? n : 0; };
       staff.push({
         name, grade, group, email: cellText(row[c.email]), start: parseDate(row[c.from]) || '', end: parseDate(row[c.to]) || '',
@@ -254,7 +254,7 @@
       .sort((a, b) => (a.group === b.group ? 0 : a.group === 'res' ? -1 : 1));
     const header = [head('Date'), head('Day'), head('Consultant'), head('Leave restriction')]
       .concat(docs.map((d) => head(`${d.grade}\n${d.name}`)))
-      .concat([head('Residents (GUH · RGH · NHH)'), head('Middle grade (GUH ward · RGH DU · NHH DU)')]);
+      .concat([head('Residents (GUH · RGH · NHH)'), head('Senior doctors (GUH ward · RGH DU · NHH DU)')]);
     const rows = [header];
     for (const iso of R.dateRange(from, to)) {
       const wk = R.isWeekend(iso);
@@ -270,7 +270,7 @@
       for (const d of docs) {
         const cell = R.resolveCell(state, d, iso);
         let v = cell.code;
-        if (cell.pending && cell.kind !== 'leave') v = (v ? v + '\n' : '') + `(${R.LEAVE_TYPES[cell.pending.type].label} requested)`;
+        if (cell.pending && cell.kind !== 'leave') v = (v ? v + '\n' : '') + `(${(R.LEAVE_TYPES[cell.pending.type] || R.LEAVE_TYPES.OTHER).label} requested)`;
         const fill = fillFor(cell) || (wk ? FILL.WEEKEND : null);
         row.push({ v, style: Object.assign({}, base, fill ? { fill } : {}, cell.kind === 'gone' || (wk && !fill) ? { color: 'FFFFFF' } : {}) });
       }
@@ -284,14 +284,14 @@
     const log = [[head('Submitted'), head('Doctor'), head('Type'), head('From'), head('To'), head('Part'), head('Working days'), head('Status'), head('Decided by'), head('Decided at'), head('Cover'), head('Reason / note')]];
     for (const r of state.requests.slice().sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1))) {
       const d = R.doctorById(state, r.doctorId);
-      log.push([r.submittedAt.slice(0, 16).replace('T', ' '), d ? d.name : r.doctorId, R.LEAVE_TYPES[r.type].label, { v: r.start, date: true }, { v: r.end, date: true }, r.part, r.days, r.status, r.decidedBy || '', (r.decidedAt || '').slice(0, 16).replace('T', ' '), (r.cover || []).map((c) => c.text).join('; '), r.reason || r.note || '']);
+      log.push([(r.submittedAt || '').slice(0, 16).replace('T', ' '), d ? d.name : r.doctorId, r.type === 'SICK' || r.type === 'UNAVAIL' ? 'Unavailable' : (R.LEAVE_TYPES[r.type] || R.LEAVE_TYPES.OTHER).label, { v: r.start, date: true }, { v: r.end, date: true }, r.part, r.days, r.status, r.decidedBy || '', (r.decidedAt || '').slice(0, 16).replace('T', ' '), (r.cover || []).map((c) => c.text).join('; '), r.type === 'SICK' ? '' : (r.message || r.note || '')]);
     }
     const audit = [[head('When'), head('Who'), head('What'), head('Details')]].concat(state.audit.map((a) => [a.at.slice(0, 16).replace('T', ' '), a.by, a.action, a.detail]));
     return X.write([
       { name: 'Roster', rows, widths: [12, 11, 14, 11].concat(docs.map(() => 15)).concat([30, 40]), freeze: { row: 1, col: 2 }, heights: { 0: 42 } },
       { name: 'Leave log', rows: log, widths: [17, 16, 22, 12, 12, 7, 8, 11, 14, 17, 40, 40], freeze: { row: 1 } },
       { name: 'Change log', rows: audit, widths: [17, 18, 26, 90], freeze: { row: 1 } },
-      { name: 'About', rows: [['Exported from the Haematology Rota prototype. This copy is read-only: make changes in the app and export again.'], [`Dates ${R.fmtUk(from)} to ${R.fmtUk(to)}.`]], widths: [110] }
+      { name: 'About', rows: [['Exported from the Haematology Rota website. This copy is read-only: make changes in the app and export again.'], [`Dates ${R.fmtUk(from)} to ${R.fmtUk(to)}.`]], widths: [110] }
     ]);
   }
 
