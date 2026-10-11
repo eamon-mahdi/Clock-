@@ -1,0 +1,21 @@
+// Cloudflare settings for the haematology rota.
+// "name" must match the Worker name shown in the Cloudflare dashboard.
+// The D1 database is created automatically on the first deploy (no database_id needed).
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "roster",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-04-01",
+  "build": { "command": "node tools/build.js" },
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "haematology-rota" }
+  ],
+  "keep_vars": true,
+  "observability": { "enabled": true }
+}
