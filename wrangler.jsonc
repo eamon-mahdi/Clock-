@@ -3,7 +3,7 @@
 // The D1 database is created automatically on the first deploy (no database_id needed).
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "clock",
+  "name": "roster",
   "main": "worker/index.js",
   "compatibility_date": "2026-04-01",
   "build": { "command": "node tools/build.js" },
