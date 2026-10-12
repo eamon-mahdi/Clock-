@@ -7,7 +7,7 @@
   const S = root.RotaStore || (typeof require !== 'undefined' ? require('./store.js') : null);
 
   // ---------- colours (match the department's Excel) ----------
-  const FILL = { GUH: 'F28B82', RGH: '6FB1EA', NHH: '93C47D', LEAVE: 'FFE36E', ONCALL: 'D9D2E9', LAB: 'F4CCCC', HEAD: 'D9E1EA', WEEKEND: '262626', GONE: '595959', OFF: 'FFFFFF', PENDING: 'FFF2B3', SICK: 'F4C7C3' };
+  const FILL = { GUH: 'F28B82', RGH: '6FB1EA', NHH: '93C47D', LEAVE: 'FFE36E', ONCALL: 'FFE36E', LAB: 'F4CCCC', HEAD: 'D9E1EA', WEEKEND: '262626', GONE: '595959', OFF: 'FFFFFF', PENDING: 'FFF2B3', SICK: 'FFE36E' };
   const head = (v) => ({ v, style: { bold: true, fill: FILL.HEAD, border: true, center: true, wrap: true } });
   const note = (v) => ({ v, style: { color: '595959', wrap: true } });
 
@@ -19,6 +19,8 @@
       case 'leave': return FILL.LEAVE;
       case 'sick': return FILL.SICK;
       case 'oncall': return FILL.ONCALL;
+      case 'other': return FILL.ONCALL;
+      case 'edt': return FILL[R.siteOf(cell.baseCode)] || FILL.LAB;
       case 'gone': return FILL.GONE;
       case 'off': return FILL.OFF;
       default: return null;

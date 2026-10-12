@@ -54,7 +54,7 @@ async function ensureSchema(db) {
 }
 async function loadState(db) {
   const row = await db.prepare("SELECT json, version FROM kv WHERE id = 'state'").first();
-  if (row) return { state: JSON.parse(row.json), version: row.version };
+  if (row) return { state: S.upgrade(JSON.parse(row.json)), version: row.version };
   const state = S.demoState(todayIso());
   await db.prepare("INSERT OR IGNORE INTO kv (id, json, version, updated_at) VALUES ('state', ?, 1, ?)").bind(JSON.stringify(state), new Date().toISOString()).run();
   const again = await db.prepare("SELECT json, version FROM kv WHERE id = 'state'").first();

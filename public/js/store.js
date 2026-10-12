@@ -12,6 +12,51 @@
   // ---------- default text for the Rules tab (from the placement email, updated) ----------
   const DEFAULT_RULES_TEXT = [
     { id: 'placement', title: 'Placement and rota access', items: [
+      'The current placement started on Wednesday 5 August 2026.',
+      'Changeovers: Foundation doctors on the first Wednesday of August, December and April; IMTs on the first Wednesday of August and February; training-grade registrars on 1 August or 1 February (usually 6 months, sometimes extended to 12). Other doctors start and finish on agreed dates. Changeovers show as blue bands, and a new doctor continues in the same column as the doctor they replace.',
+      'This website is the live rota. Viewing needs no password. It replaces the shared Doctor Rota.xlsx.',
+      'On-calls come from the trust medical rota and are imported each week. Check the rota shows your on-calls correctly; if anything is wrong, tell the rota authorisers and the medical rota team.',
+      'The rota can change at short notice. Check it before each week and before each shift.'] },
+    { id: 'moving', title: 'Moving between sites', items: [
+      'Resident doctors may need to move between sites because of sickness or service needs. Moves are made only by the rota authorisers and are logged.',
+      'Senior doctors may be asked to cover a day unit at RGH or NHH; this is entered on the rota by the authorisers.',
+      'If a change affects you, the authorisers will tell you. If you have site preferences, travel concerns or other constraints, tell them as early as possible.',
+      'Do not swap daytime sites between yourselves without telling the authorisers, or the cover checks will be wrong.'] },
+    { id: 'annual', title: 'Annual leave', items: [
+      'Request all annual leave with the leave form on this website at least 6 weeks before the first day, in line with trust policy.',
+      'Requests with less than 6 weeks\' notice are considered only in extenuating circumstances. Tick the box on the form and explain why; the request may still be declined.',
+      'Name the specific doctor covering you (day unit and/or GUH), not a grade. Check with them first.',
+      'Leave is not confirmed until an authoriser approves it. Do not book travel until it is approved.',
+      'Authorisers decide day by day. If there are not enough doctors on some days, they may approve the other days and decline those, or suggest other dates. You will be told exactly which days are approved.',
+      'Your allowance is set from your contract: pro-rata for time in post (resident doctors) or the leave year (senior doctors), and for less-than-full-time working. Carried-over or accrued days can be added by the authorisers. See your remaining days under "Check my request".',
+      'Dates marked NO AL are not normally approved; please avoid dates marked AVOID.',
+      'Leave does not cancel on-call shifts. Arrange any on-call swap with the medical rota team before you request leave.'] },
+    { id: 'study', title: 'Study leave', items: [
+      'Request study leave on the form here and also through Intrepid (or CODI), following the HEIW study leave process.',
+      'The same notice period and staffing checks apply as for annual leave.',
+      'Study leave comes from your study leave allowance, not your annual leave.'] },
+    { id: 'sick', title: 'Sickness and other absence', items: [
+      'If you are unwell, report it on the form as early as possible on the day, and follow the trust sickness reporting policy (including telephoning your clinical area).',
+      'Sickness shows on the rota only as "Unavailable". No reasons or medical details are recorded here, and it never comes off annual leave.',
+      'For other absence (for example compassionate, parental or exam leave) choose "Other" on the form and say what it is.'] },
+    { id: 'edt', title: 'EDT and SDT', items: [
+      'Taken as a morning or an afternoon session and shown on the rota.',
+      'Resident doctors (F1, F2, IMT, JCF) take it at GUH only, and only when enough other resident doctors are working at GUH in that session (see the number above).',
+      'Senior doctors (registrars, specialty doctors, specialist grade, senior clinical fellows) can take it at any site, as long as GUH keeps its senior doctor.',
+      'Sessions are booked by the authorisers. Ask them as early as possible.'] },
+    { id: 'induction', title: 'Induction and first day', items: [
+      'There are enough staff at GUH on the first day of each rotation.',
+      'If you know of a formal induction at your site, tell the rota authorisers so it can go on the rota.'] },
+    { id: 'where', title: 'Where to go', items: [
+      'Grange University Hospital: Ward B4.',
+      'Nevill Hall Hospital: Ward 2/4 (Raglan Ward).',
+      'Royal Gwent Hospital: Medical Day Case Unit (MDCU), 3rd floor, opposite the canteen.'] },
+    { id: 'questions', title: 'Questions', items: [
+      'Contact the rota authorisers directly. Please avoid "Reply all" on rota emails.',
+      'Only the rota authorisers can change the rota. Every change is logged with who made it and when.'] }
+  ];
+  const OLD_RULES_TEXT_JSON = JSON.stringify([
+    { id: 'placement', title: 'Placement and rota access', items: [
       'The current placement started on Wednesday 5 August 2026. Foundation doctors change every 4 months and IMTs every 6 months; other changes are shown as blue bands on the roster.',
       'This website is the live rota. Viewing needs no password. It replaces the shared Doctor Rota.xlsx.',
       'Check the rota shows your on-call commitments correctly. If anything is wrong or has changed, tell the rota authorisers.'] },
@@ -41,12 +86,26 @@
     { id: 'questions', title: 'Questions', items: [
       'Contact the rota authorisers directly. Please avoid "Reply all" on rota emails.',
       'Only the rota authorisers can change the rota. Every change is logged with who made it and when.'] }
-  ];
+  ]);
+
+  // Bring older saved rotas up to date (run on every load).
+  function upgrade(state) {
+    if (!state || !state.settings) return state;
+    const st = state.settings;
+    if ((st.schema || 0) < 3) {
+      st.rules = Object.assign({}, R.DEFAULT_RULES, st.rules || {}, { minSenRGH: 0, minSenNHH: 0 });
+      if (!st.rulesText || JSON.stringify(st.rulesText) === OLD_RULES_TEXT_JSON) st.rulesText = clone(DEFAULT_RULES_TEXT);
+      if (st.rotation) delete st.rotation.end;
+      st.consultantOfWeek = st.consultantOfWeek || {};
+      st.schema = 3;
+    }
+    return state;
+  }
 
   function baseSettings() {
     return {
       bankHolidays: R.BANK_HOLIDAYS.slice(), restricted: [], consultantOfWeek: {}, rules: Object.assign({}, R.DEFAULT_RULES),
-      rulesText: clone(DEFAULT_RULES_TEXT), changeovers: [], rotation: { start: '2026-08-05', end: '2026-12-01' },
+      rulesText: clone(DEFAULT_RULES_TEXT), changeovers: [], rotation: { start: '2026-08-05' }, schema: 3,
       authorisers: ['Authoriser 1', 'Authoriser 2', 'Authoriser 3'], authoriserEmails: [], demo: false
     };
   }
@@ -64,11 +123,13 @@
       { id: 'r1', name: 'E. Ward', grade: 'F1', group: 'res', start: rotStart, end: rotEnd, plan: plan('GUH|GUH|GUH|GUH|GUH') },
       { id: 'r2', name: 'P. Nair', grade: 'F2', group: 'res', start: rotStart, end: rotEnd, plan: plan('RGH|NHH|NHH|NHH|NHH') },
       { id: 'r3', name: 'J. Reid', grade: 'F2', group: 'res', start: rotStart, end: R.addDays(mon, -10), plan: plan('RGH|RGH|RGH|RGH|RGH'), note: 'Left the rotation early' },
-      { id: 'r8', name: 'K. Ahmed', grade: 'F2', group: 'res', start: R.addDays(mon, 7), end: rotEnd, plan: plan('RGH|RGH|RGH|RGH|RGH') },
+      { id: 'r8', name: 'K. Ahmed', grade: 'F2', group: 'res', slot: 'r3', start: R.addDays(mon, 7), end: rotEnd, plan: plan('RGH|RGH|RGH|RGH|RGH') },
       { id: 'r4', name: 'T. Hughes', grade: 'F2 (on calls NHH)', group: 'res', start: rotStart, end: rotEnd, plan: plan('GUH|GUH|RGH|GUH|GUH') },
       { id: 'r5', name: 'S. Malik', grade: 'IMT2', group: 'res', start: rotStart, end: imtEnd, plan: plan('GUH|RGH|RGH|RGH|RGH') },
       { id: 'r6', name: 'B. Carter', grade: 'IMT3', group: 'res', start: rotStart, end: imtEnd, fte: 0.8, plan: plan('GUH|GUH|GUH|RGH|GUH') },
       { id: 'r7', name: 'L. Osei', grade: 'JCF', group: 'res', start: rotStart, end: '2027-08-03', plan: plan('RGH|RGH|GUH|RGH|RGH') },
+      { id: 'r9', name: 'New F1', grade: 'F1', group: 'res', slot: 'r1', placeholder: true, start: '2026-12-02', end: '2027-04-06', email: '', plan: plan('GUH|GUH|GUH|GUH|GUH') },
+      { id: 'r10', name: 'New F2', grade: 'F2', group: 'res', slot: 'r2', placeholder: true, start: '2026-12-02', end: '2027-04-06', email: '', plan: plan('RGH|NHH|NHH|NHH|NHH') },
       { id: 'm1', name: 'Omar', grade: 'Registrar ST6', group: 'mg', start: '2024-01-01', end: '', plan: plan('GUH|GUH|GUH|GUH|GUH') },
       { id: 'm2', name: 'Hannah', grade: 'Registrar ST4', group: 'mg', start: '2024-01-01', end: '', plan: plan('RGH - DAY UNIT|RGH - DAY UNIT|RGH - DAY UNIT|RGH - DAY UNIT|RGH - DAY UNIT') },
       { id: 'm3', name: 'Daniel', grade: 'Specialty doctor', group: 'mg', start: '2024-01-01', end: '', plan: plan('GUH LAB|NHH - DAY UNIT|NHH - DAY UNIT|NHH - DAY UNIT|NHH - DAY UNIT') },
@@ -76,12 +137,12 @@
       { id: 'm5', name: 'Meera', grade: 'Specialty doctor', group: 'mg', start: '2024-01-01', end: '', plan: plan('GUH LAB|GUH LAB|GUH|GUH|OFF', 'GUH LAB|GUH|OFF|GUH|GUH') },
       { id: 'm6', name: 'Yusuf', grade: 'Senior clinical fellow', group: 'mg', start: '2024-01-01', end: '', plan: plan('RGH MDCU|RGH|RGH|OFF|RGH') }
     ].map((d) => {
-      const doc = Object.assign({ email: d.name.toLowerCase().replace(/[^a-z]+/g, '.').replace(/^\.|\.$/g, '') + '@example.nhs.uk', aliases: [], fte: 1, slEntitlement: d.group === 'mg' ? 10 : 15 }, d);
+      const doc = Object.assign({ email: d.placeholder ? '' : d.name.toLowerCase().replace(/[^a-z]+/g, '.').replace(/^\.|\.$/g, '') + '@example.nhs.uk', aliases: [], fte: 1, slEntitlement: d.group === 'mg' ? 10 : 15 }, d);
       doc.alEntitlement = R.alProRata(doc).days;
       return doc;
     });
     const oncall = {};
-    const residents = doctors.filter((d) => d.group === 'res' && d.id !== 'r3' && d.id !== 'r8');
+    const residents = doctors.filter((d) => d.group === 'res' && !['r3', 'r8', 'r9', 'r10'].includes(d.id));
     for (let w = -1; w < 8; w++) {
       const wk = R.addDays(mon, w * 7);
       residents.forEach((d, i) => {
@@ -98,7 +159,7 @@
     const settings = Object.assign(baseSettings(), {
       demo: true, consultantOfWeek, authorisers: ['J. Hale', 'S. Price', 'R. Dunn'],
       restricted: [{ id: uid('x'), start: R.addDays(mon, 14), end: R.addDays(mon, 15), level: 'NO AL', note: 'Short-staffed: two doctors on induction' }],
-      changeovers: [{ id: uid('c'), date: '2026-12-02', label: 'Foundation 4-month changeover' }, { id: uid('c'), date: '2027-02-03', label: 'IMT 6-month changeover' }]
+      changeovers: [{ id: uid('c'), date: '2027-02-03', label: 'IMT 6-month changeover (names to follow)' }]
     });
     const state = { version: 2, settings, doctors, oncall, overrides: {}, requests: [], edt: [], audit: [], notifications: [] };
     const add = (doctorId, type, start, end, part, status, note, extra) => {
@@ -152,9 +213,10 @@
   const authorEmails = (state) => ((state.settings && state.settings.authoriserEmails) || []).filter(Boolean);
 
   // A doctor (no password) sends a leave request. Returns {request, check, emails}.
-  function submitLeave(state, p) {
+  function submitLeave(state, p, opts) {
+    const today = (opts && opts.today) || R.toIso(new Date());
     const doc = R.doctorById(state, p.doctorId);
-    if (!doc) throw new Error('Choose your name from the list.');
+    if (!doc || doc.placeholder) throw new Error('Choose your name from the list.');
     if (!emailMatches(doc, p.email)) throw new Error(doc.email ? 'That NHS email does not match the staff list for your name. Check it, or ask an authoriser to update it.' : 'Enter your NHS email address.');
     if (!R.FORM_LEAVE_TYPES.includes(p.type)) throw new Error('Choose a leave type.');
     if (!R.isIso(p.start) || !R.isIso(p.end) || p.end < p.start) throw new Error('Choose a start date and an end date on or after it.');
@@ -162,12 +224,15 @@
     if (p.type === 'SL' && !p.intrepid) throw new Error('Study leave must also be requested through Intrepid (or CODI). Tick the box to confirm.');
     if (p.type === 'OTHER' && !String(p.otherText || '').trim()) throw new Error('Describe the type of leave under "Other".');
     const part = p.start === p.end && (p.part === 'AM' || p.part === 'PM') ? p.part : 'FULL';
+    const short = p.type === 'AL' && R.shortNotice(state, p.start, today);
+    const why = String(p.extenuatingReason || '').trim();
+    if (short && (!p.extenuating || why.length < 10)) throw new Error(`Annual leave needs at least ${R.ruleNum(state, 'noticeWeeks')} weeks' notice (trust policy). If there are extenuating circumstances, tick the box and explain them.`);
     const overlap = state.requests.find((r) => r.doctorId === doc.id && ['pending', 'hold', 'authorised'].includes(r.status) && r.start <= p.end && r.end >= p.start);
     if (overlap) throw new Error(`You already have ${overlap.status === 'authorised' ? 'approved' : 'a pending request for'} leave on ${rangeText(overlap.start, overlap.end)}.`);
     const cleanId = (id) => (id && R.doctorById(state, id) && id !== doc.id ? id : '');
     const r = {
       id: uid('lr'), doctorId: doc.id, email: String(p.email).trim(), type: p.type, otherText: String(p.otherText || '').slice(0, 200),
-      start: p.start, end: p.end, part, note: String(p.note || '').slice(0, 1000), intrepid: !!p.intrepid, remainingStated: String(p.remainingStated || '').slice(0, 60),
+      start: p.start, end: p.end, part, note: String(p.note || '').slice(0, 1000), intrepid: !!p.intrepid, shortNotice: short, extenuatingReason: short ? why.slice(0, 600) : '',
       dayUnitCoverId: cleanId(p.dayUnitCoverId), guhCoverId: cleanId(p.guhCoverId), excludedDates: [],
       submittedAt: nowIso(), days: R.leaveDays(state, p.start, p.end, part), status: p.type === 'SICK' ? 'authorised' : 'pending', cover: []
     };
@@ -184,8 +249,8 @@
       authorEmails(state).forEach((to) => emails.push({ to, subject: `Sickness reported: ${doc.name}, ${when}`, text: `${doc.name} (${doc.grade}) has reported sick for ${when}.${check.bad ? `\n\nNot enough doctors on ${check.bad} day(s). Please arrange cover.` : ''}\n\nOpen the rota to review cover.` }));
     } else {
       notify(state, 'auth', `New ${label.toLowerCase()} request from ${doc.name}: ${when}.${check.bad ? ' Not enough doctors on ' + check.bad + ' day(s).' : ''}`);
-      log(state, doc.name, 'Leave requested', `${label}, ${R.fmtUk(r.start)} to ${R.fmtUk(r.end)} (${r.days} day${r.days === 1 ? '' : 's'})${check.bad ? `; flagged: not enough doctors on ${check.bad} day(s)` : ''}`);
-      authorEmails(state).forEach((to) => emails.push({ to, subject: `${check.bad ? 'Needs a decision (not enough doctors): ' : 'Leave request: '}${doc.name}, ${when}`, text: `${doc.name} (${doc.grade}) asked for ${label.toLowerCase()}: ${when}, ${r.days} working day(s).${check.bad ? `\n\nNot enough doctors on ${check.bad} day(s).` : ''}${check.warn ? `\nWarnings on ${check.warn} day(s).` : ''}\n\nSign in as an authoriser to decide.` }));
+      log(state, doc.name, 'Leave requested', `${label}, ${R.fmtUk(r.start)} to ${R.fmtUk(r.end)} (${r.days} day${r.days === 1 ? '' : 's'})${short ? '; less than the notice period (extenuating circumstances given)' : ''}${check.bad ? `; flagged: not enough doctors on ${check.bad} day(s)` : ''}`);
+      authorEmails(state).forEach((to) => emails.push({ to, subject: `${check.bad ? 'Needs a decision (not enough doctors): ' : 'Leave request: '}${doc.name}, ${when}`, text: `${doc.name} (${doc.grade}) asked for ${label.toLowerCase()}: ${when}, ${r.days} working day(s).${short ? `\n\nLess than ${R.ruleNum(state, 'noticeWeeks')} weeks' notice. Extenuating circumstances given: "${why}"` : ''}${check.bad ? `\n\nNot enough doctors on ${check.bad} day(s).` : ''}${check.warn ? `\nWarnings on ${check.warn} day(s).` : ''}\n\nSign in as an authoriser to decide.` }));
       emails.push({ to: r.email, subject: `We've got your leave request: ${when}`, text: `Your ${label.toLowerCase()} request for ${when} has been sent to the rota authorisers. You'll get an email when it's decided. You can check progress under "Check my request".` });
       const covers = new Set(r.cover.map((c) => c.doctorId));
       covers.forEach((id) => { const cd = R.doctorById(state, id); if (cd && cd.email) emails.push({ to: cd.email, subject: `You've been named as cover: ${doc.name}, ${when}`, text: `${doc.name} has named you as cover while on leave (${when}), if the request is approved:\n${r.cover.filter((c) => c.doctorId === id).map((c) => c.text).join('\n')}` }); });
@@ -209,7 +274,9 @@
     const doc = R.doctorById(state, doctorId);
     if (!doc || !emailMatches(doc, email)) throw new Error('Name and NHS email do not match the staff list.');
     const mail = String(email).trim().toLowerCase();
+    const bal = R.balance(state, doc);
     return {
+      balance: { al: bal.al, sl: bal.sl, alBasis: R.alProRata(doc).basis, start: doc.start || '', end: doc.end || '' },
       requests: state.requests.filter((r) => r.doctorId === doc.id && (!r.email || r.email.toLowerCase() === mail || doc.email)).sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1)),
       notifications: state.notifications.filter((n) => n.to === 'd:' + doc.id).slice(0, 30)
     };
@@ -218,7 +285,7 @@
   // What anyone with the link can see (no emails, notes, reasons, sickness or audit).
   function publicView(state) {
     const s = clone(state);
-    s.doctors.forEach((d) => { delete d.email; delete d.alEntitlement; delete d.slEntitlement; delete d.note; });
+    s.doctors.forEach((d) => { delete d.email; delete d.alEntitlement; delete d.slEntitlement; delete d.alExtra; delete d.slExtra; delete d.note; });
     s.requests = s.requests.filter((r) => ['pending', 'hold', 'authorised'].includes(r.status)).map((r) => ({
       id: r.id, doctorId: r.doctorId, type: r.type === 'SICK' ? 'UNAVAIL' : (['AL', 'SL'].includes(r.type) ? r.type : 'OTHER'),
       start: r.start, end: r.end, part: r.part, status: r.status, excludedDates: r.excludedDates || [], days: r.days, cover: (r.cover || []).map((c) => ({ date: c.date, doctorId: c.doctorId, to: c.to }))
@@ -241,7 +308,7 @@
       log(state, by, 'Roster changed', `${d.name}, ${R.fmtShort(iso)}: ${before} → ${R.resolveCell(state, d, iso).code || '(blank)'}${reason ? ` (${reason})` : ''}`);
       return [];
     },
-    // decision: 'approve' | 'approveCovered' | 'hold' | 'decline'
+    // decision: 'approve' | 'approveCovered' | 'approveDays' (opts.days = dates to approve) | 'hold' | 'decline'
     decide(state, by, id, decision, message, opts) {
       opts = opts || {};
       const r = state.requests.find((x) => x.id === id);
@@ -250,7 +317,15 @@
       const check = R.staffingCheck(state, { doctorId: r.doctorId, start: r.start, end: r.end, part: r.part, dayUnitCoverId: r.dayUnitCoverId, guhCoverId: r.guhCoverId, requestId: r.id });
       const badDays = check.days.filter((d) => d.status === 'bad').map((d) => d.date);
       const msg = String(message || '').trim();
-      if (decision === 'approve' && badDays.length && !msg) throw new Error('Some days don\'t have enough doctors. Give a reason (e.g. "locum booked") to approve all days.');
+      const workdays = R.dateRange(r.start, r.end).filter((d) => R.isWorkday(state, d) && R.inPost(doc, d));
+      let approveSet = null;
+      if (decision === 'approveDays') {
+        approveSet = new Set((opts.days || []).filter((d) => workdays.includes(d)));
+        if (!approveSet.size) throw new Error('Tick at least one day to approve, or decline the request.');
+        if (approveSet.size === workdays.length) decision = 'approve';
+      }
+      const approvingBad = decision === 'approve' ? badDays : approveSet ? badDays.filter((d) => approveSet.has(d)) : [];
+      if (approvingBad.length && !msg) throw new Error(`Not enough doctors on ${approvingBad.map(R.fmtShort).join(', ')}. Give a reason (e.g. "locum booked") to approve ${approvingBad.length === 1 ? 'that day' : 'those days'}, or untick ${approvingBad.length === 1 ? 'it' : 'them'}.`);
       if ((decision === 'decline' || decision === 'hold') && !msg) throw new Error(decision === 'decline' ? 'Give a reason for declining. It is sent to the doctor.' : 'Write the question for the doctor.');
       const label = R.LEAVE_TYPES[r.type].label;
       const when = rangeText(r.start, r.end);
@@ -264,6 +339,7 @@
         subject = `Leave not approved: ${when}`; text = `Your ${label.toLowerCase()} request (${when}) was not approved by ${by}.\n\nReason: ${msg}`;
         status = 'Leave declined';
       } else {
+        if (approveSet) r.excludedDates = workdays.filter((d) => !approveSet.has(d));
         if (decision === 'approveCovered') {
           r.excludedDates = badDays;
           if (!R.dateRange(r.start, r.end).some((d) => R.isWorkday(state, d) && !badDays.includes(d))) throw new Error('No days have enough doctors. Decline, hold or approve all with a reason instead.');
@@ -279,10 +355,10 @@
         const partial = (r.excludedDates || []).length;
         subject = partial ? `Leave partly approved: ${when}` : `Leave approved: ${when}`;
         text = partial
-          ? `Your ${label.toLowerCase()} request (${when}) was partly approved by ${by}.\n\nNot approved: ${r.excludedDates.map((d) => R.fmtShort(d)).join(', ')} (not enough doctors).${check.alternatives.length ? `\nDays with cover nearby: ${check.alternatives.map((d) => R.fmtShort(d)).join(', ')}.` : ''}${msg ? `\n\n"${msg}"` : ''}`
+          ? `Your ${label.toLowerCase()} request (${when}) was partly approved by ${by}.\n\nApproved: ${workdays.filter((d) => !r.excludedDates.includes(d)).map((d) => R.fmtShort(d)).join(', ')}.\nNot approved: ${r.excludedDates.map((d) => R.fmtShort(d)).join(', ')}.${check.alternatives.length ? `\nDays with cover nearby: ${check.alternatives.map((d) => R.fmtShort(d)).join(', ')}.` : ''}${msg ? `\n\n"${msg}"` : ''}`
           : `Your ${label.toLowerCase()} request (${when}) was approved by ${by}.${msg ? `\n\n"${msg}"` : ''}`;
         status = partial ? 'Leave partly approved' : 'Leave approved';
-        if (badDays.length && decision === 'approve') r.overrideReason = msg;
+        if (approvingBad.length) r.overrideReason = msg;
       }
       r.decidedBy = by; r.decidedAt = nowIso(); r.message = msg;
       notify(state, 'd:' + r.doctorId, `${status}: ${label.toLowerCase()} ${when}.${msg ? ' "' + msg + '"' : ''}`);
@@ -320,6 +396,28 @@
         state.doctors.push(doc);
         log(state, by, 'Doctor added', `${doc.name} (${doc.grade})`);
       }
+      return [];
+    },
+    // Put several doctors at one location for a block of dates (only the chosen weekdays, working days, while in post).
+    bulkAssign(state, by, ids, from, to, days, code, reason) {
+      if (!ids || !ids.length) throw new Error('Tick at least one doctor.');
+      if (!R.isIso(from) || !R.isIso(to) || to < from) throw new Error('Choose a start date and an end date on or after it.');
+      if (R.daysBetween(from, to) > 400) throw new Error('Choose up to about a year at a time.');
+      if (!days || !days.length) throw new Error('Tick at least one weekday.');
+      let n = 0;
+      for (const id of ids) {
+        const d = R.doctorById(state, id);
+        if (!d) continue;
+        for (const iso of R.dateRange(from, to)) {
+          if (!R.isWorkday(state, iso) || !days.includes(R.dow(iso)) || !R.inPost(d, iso)) continue;
+          state.overrides[id] = state.overrides[id] || {};
+          if (code) state.overrides[id][iso] = { code: R.canonicalCode(code), reason: reason || 'Group change', by, at: nowIso() };
+          else delete state.overrides[id][iso];
+          n++;
+        }
+      }
+      if (!n) throw new Error('None of those doctors are in post on the chosen days.');
+      log(state, by, 'Group change', `${ids.map((id) => docName(state, id)).join(', ')}: ${code || '(usual location)'} on ${n} day${n === 1 ? '' : 's'}, ${R.fmtUk(from)} to ${R.fmtUk(to)}${reason ? ` (${reason})` : ''}`);
       return [];
     },
     copyDoctor(state, by, fromId, fields) {
@@ -442,7 +540,7 @@
     function loadLocal() {
       let s = null;
       if (storage) { try { const raw = storage.get(LOCAL_KEY); s = raw ? JSON.parse(raw) : null; } catch (e) { s = null; } }
-      store.state = s && s.version === 2 ? s : demoState(opts.today);
+      store.state = s && s.version === 2 ? upgrade(s) : demoState(opts.today);
       const who = storage && storage.get(LOCAL_KEY + '-me');
       store.me = who || null;
     }
@@ -529,7 +627,7 @@
       resetLocalDemo() { store.state = demoState(opts.today); saveLocal(); emit(); }
     });
     function applyServer(data) {
-      store.state = data.state; store.version = data.version; store.me = data.me || null;
+      store.state = upgrade(data.state); store.version = data.version; store.me = data.me || null;
       store.hasPassword = data.hasPassword !== false; store.emailOn = !!data.emailOn; store.setupCodeRequired = !!data.setupCodeRequired;
     }
     return store;
@@ -539,7 +637,7 @@
     return ((state.settings && state.settings.restricted) || []).find((r) => iso >= r.start && iso <= (r.end || r.start)) || null;
   }
 
-  const api = { createStore, demoState, emptyState, submitLeave, withdrawLeave, myRequests, publicView, ops, restrictionOn, DEFAULT_RULES_TEXT, LOCAL_KEY };
+  const api = { createStore, demoState, emptyState, upgrade, submitLeave, withdrawLeave, myRequests, publicView, ops, restrictionOn, DEFAULT_RULES_TEXT, LOCAL_KEY };
   root.RotaStore = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
