@@ -538,6 +538,14 @@
     const end = starts[1] ? addDays(starts[1], -1) : '';
     return { programme: prog, start: starts[0], end, provisional: prog !== 'foundation', note: p.note, nextStarts: starts };
   }
+  // Same day n months later (clamped to the month's last day).
+  function addMonths(iso, n) {
+    const d = toDate(iso), day = d.getUTCDate();
+    d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + n);
+    const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+    d.setUTCDate(Math.min(day, last));
+    return toIso(d);
+  }
   const shortNotice = (state, start, todayIso) => daysBetween(todayIso, start) < 7 * ruleNum(state, 'noticeWeeks');
   // The furthest date the rota needs to show (no fixed end: grows as doctors and changeovers are added).
   function rotaHorizon(state, todayIso) {
@@ -553,7 +561,7 @@
     norm, siteOf, kindOf, canonicalCode, isBankHoliday, inPost, doctorById, planCode, resolveCell, coverFor, coverWithRisk, coverCode,
     worstStatus, leaveDays, balance, restrictedIn, suggestCover, availability, coverRoleFor, staffingCheck, nearestDates,
     edtDefault, edtEntitlement, edtCheck, edtOn, alPerYear, alProRata, changeoversIn,
-    slotOf, predecessorOf, columns, holderOn, programmeOf, PROGRAMMES, programmeStarts, firstWednesday, suggestDates, shortNotice, rotaHorizon
+    slotOf, predecessorOf, columns, holderOn, programmeOf, PROGRAMMES, programmeStarts, firstWednesday, suggestDates, shortNotice, rotaHorizon, addMonths
   };
   root.RotaRules = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

@@ -7,7 +7,7 @@
   const narrow = () => window.matchMedia('(max-width: 760px)').matches;
 
   const ui = {
-    view: 'rota', rotaMode: 'today', from: TODAY, weeks: 2, layout: narrow() ? 'list' : 'grid', group: 'both', hi: 'all', q: '', hideWeekends: false,
+    view: 'rota', start: TODAY, end: R.addDays(R.addMonths(TODAY, 4), -1), scrollToIso: null, layout: narrow() ? 'list' : 'grid', group: 'both', hi: 'all', q: '', hideWeekends: false,
     editing: null, form: null, submitted: null, mine: { doctorId: '', email: '', result: null }, reqSel: null, reqFilter: 'open',
     edt: { doctorId: '', date: '', session: 'AM', reason: '' }, setupTab: 'master', nd: null, consExtra: 0, bulk: null, importPreview: null, confirm: null, logQ: '',
     rulesDraft: null, dialog: null, busy: false, scrollToToday: true, copyFrom: ''
@@ -129,13 +129,12 @@
   const coverChips = (cover, group) => (cover ? cover.rules.filter((r) => r.rule.group === group)
     .map((r) => `<span class="cv ${r.status}" title="${esc(r.rule.label)}: ${esc(statusWord[r.status])}${r.names.length ? ' (' + esc(r.names.join(', ')) + ')' : ''}">${esc(r.rule.short)} ${statusMark[r.status]}</span>`).join('') : '');
 
-  function rotaRange() {
-    if (ui.rotaMode === 'rotation') {
-      const rot = st().settings.rotation || {};
-      return { from: rot.start || R.addDays(TODAY, -28), to: R.rotaHorizon(st(), TODAY) };
-    }
-    return { from: ui.from, to: R.addDays(ui.from, ui.weeks * 7 - 1) };
-  }
+  // The rota opens on today and shows 4 months; "Show 2 more months" / "Show 2 earlier months" extend it.
+  function rotaRange() { return { from: ui.start, to: ui.end }; }
+  const resetRange = (iso) => { ui.start = iso; ui.end = R.addDays(R.addMonths(iso, 4), -1); };
+  const moreButton = (where) => where === 'top'
+    ? `<div class="more-row"><button type="button" class="btn" data-act="rota-earlier">Show 2 earlier months</button></div>`
+    : `<div class="more-row"><button type="button" class="btn primary" data-act="rota-more">Show 2 more months</button><span class="small muted">Showing to ${esc(R.fmtLong(ui.end))}</span></div>`;
   // Columns (posts) for the range: a new doctor continues the column of the doctor they replace.
   function rotaColumns(from, to) {
     const q = ui.q.trim().toLowerCase();
@@ -158,14 +157,10 @@
     const chip = (act, val, cur, label) => `<button type="button" class="chip" data-act="${act}" data-val="${val}" aria-pressed="${cur === val}">${label}</button>`;
     const head = `
     <div class="page-head">
-      <div><h1>Rota</h1><p class="muted">${esc(R.fmtLong(from))} to ${esc(R.fmtLong(to))}${ui.rotaMode === 'rotation' ? ' (the last date anyone is rostered; it grows as doctors are added)' : ''}. ${isAuth() ? 'Click a cell to change it or book EDT/SDT. Every change is logged.' : 'Read-only. Leave shows on the rota only once an authoriser approves it.'}</p></div>
+      <div><h1>Rota</h1><p class="muted">${esc(R.fmtLong(from))} to ${esc(R.fmtLong(to))}. Scroll down for "Show 2 more months". ${isAuth() ? 'Click a cell to change it or book EDT/SDT. Every change is logged.' : 'Read-only. Leave shows on the rota only once an authoriser approves it.'}</p></div>
       <div class="row">
-        <div class="seg" role="group" aria-label="Range">${chip('rota-mode', 'today', ui.rotaMode, 'From today')}${chip('rota-mode', 'rotation', ui.rotaMode, 'Whole rotation')}</div>
-        ${ui.rotaMode === 'today' ? `<button type="button" class="btn icon" data-act="rota-move" data-val="-7" aria-label="Back a week">‹</button>
-        <button type="button" class="btn" data-act="rota-today">Today</button>
-        <button type="button" class="btn icon" data-act="rota-move" data-val="7" aria-label="Forward a week">›</button>
-        <label class="sr-only" for="weeks">Weeks shown</label>
-        <select id="weeks" data-act="weeks">${[1, 2, 4, 8].map((w) => `<option value="${w}"${ui.weeks === w ? ' selected' : ''}>${plural(w, 'week')}</option>`).join('')}</select>` : ''}
+        <button type="button" class="btn" data-act="rota-today"${ui.start === TODAY && ui.end === R.addDays(R.addMonths(TODAY, 4), -1) ? ' aria-pressed="true"' : ''}>Today</button>
+        <label class="field inline" for="rota-goto"><span class="sr-only">Go to date</span><input type="date" id="rota-goto" data-act="rota-goto" value="${esc(ui.start)}" title="Show 4 months from this date"></label>
         <button type="button" class="btn" data-act="export">Download Excel</button>
       </div>
     </div>
@@ -216,7 +211,7 @@
       const bh = R.isBankHoliday(st(), iso);
       const band = changeovers[iso] ? `<tr class="band"><th class="col-date" scope="row" title="${esc(changeovers[iso].join(' · '))}">Changeover<br>${esc(R.fmtShort(iso))}</th><td class="band-note">${esc(changeovers[iso].filter((t) => !t.includes('→')).join(' · '))}</td>
         ${showRes ? bandCells(res, iso) + '<td class="gap-col"></td>' : ''}${showMg ? bandCells(mg, iso) + '<td class="gap-col"></td>' : ''}<td colspan="${(showRes ? 1 : 0) + (showMg ? 1 : 0)}"></td></tr>` : '';
-      return band + `<tr class="${wk ? 'weekend' : ''}${iso === TODAY ? ' today' : ''}"${iso === TODAY ? ' id="today-row"' : ''}>
+      return band + `<tr class="${wk ? 'weekend' : ''}${iso === TODAY ? ' today' : ''}" data-date="${iso}"${iso === TODAY ? ' id="today-row"' : ''}>
         <th class="col-date" scope="row"><span class="tabular">${esc(R.fmtShort(iso))}</span>${restr ? `<span class="restr ${restr.level.replace(' ', '-')}" title="${esc(restr.note || '')}">${esc(restr.level)}</span>` : ''}${bh ? '<span class="restr BH" title="Bank holiday">BH</span>' : ''}</th>
         <td class="cons">${wk ? '' : esc(st().settings.consultantOfWeek[R.mondayOf(iso)] || '')}</td>
         ${showRes ? res.map((c) => td(c, iso)).join('') + '<td class="gap-col"></td>' : ''}
@@ -226,7 +221,7 @@
       </tr>`;
     }).join('');
     if (!cols.length) return '<p class="notice info">Nobody matches these filters.</p>';
-    return `<div class="table-wrap" id="rota-scroll">
+    return `<div class="table-wrap" id="rota-scroll">${moreButton('top')}
       <table class="roster${hiOn ? ' hi-on' : ''}">
         <thead>
           <tr class="groups"><th class="col-date"></th><th></th>
@@ -239,7 +234,7 @@
             ${showRes ? '<th scope="col">Residents</th>' : ''}${showMg ? '<th scope="col">Seniors</th>' : ''}</tr>
         </thead>
         <tbody>${rows}</tbody>
-      </table>
+      </table>${moreButton('bottom')}
     </div>`;
   }
 
@@ -302,9 +297,9 @@
       const parts = dayParts(iso, w);
       const body = parts.map((p) => `<div class="wl-block${siteDim(p.key) ? ' dim' : ''}"><span class="wl-site ${p.cls}">${esc(p.label)}</span><div>${p.lines.map(([t, l, empty]) => `<p class="wl"><b>${esc(t)}:</b> ${l.length ? l.map(esc).join(', ') : `<span class="muted">${esc(empty)}</span>`}</p>`).join('')}</div></div>`).join('')
         + (w.REQ.length ? `<p class="wl small"><span class="wl-site pending">Leave requested</span> ${w.REQ.map(esc).join(', ')} <span class="muted">(not approved yet)</span></p>` : '');
-      return bandCard(iso, changeovers) + `<article class="day-card${!R.isWorkday(st(), iso) ? ' wk' : ''}${iso === TODAY ? ' today' : ''}"${iso === TODAY ? ' id="today-row"' : ''}>${dayHead(iso, covers)}${body || '<p class="muted small">Nothing rostered.</p>'}</article>`;
+      return bandCard(iso, changeovers) + `<article class="day-card${!R.isWorkday(st(), iso) ? ' wk' : ''}${iso === TODAY ? ' today' : ''}" data-date="${iso}"${iso === TODAY ? ' id="today-row"' : ''}>${dayHead(iso, covers)}${body || '<p class="muted small">Nothing rostered.</p>'}</article>`;
     }).join('');
-    return `<div class="day-list" id="rota-scroll">${days}</div>`;
+    return `${moreButton('top')}<div class="day-list" id="rota-scroll">${days}</div>${moreButton('bottom')}`;
   }
   // By site: each site as a column of bullet lists.
   function renderBySite(dates, docs, changeovers) {
@@ -312,9 +307,9 @@
       const parts = dayParts(iso, whoWhere(iso, docs));
       const cols = parts.map((p) => `<section class="site-col${siteDim(p.key) ? ' dim' : ''}"><h4 class="${p.cls}">${esc(p.label)}${SITE_NOTE[p.key] ? `<span>${esc(SITE_NOTE[p.key])}</span>` : ''}</h4>
         ${p.lines.map(([t, l, empty]) => `<div class="site-sec"><b>${esc(t)}</b>${l.length ? `<ul>${l.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : `<p class="muted small">${esc(empty || 'nobody')}</p>`}</div>`).join('')}</section>`).join('');
-      return bandCard(iso, changeovers) + `<article class="day-card bysite${!R.isWorkday(st(), iso) ? ' wk' : ''}${iso === TODAY ? ' today' : ''}"${iso === TODAY ? ' id="today-row"' : ''}>${dayHead(iso, null)}<div class="site-cols">${cols || '<p class="muted small">Weekend or bank holiday: nothing rostered at the sites.</p>'}</div></article>`;
+      return bandCard(iso, changeovers) + `<article class="day-card bysite${!R.isWorkday(st(), iso) ? ' wk' : ''}${iso === TODAY ? ' today' : ''}" data-date="${iso}"${iso === TODAY ? ' id="today-row"' : ''}>${dayHead(iso, null)}<div class="site-cols">${cols || '<p class="muted small">Weekend or bank holiday: nothing rostered at the sites.</p>'}</div></article>`;
     }).join('');
-    return `<div class="day-list one-col" id="rota-scroll">${days}</div>`;
+    return `${moreButton('top')}<div class="day-list one-col" id="rota-scroll">${days}</div>${moreButton('bottom')}`;
   }
   function legend() {
     return `<div class="legend">
@@ -771,7 +766,7 @@
     return `<div class="grid-2">
       <section class="card"><h2>Rotation</h2>
         <div class="row" style="align-items:flex-end"><label class="field" for="rot-start">Current rotation started<input type="date" id="rot-start" value="${esc(s.rotation.start || '')}"></label><button type="button" class="btn primary" data-act="save-rotation">Save</button></div>
-        <p class="small muted">"Whole rotation" on the rota runs from this date to the last date anyone is rostered (now ${esc(R.fmtLong(R.rotaHorizon(st(), TODAY)))}). There is no fixed end: it grows as doctors and changeovers are added.</p>
+        <p class="small muted">The rota opens on today and shows 4 months, with "Show 2 more months" (and "Show 2 earlier months") to see further. Doctors are rostered until ${esc(R.fmtLong(R.rotaHorizon(st(), TODAY)))} at the moment.</p>
         <h3>Next start dates</h3><div class="scroll-x"><table class="plain small"><tbody>${progs}</tbody></table></div>
         <p class="small muted">These are suggestions. Each doctor's dates can be changed on the Master sheet, and finish dates can be marked "not confirmed".</p></section>
       <section class="card"><h2>Who follows whom</h2>
@@ -973,13 +968,16 @@
     if (overlayKey !== ui.overlayKey) { document.querySelectorAll('#sheet-root .sheet, #sheet-root .dialog, #sheet-root .scrim').forEach((el) => el.classList.add('enter')); ui.overlayKey = overlayKey; }
     if (ui.view === 'rota') {
       const sc = $('#rota-scroll');
-      if (ui.scrollToToday) {
+      if (ui.scrollToIso) {
+        // Showing earlier months: keep the date that was at the top in view.
+        const row = document.querySelector(`#view [data-date="${ui.scrollToIso}"]`);
+        ui.scrollToIso = null; ui.scrollToToday = false;
+        if (row && sc && ui.layout === 'grid') { const th = sc.querySelector('thead'); sc.scrollTop = Math.max(0, row.offsetTop - (th ? th.offsetHeight : 70) - 2); if (keep) sc.scrollLeft = keep[1]; }
+        else if (row) row.scrollIntoView({ block: 'start' });
+      } else if (ui.scrollToToday) {
         ui.scrollToToday = false;
         const row = $('#today-row');
-        if (row && sc) {
-          if (ui.layout === 'grid') { const th = sc.querySelector('thead'); sc.scrollTop = Math.max(0, row.offsetTop - (th ? th.offsetHeight : 70) - 2); }
-          else if (ui.rotaMode === 'rotation') row.scrollIntoView({ block: 'start' });
-        }
+        if (row && sc && ui.layout === 'grid') { const th = sc.querySelector('thead'); sc.scrollTop = Math.max(0, row.offsetTop - (th ? th.offsetHeight : 70) - 2); }
       } else if (sc && keep) { sc.scrollTop = keep[0]; sc.scrollLeft = keep[1]; }
     }
     if (focusId) {
@@ -1014,9 +1012,9 @@
       case 'open-setup': ui.dialog = 'setup'; break;
       case 'close-dialog': closeOverlay(() => { ui.dialog = null; }); return;
       case 'sign-out': await store.logout(); toast('Signed out.'); go('rota'); return;
-      case 'rota-mode': ui.rotaMode = val; ui.scrollToToday = true; break;
-      case 'rota-move': ui.from = R.addDays(ui.from, Number(val)); break;
-      case 'rota-today': ui.from = TODAY; ui.scrollToToday = true; break;
+      case 'rota-more': ui.end = R.addDays(R.addMonths(R.addDays(ui.end, 1), 2), -1); break;
+      case 'rota-earlier': ui.scrollToIso = ui.start; ui.start = R.addMonths(ui.start, -2); break;
+      case 'rota-today': resetRange(TODAY); ui.scrollToToday = true; break;
       case 'layout': ui.layout = val; ui.scrollToToday = true; break;
       case 'group': ui.group = val; break;
       case 'hi': ui.hi = val; break;
@@ -1199,7 +1197,7 @@
     if (t.dataset.rule && ui.rulesDraft) { ui.rulesDraft.rules[t.dataset.rule] = t.value; return; }
     const act = t.dataset.act;
     switch (act) {
-      case 'weeks': ui.weeks = Number(t.value); break;
+      case 'rota-goto': if (R.isIso(t.value)) { resetRange(t.value); ui.scrollToToday = false; } break;
       case 'hide-weekends': ui.hideWeekends = t.checked; break;
       case 'doc-field': {
         const d = R.doctorById(st(), t.dataset.doc);

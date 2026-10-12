@@ -367,3 +367,9 @@ test('a group of doctors can be put at a location for a block of dates', () => {
   assert.equal(R.resolveCell(st, st.doctors[1], '2026-10-17').code, ''); // weekend untouched
   assert.match(st.audit[0].detail, /on 16 days/); // 2 doctors x 8 weekdays
 });
+
+test('months are added safely for the 4-month view and "show more"', () => {
+  assert.equal(R.addMonths('2026-10-12', 4), '2027-02-12');
+  assert.equal(R.addMonths('2026-10-31', 4), '2027-02-28');
+  assert.equal(R.addMonths('2026-10-12', -2), '2026-08-12');
+});

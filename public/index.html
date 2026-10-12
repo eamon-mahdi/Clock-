@@ -334,6 +334,10 @@ table.people input[type="date"] { width: 140px; }
 
 
 
+/* show more / earlier */
+.more-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; padding: 12px; position: sticky; left: 0; }
+.table-wrap > .more-row:first-child { border-bottom: 1px solid var(--line); }
+.field.inline input { min-height: 40px; }
 /* round 5: columns that continue across changeovers, list and by-site views, balances, master sheet */
 .roster th.doc .next { display: block; font-size: 0.64rem; color: var(--accent); font-weight: 600; }
 .tbc { display: inline-block; font-size: 0.6rem; font-weight: 700; padding: 0 4px; border-radius: 3px; background: var(--warn-bg); color: var(--warn-fg); border: 1px dashed var(--warn-fg); vertical-align: middle; }
