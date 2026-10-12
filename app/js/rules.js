@@ -85,7 +85,7 @@
 
   // ---------- settings ----------
   const DEFAULT_RULES = {
-    minResGUH: 1, minResRGH: 1, minResNHH: 1, minSenGUH: 1, minSenRGH: 1, minSenNHH: 1,
+    minResGUH: 1, minResRGH: 1, minResNHH: 1, minSenGUH: 1, minSenRGH: 0, minSenNHH: 0,
     edtOthersAtGUH: 2, noticeWeeks: 6, reminderDays: 3
   };
   const ruleNum = (state, key) => {
@@ -228,11 +228,12 @@
   function balance(state, doc) {
     const sum = (type, statuses) => state.requests.filter((r) => r.doctorId === doc.id && r.type === type && statuses.includes(r.status))
       .reduce((a, r) => a + (r.days || 0), 0);
-    const mk = (type, ent) => {
+    const mk = (type, ent, extra) => {
+      ent = (Number(ent) || 0) + (Number(extra) || 0);
       const used = sum(type, ['authorised']); const pending = sum(type, ['pending', 'hold']);
       return { entitlement: ent || 0, used, pending, left: (ent || 0) - used };
     };
-    return { al: mk('AL', doc.alEntitlement), sl: mk('SL', doc.slEntitlement) };
+    return { al: mk('AL', doc.alEntitlement, doc.alExtra), sl: mk('SL', doc.slEntitlement, doc.slExtra) };
   }
   const restrictedIn = (state, start, end) => ((state.settings && state.settings.restricted) || []).filter((r) => r.start <= end && (r.end || r.start) >= start)
     .sort((a, b) => (a.start < b.start ? -1 : 1));
@@ -458,12 +459,100 @@
   function changeoversIn(state, from, to) {
     const map = {};
     const add = (iso, text) => { if (iso >= from && iso <= to) (map[iso] = map[iso] || []).push(text); };
+    const replaced = new Set();
     for (const d of state.doctors) {
-      if (d.start) add(d.start, `${d.name} (${d.grade}) starts`);
-      if (d.end) add(addDays(d.end, 1), `${d.name} (${d.grade}) leaves`);
+      if (!d.start) continue;
+      const prev = predecessorOf(state, d);
+      if (prev) { replaced.add(prev.id); add(d.start, `${prev.name} → ${d.name} (${d.grade})`); } else add(d.start, `${d.name} (${d.grade}) starts`);
     }
+    for (const d of state.doctors) if (d.end && !replaced.has(d.id)) add(addDays(d.end, 1), `${d.name} (${d.grade}) leaves${d.endProvisional ? ' (date not confirmed)' : ''}`);
     for (const c of (state.settings && state.settings.changeovers) || []) add(c.date, c.label);
     return map;
+  }
+
+
+  // ---------- rota columns (posts): a new doctor can continue the column of the doctor they replace ----------
+  const slotOf = (doc) => doc.slot || doc.id;
+  function predecessorOf(state, doc) {
+    if (!doc.slot || doc.slot === doc.id) return null;
+    const same = state.doctors.filter((d) => d.id !== doc.id && slotOf(d) === doc.slot && (d.start || '') < (doc.start || '9999'));
+    same.sort((a, b) => ((a.start || '') < (b.start || '') ? 1 : -1));
+    return same[0] || null;
+  }
+  // Columns for a date range, in the order doctors were added. Each has the doctors who hold it, earliest first.
+  function columns(state, from, to, filter) {
+    const map = new Map();
+    for (const d of state.doctors) {
+      if (filter && !filter(d)) continue;
+      const k = slotOf(d);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k).push(d);
+    }
+    const out = [];
+    for (const [slot, docs] of map) {
+      docs.sort((a, b) => ((a.start || '') < (b.start || '') ? -1 : 1));
+      const visible = docs.filter((d) => (!d.start || d.start <= to) && (!d.end || d.end >= addDays(from, -28)));
+      if (visible.length) out.push({ slot, docs: visible, group: visible[visible.length - 1].group });
+    }
+    return out;
+  }
+  // Who holds a column on a date (or the nearest holder, shown as "not in post").
+  function holderOn(col, iso) {
+    return col.docs.find((d) => inPost(d, iso)) || col.docs.filter((d) => !d.start || d.start <= iso).pop() || col.docs[0];
+  }
+
+  // ---------- rotation dates (suggestions; every date can be changed) ----------
+  function programmeOf(grade) {
+    const g = grade || '';
+    if (/^F[12]\b|foundation/i.test(g)) return 'foundation';
+    if (/\bIMT|\bCT\d|core/i.test(g)) return 'imt';
+    if (/\bST\d|registrar|\bStR\b|\bSpR\b/i.test(g)) return 'registrar';
+    return 'other';
+  }
+  const PROGRAMMES = {
+    foundation: { label: 'Foundation (F1/F2)', months: [3, 7, 11], wednesday: true, length: 4, note: 'First Wednesday of August, December and April; 4-month posts.' },
+    imt: { label: 'IMT', months: [1, 7], wednesday: true, length: 6, note: 'First Wednesday of August and February; usually 6 months.' },
+    registrar: { label: 'Registrars (training grade)', months: [1, 7], wednesday: false, length: 6, note: '1 August or 1 February; 6 months, sometimes extended to 12 (not always certain).' }
+  };
+  function firstWednesday(y, m) { let d = toIso(new Date(Date.UTC(y, m, 1))); while (dow(d) !== 2) d = addDays(d, 1); return d; }
+  function programmeStarts(prog, fromIso, count) {
+    const p = PROGRAMMES[prog];
+    if (!p) return [];
+    const out = [];
+    let y = Number(fromIso.slice(0, 4)) - 1;
+    while (out.length < count && y < 2200) {
+      for (const m of p.months) {
+        const d = p.wednesday ? firstWednesday(y, m) : toIso(new Date(Date.UTC(y, m, 1)));
+        if (d >= fromIso && out.length < count) out.push(d);
+      }
+      y++;
+    }
+    return out;
+  }
+  // Suggested start and end for a new doctor of this grade, starting on or after fromIso.
+  function suggestDates(grade, fromIso) {
+    const prog = programmeOf(grade);
+    if (prog === 'other') return { programme: prog, start: '', end: '', provisional: true, note: 'No fixed rotation: enter the dates.' };
+    const starts = programmeStarts(prog, fromIso, 3);
+    const p = PROGRAMMES[prog];
+    const end = starts[1] ? addDays(starts[1], -1) : '';
+    return { programme: prog, start: starts[0], end, provisional: prog !== 'foundation', note: p.note, nextStarts: starts };
+  }
+  // Same day n months later (clamped to the month's last day).
+  function addMonths(iso, n) {
+    const d = toDate(iso), day = d.getUTCDate();
+    d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + n);
+    const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+    d.setUTCDate(Math.min(day, last));
+    return toIso(d);
+  }
+  const shortNotice = (state, start, todayIso) => daysBetween(todayIso, start) < 7 * ruleNum(state, 'noticeWeeks');
+  // The furthest date the rota needs to show (no fixed end: grows as doctors and changeovers are added).
+  function rotaHorizon(state, todayIso) {
+    let last = addDays(todayIso, 56);
+    for (const d of state.doctors) { if (d.end && d.end > last) last = d.end; if (d.start && d.start > last) last = d.start; }
+    for (const c of (state.settings && state.settings.changeovers) || []) if (c.date > last) last = c.date;
+    return addDays(last, 14);
   }
 
   const api = {
@@ -471,7 +560,8 @@
     BANK_HOLIDAYS, SITE_CODES, ONCALL_CODES, LEAVE_TYPES, FORM_LEAVE_TYPES, LEAVE_CODES, COVER_RULES, STATUS_RANK, DEFAULT_RULES, ruleNum, groupLabel,
     norm, siteOf, kindOf, canonicalCode, isBankHoliday, inPost, doctorById, planCode, resolveCell, coverFor, coverWithRisk, coverCode,
     worstStatus, leaveDays, balance, restrictedIn, suggestCover, availability, coverRoleFor, staffingCheck, nearestDates,
-    edtDefault, edtEntitlement, edtCheck, edtOn, alPerYear, alProRata, changeoversIn
+    edtDefault, edtEntitlement, edtCheck, edtOn, alPerYear, alProRata, changeoversIn,
+    slotOf, predecessorOf, columns, holderOn, programmeOf, PROGRAMMES, programmeStarts, firstWednesday, suggestDates, shortNotice, rotaHorizon, addMonths
   };
   root.RotaRules = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

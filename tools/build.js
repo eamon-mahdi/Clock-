@@ -27,7 +27,7 @@ ${inner.replace(/\n(<header)/, '\n</head>\n<body>\n$1')}
 const pub = path.join(root, 'public');
 fs.rmSync(pub, { recursive: true, force: true });
 fs.mkdirSync(path.join(pub, 'js'), { recursive: true });
-for (const f of ['xlsx.js', 'rules.js', 'store.js', 'excel.js', 'ui.js']) fs.copyFileSync(path.join(root, 'app/js', f), path.join(pub, 'js', f));
+for (const f of ['theme.js', 'xlsx.js', 'rules.js', 'store.js', 'excel.js', 'ui.js']) fs.copyFileSync(path.join(root, 'app/js', f), path.join(pub, 'js', f));
 fs.writeFileSync(path.join(pub, 'index.html'), page(body));
 fs.writeFileSync(path.join(pub, 'robots.txt'), 'User-agent: *\nDisallow: /\n');
 fs.writeFileSync(path.join(pub, '_headers'), `/*

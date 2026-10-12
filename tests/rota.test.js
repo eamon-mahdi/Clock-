@@ -39,10 +39,13 @@ test('day-unit cover: all RGH codes count, LAB does not, resident-only is an exc
     doc('res1', 'res', 'GUH|GUH|GUH|GUH|GUH'), doc('res2', 'res', 'RGH|RGH|RGH|RGH|RGH'), doc('res3', 'res', 'NHH|NHH|NHH|NHH|NHH'),
     doc('mg1', 'mg', 'GUH|GUH|GUH|GUH|GUH'), doc('mg2', 'mg', 'RGH MDCU|RGH MDCU|RGH MDCU|RGH MDCU|RGH MDCU'), doc('mg3', 'mg', 'GUH LAB|GUH LAB|GUH LAB|GUH LAB|GUH LAB')
   ]);
+  st.settings.rules.minSenRGH = 1;
   const tue = R.coverFor(st, '2026-10-13');
   const by = Object.fromEntries(tue.rules.map((r) => [r.rule.id, r.status]));
   assert.equal(by['mg-RGH'], 'ok'); // RGH MDCU counts for the RGH day unit
-  assert.equal(by['mg-NHH'], 'exception'); // only a resident at NHH
+  assert.equal(by['mg-NHH'], 'na'); // a senior at the day units is not compulsory by default
+  st.settings.rules.minSenNHH = 1;
+  assert.equal(R.coverFor(st, '2026-10-13').rules.find((r) => r.rule.id === 'mg-NHH').status, 'exception'); // if required: only a resident at NHH
   assert.equal(by['mg-GUH'], 'ok');
   const mon = R.coverFor(st, '2026-10-12');
   assert.equal(mon.rules.find((r) => r.rule.id === 'mg-NHH').status, 'na'); // NHH day unit closed Mondays
@@ -127,19 +130,18 @@ test('staffing check: competing requests for the same day are warned about', () 
 test('leave form: validation, email match, study leave needs Intrepid, sickness applies at once', () => {
   const st = S.demoState(TODAY);
   const base = { doctorId: 'r5', email: 's.malik@example.nhs.uk', type: 'AL', start: '2026-11-24', end: '2026-11-25', part: 'FULL' };
-  assert.throws(() => S.submitLeave(st, Object.assign({}, base, { email: 'someone@else.uk' })), /does not match/);
-  assert.throws(() => S.submitLeave(st, Object.assign({}, base, { type: 'SL' })), /Intrepid/);
-  assert.throws(() => S.submitLeave(st, Object.assign({}, base, { type: 'OTHER' })), /Describe/);
-  assert.throws(() => S.submitLeave(st, Object.assign({}, base, { end: '2026-11-20' })), /start date/);
-  const out = S.submitLeave(st, Object.assign({}, base, { dayUnitCoverId: 'r7', remainingStated: '20 days' }));
+  assert.throws(() => S.submitLeave(st, Object.assign({}, base, { email: 'someone@else.uk' }), { today: TODAY }), /does not match/);
+  assert.throws(() => S.submitLeave(st, Object.assign({}, base, { type: 'SL' }), { today: TODAY }), /Intrepid/);
+  assert.throws(() => S.submitLeave(st, Object.assign({}, base, { type: 'OTHER' }), { today: TODAY }), /Describe/);
+  assert.throws(() => S.submitLeave(st, Object.assign({}, base, { end: '2026-11-20' }), { today: TODAY }), /start date/);
+  const out = S.submitLeave(st, Object.assign({}, base, { dayUnitCoverId: 'r7' }), { today: TODAY });
   assert.equal(out.request.status, 'pending');
   assert.equal(out.request.days, 2);
-  assert.equal(out.request.remainingStated, '20 days');
-  assert.throws(() => S.submitLeave(st, base), /already have/);
+  assert.throws(() => S.submitLeave(st, base, { today: TODAY }), /already have/);
   // pending leave is not on the rota
   assert.notEqual(R.resolveCell(st, R.doctorById(st, 'r5'), '2026-11-24').kind, 'leave');
   const before = R.balance(st, R.doctorById(st, 'r5')).al.left;
-  const sick = S.submitLeave(st, { doctorId: 'r5', email: 'S.Malik@example.nhs.uk ', type: 'SICK', start: '2026-10-14', end: '2026-10-14' });
+  const sick = S.submitLeave(st, { doctorId: 'r5', email: 'S.Malik@example.nhs.uk ', type: 'SICK', start: '2026-10-14', end: '2026-10-14' }, { today: TODAY });
   assert.equal(sick.request.status, 'authorised');
   assert.equal(st.notifications.find((n) => n.to === 'auth').text.includes('reported sick'), true);
   assert.equal(R.resolveCell(st, R.doctorById(st, 'r5'), '2026-10-14').code, 'UNAVAILABLE');
@@ -153,7 +155,7 @@ test('leave form: validation, email match, study leave needs Intrepid, sickness 
 test('authoriser decisions: decline needs a reason; part-approval leaves out short days; cover goes on the rota', () => {
   const st = blankState([doc('mg1', 'mg', 'GUH|GUH|GUH|GUH|GUH', { email: 'a@x.uk' }), doc('mg2', 'mg', 'GUH|GUH|OFF|GUH|GUH', { email: 'b@x.uk' }), doc('mg3', 'mg', 'RGH|RGH|RGH|RGH|RGH')]);
   st.settings.rules.minSenRGH = 0;
-  const r = S.submitLeave(st, { doctorId: 'mg1', email: 'a@x.uk', type: 'AL', start: '2026-10-13', end: '2026-10-14', part: 'FULL' }).request;
+  const r = S.submitLeave(st, { doctorId: 'mg1', email: 'a@x.uk', type: 'AL', start: '2026-10-13', end: '2026-10-14', part: 'FULL', extenuating: true, extenuatingReason: 'Family emergency abroad' }, { today: TODAY }).request;
   // Tue 13: mg2 at GUH (fine). Wed 14: mg2 off, nobody else at GUH (short)
   assert.throws(() => S.ops.decide(st, 'J. Hale', r.id, 'decline', ''), /reason/);
   assert.throws(() => S.ops.decide(st, 'J. Hale', r.id, 'approve', ''), /Give a reason/);
@@ -166,7 +168,7 @@ test('authoriser decisions: decline needs a reason; part-approval leaves out sho
   assert.match(emails[0].subject, /partly approved/);
   assert.equal(st.audit[0].by, 'J. Hale');
   // named cover is written to the rota on approval
-  const r2 = S.submitLeave(st, { doctorId: 'mg1', email: 'a@x.uk', type: 'AL', start: '2026-10-21', end: '2026-10-21', guhCoverId: 'mg3' }).request;
+  const r2 = S.submitLeave(st, { doctorId: 'mg1', email: 'a@x.uk', type: 'SL', intrepid: true, start: '2026-10-21', end: '2026-10-21', guhCoverId: 'mg3' }, { today: TODAY }).request;
   S.ops.decide(st, 'S. Price', r2.id, 'approve', '');
   assert.equal(R.resolveCell(st, st.doctors[2], '2026-10-21').code, 'GUH');
 });
@@ -181,7 +183,10 @@ test('EDT/SDT: residents at GUH only with 2 other residents; seniors anywhere if
   assert.equal(tue.ok, false, 'Tue: only r2 at GUH');
   assert.match(tue.checks.find((c) => !c.ok).rule, /2 other residents/);
   assert.equal(R.edtCheck(st, 'r4', '2026-10-12', 'PM').ok, false, 'resident not at GUH');
-  assert.equal(R.edtCheck(st, 'm2', '2026-10-12', 'PM').ok, false, 'only senior at RGH');
+  assert.equal(R.edtCheck(st, 'm2', '2026-10-12', 'PM').ok, true, 'senior cover at RGH is not compulsory');
+  st.doctors[6].plan.A = 'RGH|RGH|RGH|RGH|RGH'.split('|');
+  assert.equal(R.edtCheck(st, 'm1', '2026-10-12', 'PM').ok, false, 'GUH would lose its only senior');
+  st.doctors[6].plan.A = 'GUH|GUH|GUH|GUH|GUH'.split('|');
   assert.equal(R.edtCheck(st, 'm1', '2026-10-12', 'PM').ok, true, 'another senior stays at GUH');
   S.ops.bookEdt(st, 'J. Hale', 'r1', '2026-10-12', 'PM', '');
   const cell = R.resolveCell(st, st.doctors[0], '2026-10-12');
@@ -211,7 +216,7 @@ test('rules numbers change the checks', () => {
 
 test('public view hides emails, notes, reasons and sickness', () => {
   const st = S.demoState(TODAY);
-  S.submitLeave(st, { doctorId: 'r5', email: 's.malik@example.nhs.uk', type: 'SICK', start: '2026-10-14', end: '2026-10-14', note: 'private' });
+  S.submitLeave(st, { doctorId: 'r5', email: 's.malik@example.nhs.uk', type: 'SICK', start: '2026-10-14', end: '2026-10-14', note: 'private' }, { today: TODAY });
   st.settings.authoriserEmails = ['boss@example.nhs.uk'];
   const pub = S.publicView(st);
   const text = JSON.stringify(pub);
@@ -290,4 +295,81 @@ test('roster export opens and has the expected sheets (also from the public view
     assert.equal(wb[0].rows.length, 15);
     assert.deepEqual(wb[0].rows[1][0], { date: '2026-10-12' });
   }
+});
+
+test('annual leave needs 6 weeks notice unless there are extenuating circumstances', () => {
+  const st = S.demoState(TODAY);
+  const base = { doctorId: 'r5', email: 's.malik@example.nhs.uk', type: 'AL', start: '2026-11-02', end: '2026-11-03' };
+  assert.throws(() => S.submitLeave(st, base, { today: TODAY }), /6 weeks/);
+  assert.throws(() => S.submitLeave(st, Object.assign({ extenuating: true, extenuatingReason: 'short' }, base), { today: TODAY }), /explain/);
+  const r = S.submitLeave(st, Object.assign({ extenuating: true, extenuatingReason: 'Close family member unwell abroad' }, base), { today: TODAY }).request;
+  assert.equal(r.shortNotice, true);
+  assert.equal(S.publicView(st).requests.find((x) => x.id === r.id).extenuatingReason, undefined);
+  // sickness and study leave are not held to the annual leave notice period
+  assert.equal(S.submitLeave(st, { doctorId: 'r7', email: 'l.osei@example.nhs.uk', type: 'SL', intrepid: true, start: '2026-10-20', end: '2026-10-20' }, { today: TODAY }).request.status, 'pending');
+  assert.throws(() => S.submitLeave(st, { doctorId: 'r9', email: '', type: 'SICK', start: '2026-10-14', end: '2026-10-14' }, { today: TODAY }), /Choose your name/, 'placeholders cannot request leave');
+});
+
+test('authorisers can approve individual days of a request', () => {
+  const st = blankState([doc('mg1', 'mg', 'GUH|GUH|GUH|GUH|GUH', { email: 'a@x.uk' }), doc('mg2', 'mg', 'GUH|GUH|OFF|GUH|GUH')]);
+  const r = S.submitLeave(st, { doctorId: 'mg1', email: 'a@x.uk', type: 'AL', start: '2026-11-23', end: '2026-11-27' }, { today: TODAY }).request;
+  // Wed 25 has no other senior at GUH
+  assert.throws(() => S.ops.decide(st, 'J. Hale', r.id, 'approveDays', '', { days: [] }), /Tick at least one/);
+  assert.throws(() => S.ops.decide(st, 'J. Hale', r.id, 'approveDays', '', { days: ['2026-11-24', '2026-11-25'] }), /Not enough doctors on Wed 25 Nov/);
+  const emails = S.ops.decide(st, 'J. Hale', r.id, 'approveDays', '', { days: ['2026-11-23', '2026-11-24', '2026-11-26'] });
+  assert.deepEqual(r.excludedDates, ['2026-11-25', '2026-11-27']);
+  assert.equal(r.days, 3);
+  assert.match(emails[0].text, /Approved: Mon 23 Nov, Tue 24 Nov, Thu 26 Nov\.\nNot approved: Wed 25 Nov, Fri 27 Nov\./);
+  assert.equal(R.resolveCell(st, st.doctors[0], '2026-11-27').code, 'GUH');
+  const mine = S.myRequests(st, 'mg1', 'a@x.uk');
+  assert.equal(mine.balance.al.used, 3);
+});
+
+test('a new doctor continues the column of the doctor they replace', () => {
+  const st = S.demoState(TODAY);
+  const cols = R.columns(st, '2026-11-30', '2026-12-13', (d) => d.group === 'res');
+  const col = cols.find((c) => c.slot === 'r1');
+  assert.deepEqual(col.docs.map((d) => d.name), ['E. Ward', 'New F1']);
+  assert.equal(R.holderOn(col, '2026-12-01').name, 'E. Ward');
+  assert.equal(R.holderOn(col, '2026-12-02').name, 'New F1');
+  const ch = R.changeoversIn(st, '2026-12-02', '2026-12-02')['2026-12-02'];
+  assert.ok(ch.includes('E. Ward → New F1 (F1)'), ch.join(' | '));
+  const k = R.doctorById(st, 'r8');
+  assert.ok(R.changeoversIn(st, '2026-10-01', '2026-11-01')[k.start].includes('J. Reid → K. Ahmed (F2)'));
+});
+
+test('rotation dates follow the programme and can be overridden', () => {
+  assert.deepEqual(R.programmeStarts('foundation', '2026-08-01', 4), ['2026-08-05', '2026-12-02', '2027-04-07', '2027-08-04']);
+  assert.deepEqual(R.programmeStarts('imt', '2026-08-06', 2), ['2027-02-03', '2027-08-04']);
+  assert.deepEqual(R.programmeStarts('registrar', '2026-08-02', 2), ['2027-02-01', '2027-08-01']);
+  const f = R.suggestDates('F2', '2026-10-12');
+  assert.equal(f.start, '2026-12-02'); assert.equal(f.end, '2027-04-06'); assert.equal(f.provisional, false);
+  assert.equal(R.suggestDates('Registrar ST5', '2026-10-12').provisional, true);
+  assert.equal(R.suggestDates('Specialty doctor', '2026-10-12').start, '');
+  assert.ok(R.rotaHorizon(S.demoState(TODAY), TODAY) >= '2027-08-03', 'whole rotation runs to the last known date');
+});
+
+test('older saved rotas are upgraded', () => {
+  const st = S.demoState(TODAY);
+  st.settings.schema = 2; st.settings.rules.minSenRGH = 1; st.settings.rotation.end = '2026-12-01';
+  S.upgrade(st);
+  assert.equal(st.settings.rules.minSenRGH, 0);
+  assert.equal(st.settings.rotation.end, undefined);
+  assert.equal(st.settings.schema, 3);
+});
+
+test('a group of doctors can be put at a location for a block of dates', () => {
+  const st = blankState([doc('a', 'res', 'GUH|GUH|GUH|GUH|GUH'), doc('b', 'mg', 'RGH|RGH|RGH|RGH|RGH')]);
+  assert.throws(() => S.ops.bulkAssign(st, 'J. Hale', [], '2026-10-12', '2026-10-16', [0], 'NHH', ''), /Tick at least one doctor/);
+  S.ops.bulkAssign(st, 'J. Hale', ['a', 'b'], '2026-10-12', '2026-10-25', [1, 2, 3, 4], 'NHH - DAY UNIT', 'NHH cover');
+  assert.equal(R.resolveCell(st, st.doctors[0], '2026-10-12').code, 'GUH'); // Monday not ticked
+  assert.equal(R.resolveCell(st, st.doctors[1], '2026-10-13').code, 'NHH - DAY UNIT');
+  assert.equal(R.resolveCell(st, st.doctors[1], '2026-10-17').code, ''); // weekend untouched
+  assert.match(st.audit[0].detail, /on 16 days/); // 2 doctors x 8 weekdays
+});
+
+test('months are added safely for the 4-month view and "show more"', () => {
+  assert.equal(R.addMonths('2026-10-12', 4), '2027-02-12');
+  assert.equal(R.addMonths('2026-10-31', 4), '2027-02-28');
+  assert.equal(R.addMonths('2026-10-12', -2), '2026-08-12');
 });
