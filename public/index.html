@@ -7,9 +7,6 @@
 <title>Haematology Rota</title>
 <meta name="description" content="Haematology department rota: who is where at GUH, RGH and NHH, leave requests and authorisation, EDT/SDT and rules.">
 <meta name="robots" content="noindex, nofollow">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
 <style>
 /* Layout: one working surface. Dark header with navigation and the person switcher, then a full-width tool area.
    Site colours follow the department's Excel: GUH red, RGH blue, NHH green, leave yellow. */
@@ -29,8 +26,8 @@
   --gone-a: #3a4452; --gone-b: #5f6b7a; --weekend: #2b3440; --weekend-fg: #d5dee8;
   --no-al: #a3261b; --avoid: #5b3a8c;
   --shadow: 0 8px 28px rgba(21, 32, 43, 0.18);
-  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -122,7 +119,7 @@ main { padding-inline: 16px; padding-block: 18px 60px; max-width: 1680px; margin
 .chip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 600; }
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; font-weight: 600; }
 .field .hint { font-weight: 400; color: var(--muted); font-size: 0.8rem; }
-input[type="text"], input[type="date"], input[type="search"], input[type="number"], input[type="email"], select, textarea {
+input[type="text"], input[type="date"], input[type="search"], input[type="number"], input[type="email"], input[type="password"], select, textarea {
   border: 1px solid var(--line-strong); border-radius: 8px; padding: 0 10px; min-height: 40px; background: var(--surface); color: var(--fg); }
 textarea { padding: 8px 10px; resize: vertical; }
 input[type="number"] { width: 80px; }
@@ -247,7 +244,6 @@ table.plain { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
 .toasts { position: fixed; left: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 8px; z-index: 50; max-width: calc(100% - 32px); }
 .toast { background: var(--fg); color: var(--bg); padding: 10px 14px; border-radius: 10px; box-shadow: var(--shadow); font-size: 0.9rem; }
 .toast.error { background: var(--bad-bg); color: var(--bad-fg); }
-@media (prefers-reduced-motion: no-preference) { .toast { animation: rise 0.2s ease-out; } @keyframes rise { from { transform: translateY(8px); opacity: 0.4; } to { transform: none; opacity: 1; } } }
 @media (max-width: 640px) { h1 { font-size: 1.3rem; } }
 /* v2 additions */
 details.filters > summary { cursor: pointer; font-weight: 600; font-size: 0.85rem; color: var(--muted); padding: 4px 0; }
@@ -341,6 +337,74 @@ table.people input[type="date"] { width: 140px; }
   .kv dd { margin-bottom: 6px; }
 }
 
+
+/* ---------- Apple-style feel (see .claude/skills/apple-design) ----------
+   Instant press feedback, translucent chrome, size-specific type, sheets that
+   materialise and can be dragged away, and gentler fallbacks for reduced motion,
+   reduced transparency and high contrast. */
+:root { --spring: cubic-bezier(0.2, 0.9, 0.25, 1); --material: rgba(21, 32, 43, 0.82); --sheet-material: rgba(255, 255, 255, 0.95); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --material: rgba(10, 15, 20, 0.78); --sheet-material: rgba(23, 32, 42, 0.95); } }
+:root[data-theme="dark"] { --material: rgba(10, 15, 20, 0.78); --sheet-material: rgba(23, 32, 42, 0.95); }
+body { font-size: 0.9375rem; line-height: 1.5; -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
+h1 { font-size: 1.75rem; line-height: 1.1; letter-spacing: -0.022em; font-weight: 700; }
+h2 { font-size: 1.15rem; line-height: 1.2; letter-spacing: -0.012em; }
+h3 { letter-spacing: -0.005em; }
+.label, .roster thead tr.groups th { letter-spacing: 0.06em; }
+.small, .roster { letter-spacing: 0.005em; }
+/* translucent header: content scrolls underneath, no hard divider */
+.app-head { background: var(--material); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 6px 16px -12px rgba(0, 0, 0, 0.6); }
+.nav button { transition: background-color 120ms ease, color 120ms ease, transform 100ms ease-out; }
+/* feedback on press, instantly */
+.btn, .chip, .linkish, .list-item, .daybtn, .tabs button, button.cell, .opt { touch-action: manipulation; transition: transform 100ms ease-out, background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease; }
+.btn:active, .chip:active, .nav button:active, .daybtn:active, .opt:active { transform: scale(0.96); }
+button.cell:active, .list-item:active { transform: scale(0.97); }
+.btn { border-radius: 10px; }
+.btn.primary, .btn.good { box-shadow: 0 1px 0 rgba(255, 255, 255, 0.18) inset, 0 1px 2px rgba(0, 0, 0, 0.12); }
+@media (hover: hover) { .btn:hover { border-color: var(--accent); } .chip:hover { border-color: var(--fg); } }
+@media (hover: none) { button.cell:hover { outline: none; } }
+.chip[aria-pressed="true"] { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); }
+.tabs button { border-bottom-width: 3px; transition: color 150ms ease, border-color 200ms var(--spring); }
+.card { box-shadow: 0 1px 2px rgba(21, 32, 43, 0.04), 0 4px 14px -10px rgba(21, 32, 43, 0.18); }
+.day-card, .table-wrap, .toolbar { box-shadow: 0 1px 2px rgba(21, 32, 43, 0.04); }
+.cell { border-radius: 6px; }
+/* sheets and dialogs: a material that arrives, and can be dragged away on phones */
+.sheet, .dialog { background: var(--sheet-material); -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%); border: 1px solid rgba(255, 255, 255, 0.35); box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.08); will-change: transform, opacity; }
+.dialog { inset: 0; margin: auto; height: max-content; transform: none; border-radius: 18px; }
+.sheet { border-radius: 18px; transform-origin: 100% 100%; }
+.scrim { background: rgba(10, 15, 20, 0.42); }
+.grabber { display: none; width: 40px; height: 5px; border-radius: 3px; background: var(--line-strong); margin: -6px auto 4px; flex: none; }
+@keyframes materialise { from { opacity: 0; transform: scale(0.94); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes scrim-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes toast-in { from { opacity: 0; transform: translateY(16px) scale(0.96); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  .sheet.enter, .dialog.enter { animation: materialise 320ms var(--spring) both; }
+  .scrim.enter { animation: scrim-in 220ms ease-out both; }
+  .toast { animation: toast-in 380ms var(--spring) both; }
+}
+.toast { border-radius: 14px; background: var(--material); color: #fff; -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%); }
+.toast.error { background: rgba(163, 38, 27, 0.92); }
+@media (max-width: 760px) {
+  .sheet, .dialog { inset: auto 0 0 0; left: 0; right: 0; bottom: 0; top: auto; margin: 0; width: 100%; max-height: 88vh; border-radius: 20px 20px 0 0; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform-origin: 50% 100%; }
+  .grabber { display: block; touch-action: none; cursor: grab; }
+  .sheet-head { touch-action: none; }
+  @keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+  @media (prefers-reduced-motion: no-preference) { .sheet.enter, .dialog.enter { animation: sheet-up 380ms var(--spring) both; } }
+}
+/* accessibility fallbacks */
+@media (prefers-reduced-motion: reduce) {
+  .btn:active, .chip:active, .nav button:active, .daybtn:active, .opt:active, button.cell:active, .list-item:active { transform: none; }
+  .sheet.enter, .dialog.enter, .toast, .scrim.enter { animation: fade-in 160ms ease-out both; }
+  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .app-head { background: var(--head-bg); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .sheet, .dialog { background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .toast { background: var(--fg); color: var(--bg); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+@media (prefers-contrast: more) {
+  .app-head, .sheet, .dialog, .toast { background: var(--surface); color: var(--fg); backdrop-filter: none; -webkit-backdrop-filter: none; border: 2px solid var(--fg); }
+  .app-head { background: var(--head-bg); color: var(--head-fg); }
+}
 </style>
 
 </head>

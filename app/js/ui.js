@@ -302,8 +302,8 @@
       return `<div class="stack"><h3>Book ${esc(R.edtDefault(doc).type)}</h3>${sess.map(({ s, chk }) => `<div class="edt-opt ${chk.ok ? 'ok' : 'bad'}"><div><strong>${s === 'AM' ? 'Morning' : 'Afternoon'}</strong> ${chk.ok ? '✓ allowed' : '✕ breaks a rule'}<br><span class="small">${chk.checks.filter((c) => !c.ok).map((c) => esc(c.rule + ': ' + c.detail)).join(' ') || 'All rules met.'}</span></div>
         <button type="button" class="btn${chk.ok ? ' primary' : ''}" data-act="edt-book-cell" data-session="${s}">${chk.ok ? 'Book' : 'Book anyway…'}</button></div>`).join('')}</div>`;
     };
-    return `<section class="sheet" role="dialog" aria-labelledby="sheet-title">
-      <div class="row" style="justify-content:space-between"><h3 id="sheet-title">${esc(doc.name)}, ${esc(R.fmtLong(iso))}</h3><button type="button" class="btn ghost icon" data-act="edit-close" aria-label="Close">✕</button></div>
+    return `<section class="sheet" role="dialog" aria-labelledby="sheet-title"><div class="grabber" aria-hidden="true"></div>
+      <div class="row sheet-head" style="justify-content:space-between"><h3 id="sheet-title">${esc(doc.name)}, ${esc(R.fmtLong(iso))}</h3><button type="button" class="btn ghost icon" data-act="edit-close" aria-label="Close">✕</button></div>
       <p class="muted small">Now: <strong>${esc(cell.kind === 'sick' ? 'UNAVAILABLE' : cell.code || 'nothing rostered')}</strong> (${esc({ plan: 'weekly plan', oncall: 'imported on-call', override: 'changed by an authoriser', leave: 'approved leave', weekend: 'weekend', bh: 'bank holiday', none: 'blank' }[cell.source] || cell.source)})</p>
       ${cell.source === 'oncall' ? '<p class="notice warn small">This shift came from the trust on-call rota. Changing it here replaces it for this day only, and is logged.</p>' : ''}
       ${isLeave ? '<p class="notice info small">This is approved leave or sickness. To change it, open the request under Requests.</p>' : `
@@ -748,8 +748,8 @@
   function renderDialog() {
     if (!ui.dialog) return '';
     if (ui.dialog === 'setup') {
-      return `<div class="scrim"></div><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title"><form id="setup-form" class="stack">
-        <h2 id="dlg-title">First-time setup</h2>
+      return `<div class="scrim" data-act="close-dialog"></div><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title"><div class="grabber" aria-hidden="true"></div><form id="setup-form" class="stack">
+        <h2 id="dlg-title" class="sheet-head">First-time setup</h2>
         <p class="small">Choose the one password the rota authorisers will share. Viewers and doctors sending leave requests never need it.</p>
         <p class="small muted">Make it long and unguessable: for example, 3 or 4 unrelated words mixed with a haematology term only you would think of. Don't use the department name, ward names or anything on this site. It is stored only as a scrambled hash; nobody (including the developer) can read it back.</p>
         ${store.setupCodeRequired ? '<label class="field" for="su-code">Setup code<input type="password" id="su-code" autocomplete="off"></label>' : ''}
@@ -759,14 +759,98 @@
         <div class="row"><button type="submit" class="btn primary">Set password</button><button type="button" class="btn ghost" data-act="close-dialog">Cancel</button></div></form></section>`;
     }
     const names = st().settings.authorisers || [];
-    return `<div class="scrim"></div><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title"><form id="signin-form" class="stack">
-      <h2 id="dlg-title">Authoriser sign in</h2>
+    return `<div class="scrim" data-act="close-dialog"></div><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title"><div class="grabber" aria-hidden="true"></div><form id="signin-form" class="stack">
+      <h2 id="dlg-title" class="sheet-head">Authoriser sign in</h2>
       <p class="small muted">Only the rota authorisers need to sign in. Everyone else can view the rota and send leave requests without a password.</p>
       <label class="field" for="si-name">Your name<select id="si-name">${names.map((n) => `<option>${esc(n)}</option>`).join('')}</select></label>
       ${store.mode === 'local' ? '<p class="notice info small">Demo mode: no password needed.</p>' : '<label class="field" for="si-pw">Password<input type="password" id="si-pw" autocomplete="current-password"></label>'}
       <div class="row"><button type="submit" class="btn primary">Sign in</button><button type="button" class="btn ghost" data-act="close-dialog">Cancel</button></div>
       ${store.mode === 'remote' && !store.hasPassword ? '<p class="small"><button type="button" class="linkish" data-act="open-setup">No password set yet? First-time setup</button></p>' : ''}</form></section>`;
   }
+
+
+  // ---------- motion: springs, closing along the way things came in, drag to dismiss (phones) ----------
+  const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const isPhone = () => window.matchMedia('(max-width: 760px)').matches;
+  // A critically damped spring by default (damping 1, response in seconds). Starts from the current value and velocity.
+  function spring(from, to, velocity, opts, onFrame, onDone) {
+    const response = (opts && opts.response) || 0.35, damping = (opts && opts.damping) || 1;
+    const k = Math.pow(2 * Math.PI / response, 2), c = 4 * Math.PI * damping / response;
+    let x = from, v = velocity || 0, last = performance.now(), raf = 0, stopped = false;
+    const step = (now) => {
+      if (stopped) return;
+      let dt = Math.min(0.032, (now - last) / 1000); last = now;
+      while (dt > 0) { const h = Math.min(dt, 1 / 240); v += (-k * (x - to) - c * v) * h; x += v * h; dt -= h; }
+      if (Math.abs(x - to) < 0.5 && Math.abs(v) < 20) { onFrame(to); if (onDone) onDone(); return; }
+      onFrame(x); raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return { stop() { stopped = true; cancelAnimationFrame(raf); }, value: () => x, velocity: () => v };
+  }
+  const project = (v, rate) => (v / 1000) * (rate || 0.998) / (1 - (rate || 0.998)); // where a flick would come to rest
+  const rubberband = (over, dim) => (over * dim * 0.55) / (dim + 0.55 * Math.abs(over));
+  let overlayAnim = null;
+
+  function overlayEl() { return document.querySelector('#sheet-root .dialog') || document.querySelector('#sheet-root .sheet'); }
+  // Close a sheet or dialog: phones slide it down, wider screens reverse the way it arrived.
+  function closeOverlay(apply, velocity) {
+    const el = overlayEl();
+    const finish = () => { overlayAnim = null; apply(); render(); };
+    if (!el || reduceMotion()) return finish();
+    if (overlayAnim) overlayAnim.stop();
+    const scrim = document.querySelector('#sheet-root .scrim');
+    el.classList.remove('enter');
+    if (isPhone()) {
+      const h = el.getBoundingClientRect().height;
+      const from = currentY(el);
+      overlayAnim = spring(from, h, velocity || 0, { response: 0.3 }, (y) => { el.style.transform = `translateY(${y}px)`; if (scrim) scrim.style.opacity = String(Math.max(0, 1 - y / h)); }, finish);
+    } else {
+      el.style.transition = 'opacity 180ms ease-in, transform 180ms ease-in, filter 180ms ease-in';
+      el.style.opacity = '0'; el.style.transform = 'scale(0.96)'; el.style.filter = 'blur(4px)';
+      if (scrim) { scrim.style.transition = 'opacity 180ms ease-in'; scrim.style.opacity = '0'; }
+      setTimeout(finish, 180);
+    }
+  }
+  function currentY(el) { const m = new DOMMatrixReadOnly(getComputedStyle(el).transform); return m.m42 || 0; }
+
+  // Drag the sheet down by its grabber or title (phones). Tracks 1:1, rubber-bands upwards, and uses the
+  // flick's velocity to decide whether to close; otherwise springs back.
+  document.addEventListener('pointerdown', (ev) => {
+    if (!isPhone() || ev.button > 0) return;
+    const handle = ev.target.closest('#sheet-root .grabber, #sheet-root .sheet-head');
+    if (!handle || ev.target.closest('button, input, select, textarea, a')) return;
+    const el = overlayEl();
+    if (!el) return;
+    if (overlayAnim) { overlayAnim.stop(); overlayAnim = null; }
+    el.classList.remove('enter');
+    const startY = ev.clientY, startOffset = currentY(el), h = el.getBoundingClientRect().height;
+    const scrim = document.querySelector('#sheet-root .scrim');
+    let dragging = false, hist = [];
+    const move = (e) => {
+      const dy = e.clientY - startY;
+      if (!dragging) { if (Math.abs(dy) < 8) return; dragging = true; try { handle.setPointerCapture(ev.pointerId); } catch (x) { /* already released */ } }
+      let y = startOffset + dy;
+      if (y < 0) y = rubberband(y, h);
+      el.style.transform = `translateY(${y}px)`;
+      if (scrim) scrim.style.opacity = String(Math.max(0, 1 - y / h));
+      hist.push([e.timeStamp, y]); if (hist.length > 6) hist.shift();
+    };
+    const up = () => {
+      document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); document.removeEventListener('pointercancel', up);
+      if (!dragging) return;
+      const y = currentY(el);
+      const a = hist[0], b = hist[hist.length - 1];
+      const v = a && b && b[0] > a[0] ? ((b[1] - a[1]) / (b[0] - a[0])) * 1000 : 0; // px per second
+      const closing = y + project(v) > h * 0.45 && v > -50;
+      if (closing) {
+        const apply = ui.dialog ? () => { ui.dialog = null; } : () => { ui.editing = null; };
+        closeOverlay(apply, v);
+      } else {
+        overlayAnim = spring(y, 0, v, { response: 0.3, damping: Math.abs(v) > 300 ? 0.8 : 1 }, (yy) => { el.style.transform = `translateY(${yy}px)`; if (scrim) scrim.style.opacity = String(Math.max(0, 1 - yy / h)); }, () => { overlayAnim = null; el.style.transform = ''; });
+      }
+    };
+    document.addEventListener('pointermove', move); document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up);
+  });
 
   // ---------- render ----------
   function render() {
@@ -780,6 +864,8 @@
     const views = { rota: renderRota, request: renderRequest, mine: renderMine, rules: renderRules, requests: renderRequests, edt: renderEdt, setup: renderSetup, log: renderLog };
     $('#view').innerHTML = (views[ui.view] || renderRota)();
     $('#sheet-root').innerHTML = (ui.view === 'rota' && isAuth() ? renderEditSheet() : '') + renderDialog();
+    const overlayKey = (ui.dialog || '') + '|' + (ui.editing && ui.view === 'rota' ? ui.editing.doc + ui.editing.iso : '');
+    if (overlayKey !== ui.overlayKey) { document.querySelectorAll('#sheet-root .sheet, #sheet-root .dialog, #sheet-root .scrim').forEach((el) => el.classList.add('enter')); ui.overlayKey = overlayKey; }
     if (ui.view === 'rota') {
       const sc = $('#rota-scroll');
       if (ui.scrollToToday) {
@@ -821,7 +907,7 @@
       case 'nav': go(t.dataset.view); return;
       case 'open-signin': ui.dialog = 'signin'; break;
       case 'open-setup': ui.dialog = 'setup'; break;
-      case 'close-dialog': ui.dialog = null; break;
+      case 'close-dialog': closeOverlay(() => { ui.dialog = null; }); return;
       case 'sign-out': await store.logout(); toast('Signed out.'); go('rota'); return;
       case 'rota-mode': ui.rotaMode = val; ui.scrollToToday = true; break;
       case 'rota-move': ui.from = R.addDays(ui.from, Number(val)); break;
@@ -831,7 +917,7 @@
       case 'hi': ui.hi = val; break;
       case 'export': { const { from, to } = rotaRange(); saveFile(`haematology-rota-${from}-to-${to}.xlsx`, E.rosterWorkbook(st(), from, to)); return; }
       case 'edit-cell': ui.editing = { doc: t.dataset.doc, iso: t.dataset.iso }; break;
-      case 'edit-close': ui.editing = null; break;
+      case 'edit-close': closeOverlay(() => { ui.editing = null; }); return;
       case 'edit-save': {
         const code = $('#edit-code').value, reason = $('#edit-reason').value.trim();
         const { doc, iso } = ui.editing;
@@ -1037,7 +1123,7 @@
 
   document.addEventListener('keydown', (ev) => {
     if (ev.key !== 'Escape') return;
-    if (ui.dialog) { ui.dialog = null; render(); } else if (ui.editing) { ui.editing = null; render(); }
+    if (ui.dialog) closeOverlay(() => { ui.dialog = null; }); else if (ui.editing) closeOverlay(() => { ui.editing = null; });
   });
 
   async function confirmImport() {
