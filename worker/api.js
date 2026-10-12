@@ -111,8 +111,11 @@ function sessionCookie(token, maxAgeSeconds, secure) {
 function allowedRecipients(state) {
   const set = new Set();
   const add = (e) => { if (e && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) set.add(String(e).trim().toLowerCase()); };
-  (state.doctors || []).forEach((d) => add(d.email));
-  (state.requests || []).forEach((r) => add(r.email));
+  // Doctors are emailed only if the authorisers switch it on (Set up → Settings); otherwise only alert emails go out.
+  if (state.settings && state.settings.emailDoctors) {
+    (state.doctors || []).forEach((d) => add(d.email));
+    (state.requests || []).forEach((r) => add(r.email));
+  }
   ((state.settings && state.settings.authoriserEmails) || []).forEach(add);
   return set;
 }

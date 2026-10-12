@@ -342,6 +342,10 @@ table.people input[type="date"] { width: 140px; }
 
 
 
+/* working counts */
+.avail { display: inline-block; font-size: 0.72rem; font-weight: 500; white-space: nowrap; padding: 2px 6px; border-radius: 6px; background: var(--surface-2); color: var(--fg); border: 1px solid var(--line); vertical-align: middle; }
+.avail b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.roster td.avail-cell { white-space: nowrap; }
 /* show more / earlier */
 .more-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; padding: 12px; position: sticky; left: 0; }
 .table-wrap > .more-row:first-child { border-bottom: 1px solid var(--line); }
@@ -2313,7 +2317,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
   const narrow = () => window.matchMedia('(max-width: 760px)').matches;
 
   const ui = {
-    view: 'rota', start: TODAY, end: R.addDays(R.addMonths(TODAY, 4), -1), scrollToIso: null, layout: narrow() ? 'list' : 'grid', group: 'both', hi: 'all', q: '', hideWeekends: false,
+    view: 'rota', start: TODAY, end: R.addDays(R.addMonths(TODAY, 2), -1), scrollToIso: null, days: [], layout: narrow() ? 'list' : 'grid', group: 'both', hi: 'all', q: '', hideWeekends: false,
     editing: null, form: null, submitted: null, mine: { doctorId: '', email: '', result: null }, reqSel: null, reqFilter: 'open',
     edt: { doctorId: '', date: '', session: 'AM', reason: '' }, setupTab: 'master', nd: null, consExtra: 0, bulk: null, importPreview: null, confirm: null, logQ: '',
     rulesDraft: null, dialog: null, busy: false, scrollToToday: true, copyFrom: ''
@@ -2437,7 +2441,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
 
   // The rota opens on today and shows 4 months; "Show 2 more months" / "Show 2 earlier months" extend it.
   function rotaRange() { return { from: ui.start, to: ui.end }; }
-  const resetRange = (iso) => { ui.start = iso; ui.end = R.addDays(R.addMonths(iso, 4), -1); };
+  const resetRange = (iso) => { ui.start = iso; ui.end = R.addDays(R.addMonths(iso, 2), -1); };
   const moreButton = (where) => where === 'top'
     ? `<div class="more-row"><button type="button" class="btn" data-act="rota-earlier">Show 2 earlier months</button></div>`
     : `<div class="more-row"><button type="button" class="btn primary" data-act="rota-more">Show 2 more months</button><span class="small muted">Showing to ${esc(R.fmtLong(ui.end))}</span></div>`;
@@ -2450,7 +2454,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
 
   function renderRota() {
     const { from, to } = rotaRange();
-    const dates = R.dateRange(from, to).filter((iso) => !(ui.hideWeekends && R.isWeekend(iso)));
+    const dates = R.dateRange(from, to).filter((iso) => (ui.days.length ? ui.days.includes(R.dow(iso)) : !(ui.hideWeekends && R.isWeekend(iso))));
     const cols = rotaColumns(from, to);
     const docs = cols.flatMap((c) => c.docs);
     const changeovers = R.changeoversIn(st(), from, to);
@@ -2465,18 +2469,19 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     <div class="page-head">
       <div><h1>Rota</h1><p class="muted">${esc(R.fmtLong(from))} to ${esc(R.fmtLong(to))}. Scroll down for "Show 2 more months". ${isAuth() ? 'Click a cell to change it or book EDT/SDT. Every change is logged.' : 'Read-only. Leave shows on the rota only once an authoriser approves it.'}</p></div>
       <div class="row">
-        <button type="button" class="btn" data-act="rota-today"${ui.start === TODAY && ui.end === R.addDays(R.addMonths(TODAY, 4), -1) ? ' aria-pressed="true"' : ''}>Today</button>
-        <label class="field inline" for="rota-goto"><span class="sr-only">Go to date</span><input type="date" id="rota-goto" data-act="rota-goto" value="${esc(ui.start)}" title="Show 4 months from this date"></label>
+        <button type="button" class="btn" data-act="rota-today"${ui.start === TODAY && ui.end === R.addDays(R.addMonths(TODAY, 2), -1) ? ' aria-pressed="true"' : ''}>Today</button>
+        <label class="field inline" for="rota-goto"><span class="sr-only">Go to date</span><input type="date" id="rota-goto" data-act="rota-goto" value="${esc(ui.start)}" title="Show 2 months from this date"></label>
         <button type="button" class="btn" data-act="export">Download Excel</button>
       </div>
     </div>
-    <details class="filters"${ui.filtersOpen === undefined ? (narrow() ? '' : ' open') : ui.filtersOpen ? ' open' : ''}><summary>View and filters${ui.layout === 'list' ? ' · list' : ''}${ui.group !== 'both' ? ' · ' + (ui.group === 'res' ? 'residents' : 'senior doctors') : ''}${ui.hi !== 'all' ? ' · ' + ui.hi : ''}${ui.q ? ' · "' + esc(ui.q) + '"' : ''}</summary>
+    <details class="filters"${ui.filtersOpen === undefined ? (narrow() ? '' : ' open') : ui.filtersOpen ? ' open' : ''}><summary>View and filters${ui.layout === 'list' ? ' · list' : ''}${ui.group !== 'both' ? ' · ' + (ui.group === 'res' ? 'residents' : 'senior doctors') : ''}${ui.hi !== 'all' ? ' · ' + ui.hi : ''}${ui.days.length ? ' · ' + ui.days.map((k) => R.DOW_SHORT[k]).join(', ') + ' only' : ''}${ui.q ? ' · "' + esc(ui.q) + '"' : ''}</summary>
     <div class="toolbar">
       <div class="group"><span class="label">View</span>${chip('layout', 'grid', ui.layout, 'Grid')}${chip('layout', 'list', ui.layout, 'List')}${chip('layout', 'site', ui.layout, 'By site')}</div>
       <div class="group"><span class="label">Show</span>${chip('group', 'both', ui.group, 'Everyone')}${chip('group', 'res', ui.group, 'Residents')}${chip('group', 'mg', ui.group, 'Senior doctors')}</div>
       <div class="group"><span class="label">Highlight</span>${[['all', 'All'], ['GUH', 'GUH'], ['RGH', 'RGH'], ['NHH', 'NHH'], ['leave', 'Leave'], ['oncall', 'On call'], ['edt', 'EDT/SDT']].map(([v, l]) => chip('hi', v, ui.hi, l)).join('')}</div>
       <label class="group" for="q"><span class="label">Find</span><input type="search" id="q" data-live="q" value="${esc(ui.q)}" placeholder="Name or grade"></label>
-      <label class="group small"><input type="checkbox" data-act="hide-weekends"${ui.hideWeekends ? ' checked' : ''}> Hide weekends</label>
+      <div class="group"><span class="label">Days</span><button type="button" class="chip" data-act="day-all" aria-pressed="${!ui.days.length}">All</button>${R.DOW_SHORT.slice(0, 5).map((d, k) => `<button type="button" class="chip" data-act="day-toggle" data-val="${k}" aria-pressed="${ui.days.includes(k)}">${d}</button>`).join('')}</div>
+      ${ui.days.length ? '' : `<label class="group small"><input type="checkbox" data-act="hide-weekends"${ui.hideWeekends ? ' checked' : ''}> Hide weekends</label>`}
     </div></details>
     <div class="row small">
       <span class="cv ${counts.gap ? 'gap' : 'ok'}">${counts.gap ? plural(counts.gap, 'post') + ' not covered' : 'No gaps'}</span>
@@ -2498,7 +2503,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
       const later = c.docs.filter((x) => x.start && x.start > first);
       return `<th class="doc" scope="col"><span class="grade">${esc(d.grade)}</span>${esc(d.name)}${d.placeholder ? ' <span class="tbc">TBC</span>' : ''}<span class="dates">${esc(endTxt(d))}</span>${later.map((x) => `<span class="next">then ${esc(x.name)}</span>`).join('')}</th>`;
     };
-    const ncols = 2 + (showRes ? res.length + 1 : 0) + (showMg ? mg.length + 1 : 0) + (showRes ? 1 : 0) + (showMg ? 1 : 0);
+    const allDocs = cols.flatMap((c) => c.docs);
     const hiOn = ui.hi !== 'all';
     const td = (c, iso) => {
       const d = R.holderOn(c, iso);
@@ -2518,7 +2523,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
       const band = changeovers[iso] ? `<tr class="band"><th class="col-date" scope="row" title="${esc(changeovers[iso].join(' · '))}">Changeover<br>${esc(R.fmtShort(iso))}</th><td class="band-note">${esc(changeovers[iso].filter((t) => !t.includes('→')).join(' · '))}</td>
         ${showRes ? bandCells(res, iso) + '<td class="gap-col"></td>' : ''}${showMg ? bandCells(mg, iso) + '<td class="gap-col"></td>' : ''}<td colspan="${(showRes ? 1 : 0) + (showMg ? 1 : 0)}"></td></tr>` : '';
       return band + `<tr class="${wk ? 'weekend' : ''}${iso === TODAY ? ' today' : ''}" data-date="${iso}"${iso === TODAY ? ' id="today-row"' : ''}>
-        <th class="col-date" scope="row"><span class="tabular">${esc(R.fmtShort(iso))}</span>${restr ? `<span class="restr ${restr.level.replace(' ', '-')}" title="${esc(restr.note || '')}">${esc(restr.level)}</span>` : ''}${bh ? '<span class="restr BH" title="Bank holiday">BH</span>' : ''}</th>
+        <th class="col-date" scope="row"><span class="tabular">${esc(R.fmtShort(iso))}</span>${restr ? `<span class="restr ${restr.level.replace(' ', '-')}" title="${esc(restr.note || '')}">${esc(restr.level)}</span>` : ''}${bh ? '<span class="restr BH" title="Bank holiday">BH</span>' : ''}${wk || bh ? '' : `<br>${availChip(availableOn(iso, allDocs))}`}</th>
         <td class="cons">${wk ? '' : esc(st().settings.consultantOfWeek[R.mondayOf(iso)] || '')}</td>
         ${showRes ? res.map((c) => td(c, iso)).join('') + '<td class="gap-col"></td>' : ''}
         ${showMg ? mg.map((c) => td(c, iso)).join('') + '<td class="gap-col"></td>' : ''}
@@ -2543,6 +2548,19 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
       </table>${moreButton('bottom')}
     </div>`;
   }
+
+  // How many doctors are working at a site (GUH/RGH/NHH or the lab) on a date, at least part of the day.
+  function availableOn(iso, docs) {
+    const n = { res: 0, mg: 0 };
+    if (!R.isWorkday(st(), iso)) return null;
+    for (const d of docs) {
+      if (!R.inPost(d, iso)) continue;
+      const c = R.resolveCell(st(), d, iso);
+      if (c.am || c.pm || c.kind === 'lab' || (c.kind === 'edt' && R.kindOf(c.baseCode) === 'lab')) n[d.group === 'mg' ? 'mg' : 'res']++;
+    }
+    return n;
+  }
+  const availChip = (n) => (n ? `<span class="avail" title="Doctors working at a site that day (residents / senior doctors)">${ui.group !== 'mg' ? `<b>${n.res}</b> res` : ''}${ui.group === 'both' ? ' · ' : ''}${ui.group !== 'res' ? `<b>${n.mg}</b> sen` : ''}</span>` : '');
 
   // Who is where on a date, split by site and by grade group.
   function whoWhere(iso, docs) {
@@ -2590,9 +2608,10 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     if (el.length) parts.push({ key: 'ELSE', label: 'Elsewhere', cls: 'k-oncall', lines: el });
     return parts;
   }
-  function dayHead(iso, covers) {
+  function dayHead(iso, covers, docs) {
     const restr = S.restrictionOn(st(), iso);
-    return `<div class="day-card-head"><h3>${esc(R.fmtLong(iso))}${iso === TODAY ? ' <span class="pill authorised">Today</span>' : ''}${restr ? ` <span class="restr ${restr.level.replace(' ', '-')}">${esc(restr.level)}</span>` : ''}${R.isBankHoliday(st(), iso) ? ' <span class="restr BH">Bank holiday</span>' : ''}</h3>
+    const n = docs ? availableOn(iso, docs) : null;
+    return `<div class="day-card-head"><h3>${esc(R.fmtLong(iso))}${iso === TODAY ? ' <span class="pill authorised">Today</span>' : ''}${restr ? ` <span class="restr ${restr.level.replace(' ', '-')}">${esc(restr.level)}</span>` : ''}${R.isBankHoliday(st(), iso) ? ' <span class="restr BH">Bank holiday</span>' : ''} ${availChip(n)}</h3>
       ${covers ? `<div>${coverChips(covers[iso], 'res')} ${coverChips(covers[iso], 'mg')}</div>` : ''}</div>`;
   }
   const bandCard = (iso, changeovers) => (changeovers[iso] ? `<div class="band-card"><strong>Changeover ${esc(R.fmtShort(iso))}:</strong> ${esc(changeovers[iso].join(' · '))}</div>` : '');
@@ -2603,7 +2622,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
       const parts = dayParts(iso, w);
       const body = parts.map((p) => `<div class="wl-block${siteDim(p.key) ? ' dim' : ''}"><span class="wl-site ${p.cls}">${esc(p.label)}</span><div>${p.lines.map(([t, l, empty]) => `<p class="wl"><b>${esc(t)}:</b> ${l.length ? l.map(esc).join(', ') : `<span class="muted">${esc(empty)}</span>`}</p>`).join('')}</div></div>`).join('')
         + (w.REQ.length ? `<p class="wl small"><span class="wl-site pending">Leave requested</span> ${w.REQ.map(esc).join(', ')} <span class="muted">(not approved yet)</span></p>` : '');
-      return bandCard(iso, changeovers) + `<article class="day-card${!R.isWorkday(st(), iso) ? ' wk' : ''}${iso === TODAY ? ' today' : ''}" data-date="${iso}"${iso === TODAY ? ' id="today-row"' : ''}>${dayHead(iso, covers)}${body || '<p class="muted small">Nothing rostered.</p>'}</article>`;
+      return bandCard(iso, changeovers) + `<article class="day-card${!R.isWorkday(st(), iso) ? ' wk' : ''}${iso === TODAY ? ' today' : ''}" data-date="${iso}"${iso === TODAY ? ' id="today-row"' : ''}>${dayHead(iso, covers, docs)}${body || '<p class="muted small">Nothing rostered.</p>'}</article>`;
     }).join('');
     return `${moreButton('top')}<div class="day-list" id="rota-scroll">${days}</div>${moreButton('bottom')}`;
   }
@@ -2613,7 +2632,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
       const parts = dayParts(iso, whoWhere(iso, docs));
       const cols = parts.map((p) => `<section class="site-col${siteDim(p.key) ? ' dim' : ''}"><h4 class="${p.cls}">${esc(p.label)}${SITE_NOTE[p.key] ? `<span>${esc(SITE_NOTE[p.key])}</span>` : ''}</h4>
         ${p.lines.map(([t, l, empty]) => `<div class="site-sec"><b>${esc(t)}</b>${l.length ? `<ul>${l.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : `<p class="muted small">${esc(empty || 'nobody')}</p>`}</div>`).join('')}</section>`).join('');
-      return bandCard(iso, changeovers) + `<article class="day-card bysite${!R.isWorkday(st(), iso) ? ' wk' : ''}${iso === TODAY ? ' today' : ''}" data-date="${iso}"${iso === TODAY ? ' id="today-row"' : ''}>${dayHead(iso, null)}<div class="site-cols">${cols || '<p class="muted small">Weekend or bank holiday: nothing rostered at the sites.</p>'}</div></article>`;
+      return bandCard(iso, changeovers) + `<article class="day-card bysite${!R.isWorkday(st(), iso) ? ' wk' : ''}${iso === TODAY ? ' today' : ''}" data-date="${iso}"${iso === TODAY ? ' id="today-row"' : ''}>${dayHead(iso, null, docs)}<div class="site-cols">${cols || '<p class="muted small">Weekend or bank holiday: nothing rostered at the sites.</p>'}</div></article>`;
     }).join('');
     return `${moreButton('top')}<div class="day-list one-col" id="rota-scroll">${days}</div>${moreButton('bottom')}`;
   }
@@ -2693,12 +2712,12 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     const coverSel = (field, id) => `<select id="${id}" data-form="${field}"><option value="">${sick ? 'Not known' : 'Nobody needed / not arranged'}</option>${docOptions(f[field], (d) => d.id !== f.doctorId && (!okDates || R.inPost(d, f.start) || R.inPost(d, f.end)))}</select>`;
     const dayRow = (d) => `<tr><td class="tabular">${esc(R.fmtShort(d.date))}</td><td>${esc(d.at)}</td><td><span class="cv ${d.status === 'ok' ? 'ok' : d.status === 'warn' ? 'exception' : 'gap'}">${d.status === 'ok' ? '✓' : d.status === 'warn' ? '!' : '✕'}</span> ${esc(d.text)}${d.problems.length ? `<br><span class="small muted">${esc(d.problems.join(' '))}</span>` : ''}</td></tr>`;
     return `
-    <div class="page-head"><div><h1>${sick ? 'Report sickness' : 'Request leave'}</h1><p class="muted">No password needed. ${sick ? 'Sickness is recorded straight away and the authorisers are told. It shows on the rota only as "Unavailable".' : 'Leave is not on the rota until an authoriser approves it. You\'ll be told by email and under "Check my request".'}</p></div></div>
+    <div class="page-head"><div><h1>${sick ? 'Report sickness' : 'Request leave'}</h1><p class="muted">No password needed. ${sick ? 'Sickness is recorded straight away and the authorisers are told. It shows on the rota only as "Unavailable".' : `Leave is not on the rota until an authoriser approves it. See the decision under "Check my request"${st().settings.emailDoctors ? ' (you\'ll also get an email)' : ''}.`}</p></div></div>
     <form id="leave-form" class="split" novalidate>
       <div class="main card qform">
         ${q(1, 'Date of request', `<p class="tabular"><strong>${esc(R.fmtLong(TODAY))}</strong></p>`)}
         ${q(2, 'Requestor', `<select id="f-doc" data-form="doctorId" required><option value="">Choose your name</option>${docOptions(f.doctorId, (d) => !d.end || d.end >= TODAY)}</select>`, 'Your own name, from the staff list')}
-        ${q(3, 'NHS email', `<input type="email" id="f-email" data-form="email" value="${esc(f.email)}" placeholder="name@wales.nhs.uk" autocomplete="email" required>`, 'Must match the email the authorisers hold for you. Decisions are sent here. Your remaining leave is worked out for you: see "Check my request".')}
+        ${q(3, 'NHS email', `<input type="email" id="f-email" data-form="email" value="${esc(f.email)}" placeholder="name@wales.nhs.uk" autocomplete="email" required>`, 'Must match the email the authorisers hold for you; it is how we know it is you. Your remaining leave is worked out for you: see "Check my request".')}
         ${q(4, 'Leave type', `<div class="opts">${typeOpt('AL', 'Annual leave')}${typeOpt('SL', 'Study leave')}${typeOpt('SICK', 'Sick leave')}${typeOpt('OTHER', 'Other')}</div>
           ${f.type === 'OTHER' ? '<label class="field" for="f-other">Type of leave<input type="text" id="f-other" data-form="otherText" value="' + esc(f.otherText) + '" placeholder="e.g. parental, compassionate, exam"></label>' : ''}
           ${short ? `<div class="notice bad small stack"><strong>This is less than ${need} weeks' notice.</strong> Trust policy is that annual leave is requested at least ${need} weeks ahead. It can only be considered in extenuating circumstances.
@@ -2732,7 +2751,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
       <section class="card" style="max-width:720px">
         <p class="notice ok">${sick ? `Recorded for ${esc(rangeText(r.start, r.end))}. The authorisers have been told. It shows on the rota as "Unavailable" and is not taken from annual leave.` : `Your request for ${esc(rangeText(r.start, r.end))} (${plural(r.days, 'working day')}) has been sent to the rota authorisers.`}</p>
         ${check && check.bad && !sick ? `<p class="notice warn small">There may not be enough doctors on ${plural(check.bad, 'day')}. The authorisers will look at this; they may approve the other days or suggest another date.</p>` : ''}
-        <p class="small muted">${emailed ? 'A confirmation email is on its way. ' : ''}${sick ? '' : 'You\'ll be told the decision by email (if set up) and under "Check my request". It is not on the rota until approved.'}</p>
+        <p class="small muted">${emailed ? 'A confirmation email is on its way. ' : ''}${sick ? '' : 'See the decision under "Check my request". It is not on the rota until approved.'}</p>
         <div class="row"><button type="button" class="btn primary" data-act="nav" data-view="mine">Check my requests</button><button type="button" class="btn" data-act="form-new">Send another</button></div>
       </section>`;
   }
@@ -2850,7 +2869,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
         ${chk && chk.bad ? `<span class="cv gap">✕ ${chk.bad}</span>` : chk && chk.warn ? `<span class="cv exception">! ${chk.warn}</span>` : ''}
         <span class="pill ${r.status}">${esc(reqStatus[r.status])}</span></button>`;
     };
-    return `<div class="page-head"><div><h1>Requests</h1><p class="muted">Approve, part-approve, ask a question or decline. The doctor (and named cover) are told by email and in the app.</p></div>
+    return `<div class="page-head"><div><h1>Requests</h1><p class="muted">Approve, part-approve, ask a question or decline. The doctor sees the decision under "Check my request"${st().settings.emailDoctors ? ' and by email' : ''}.</p></div>
       <div class="seg">${[['open', 'Waiting'], ['all', 'All']].map(([v, l]) => `<button type="button" class="chip" data-act="req-filter" data-val="${v}" aria-pressed="${ui.reqFilter === v}">${l}</button>`).join('')}</div></div>
       ${unread.length ? `<section class="notice info stack"><div class="row" style="justify-content:space-between"><strong>${plural(unread.length, 'new alert')}</strong><button type="button" class="btn small-btn" data-act="mark-read">Mark as read</button></div>${unread.slice(0, 8).map((n) => `<div class="small"><span class="muted tabular">${esc(n.at.slice(0, 16).replace('T', ' '))}</span> ${esc(n.text)}</div>`).join('')}</section>` : ''}
       <div class="split"><section class="side card" style="padding:0;gap:0;overflow:hidden"><div class="list">${list.map(item).join('') || '<p class="muted" style="padding:14px">Nothing waiting.</p>'}</div></section>
@@ -3072,7 +3091,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     return `<div class="grid-2">
       <section class="card"><h2>Rotation</h2>
         <div class="row" style="align-items:flex-end"><label class="field" for="rot-start">Current rotation started<input type="date" id="rot-start" value="${esc(s.rotation.start || '')}"></label><button type="button" class="btn primary" data-act="save-rotation">Save</button></div>
-        <p class="small muted">The rota opens on today and shows 4 months, with "Show 2 more months" (and "Show 2 earlier months") to see further. Doctors are rostered until ${esc(R.fmtLong(R.rotaHorizon(st(), TODAY)))} at the moment.</p>
+        <p class="small muted">The rota opens on today and shows 2 months, with "Show 2 more months" (and "Show 2 earlier months") to see further. Doctors are rostered until ${esc(R.fmtLong(R.rotaHorizon(st(), TODAY)))} at the moment.</p>
         <h3>Next start dates</h3><div class="scroll-x"><table class="plain small"><tbody>${progs}</tbody></table></div>
         <p class="small muted">These are suggestions. Each doctor's dates can be changed on the Master sheet, and finish dates can be marked "not confirmed".</p></section>
       <section class="card"><h2>Who follows whom</h2>
@@ -3125,6 +3144,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     return `<div class="grid-2">
       <section class="card"><h2>Authorisers</h2><p class="small muted">The names that can sign in (they share one password). Shown in the change log next to every change.</p>
         <label class="field" for="set-auth">Names <span class="hint">One per line</span><textarea id="set-auth" rows="4">${esc((s.authorisers || []).join('\n'))}</textarea></label>
+        <label class="opt small"><input type="checkbox" id="set-email-docs"${s.emailDoctors ? ' checked' : ''}> <span>Also email doctors (decisions and cover). Off: doctors check "Check my request" instead, and only the alert emails below are sent.</span></label>
         <label class="field" for="set-mail">Alert emails <span class="hint">Who is emailed about new requests and sickness. One per line.</span><textarea id="set-mail" rows="3">${esc((s.authoriserEmails || []).join('\n'))}</textarea></label>
         <div class="row"><button type="button" class="btn primary" data-act="save-authorisers">Save</button><span class="small muted">Emails: ${store.emailOn ? '<strong style="color:var(--ok-fg)">switched on</strong>' : store.mode === 'local' ? 'not available in demo mode' : 'not switched on yet (in-app messages only). See the README to add an email key.'}</span></div></section>
       ${store.mode === 'remote' ? `<section class="card"><h2>Change the authoriser password</h2><p class="small muted">Everyone is signed out afterwards. Share the new password in person or by phone, never by email.</p>
@@ -3318,6 +3338,8 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
       case 'open-setup': ui.dialog = 'setup'; break;
       case 'close-dialog': closeOverlay(() => { ui.dialog = null; }); return;
       case 'sign-out': await store.logout(); toast('Signed out.'); go('rota'); return;
+      case 'day-all': ui.days = []; break;
+      case 'day-toggle': { const k = Number(val); ui.days = ui.days.includes(k) ? ui.days.filter((x) => x !== k) : ui.days.concat(k).sort(); break; }
       case 'rota-more': ui.end = R.addDays(R.addMonths(R.addDays(ui.end, 1), 2), -1); break;
       case 'rota-earlier': ui.scrollToIso = ui.start; ui.start = R.addMonths(ui.start, -2); break;
       case 'rota-today': resetRange(TODAY); ui.scrollToToday = true; break;
@@ -3451,10 +3473,11 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
       case 'save-authorisers': {
         const names = $('#set-auth').value.split('\n').map((x) => x.trim()).filter(Boolean);
         const mails = $('#set-mail').value.split('\n').map((x) => x.trim()).filter(Boolean);
+        const emailDocs = $('#set-email-docs').checked;
         if (!names.length) { toast('Keep at least one authoriser name.', true); return; }
         if (!names.includes(store.me)) { toast(`Keep your own name (${store.me}) in the list, or you will be locked out of signing in by name.`, true); return; }
         if (mails.some((m) => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m))) { toast('One of the alert emails does not look right.', true); return; }
-        await change((s, by) => { S.ops.setSetting(s, by, 'authorisers', names, `Authorisers: ${names.join(', ')}`); S.ops.setSetting(s, by, 'authoriserEmails', mails, `Alert emails: ${mails.length}`); return []; }, 'Saved.');
+        await change((s, by) => { S.ops.setSetting(s, by, 'authorisers', names, `Authorisers: ${names.join(', ')}`); S.ops.setSetting(s, by, 'authoriserEmails', mails, `Alert emails: ${mails.length}`); S.ops.setSetting(s, by, 'emailDoctors', emailDocs, `Email doctors: ${emailDocs ? 'on' : 'off'}`); return []; }, 'Saved.');
         break;
       }
       case 'save-bh': {
