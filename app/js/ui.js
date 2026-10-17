@@ -928,22 +928,23 @@
     const when = (at) => `${R.fmtShort(at.slice(0, 10))} ${at.slice(11, 16)}`;
     const row = (x) => `<tr><td class="tabular">${esc(when(x.at))}</td><td>${esc(x.by || '')}</td><td class="small">${esc(x.note || '')}</td><td class="small muted">${Math.round((x.bytes || 0) / 1024)} KB</td>
       <td><div class="row"><button type="button" class="btn ghost small-btn" data-act="backup-download" data-id="${x.id}">Download</button><button type="button" class="btn small-btn" data-act="restore-backup" data-id="${x.id}" data-at="${esc(when(x.at))}">${ui.confirm === 'restore:' + x.id ? 'Confirm: put this copy back' : 'Restore'}</button></div></td></tr>`;
+    const csvTable = (list, n) => list.length ? `<div class="scroll-x"><table class="plain small"><thead><tr><th>Day</th><th>Size</th><th></th></tr></thead><tbody>${list.slice(0, n).map((x) => `<tr><td class="tabular">${esc(R.fmtLong(x.day))}</td><td class="small muted">${Math.round((x.bytes || 0) / 1024)} KB</td><td><button type="button" class="btn ghost small-btn" data-act="csv-backup-download" data-id="${x.id}" data-day="${esc(x.day)}">Download CSV (zip)</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted small">The first one is made tonight.</p>';
     const table = (list, n) => list.length ? `<div class="scroll-x"><table class="plain small"><thead><tr><th>When (UTC)</th><th>By</th><th>What changed</th><th>Size</th><th></th></tr></thead><tbody>${list.slice(0, n).map(row).join('')}</tbody></table></div>` : '<p class="muted small">None yet.</p>';
     return `<div class="grid-2">
       <section class="card"><h2>Where the rota is kept</h2>
         <ul class="small">
           <li><strong>The live rota</strong> is stored in your Cloudflare database (D1, called <code>haematology-rota</code>), not in a file. Every change is saved straight away.</li>
           <li><strong>After every change</strong> a compressed copy is kept (the last 500 changes).</li>
-          <li><strong>Every night</strong> (about 01:15 UTC) a daily copy is kept for 2 years.</li>
+          <li><strong>Every night</strong> (about 01:15 UTC) a daily copy is kept for 2 years, together with a <strong>CSV copy</strong> (a zip with one CSV per table, which opens in Excel).</li>
           <li><strong>Cloudflare also keeps its own restore points</strong> for the last 30 days (D1 Time Travel), in case the database itself has a problem.</li>
-          <li>You can <strong>download a copy</strong> at any time. The Excel version is the rota data file plus read-only tabs (leave, changes, EDT/SDT, change log); upload it under Data file to bring its doctors, consultants, leave restrictions and on-calls back. The exact copy (JSON) puts back everything in one step.</li>
+          <li>You can <strong>download a copy</strong> at any time. The Excel version is the rota data file plus read-only tabs (leave, changes, EDT/SDT, change log); upload it under Data file to bring its doctors, consultants, leave restrictions and on-calls back. The CSV backup is the same tables as separate CSV files in one zip; its rota.csv and doctors.csv can be uploaded under Data file. The exact copy (JSON) puts back everything in one step.</li>
         </ul>
-        <div class="row"><button type="button" class="btn primary" data-act="backup-excel">Download full backup (Excel)</button><button type="button" class="btn" data-act="backup-json">Download exact copy (JSON)</button></div>
+        <div class="row"><button type="button" class="btn primary" data-act="backup-excel">Download full backup (Excel)</button><button type="button" class="btn" data-act="backup-csv">Download CSV backup (zip)</button><button type="button" class="btn" data-act="backup-json">Download exact copy (JSON)</button></div>
         <label class="field" for="restore-file">Put back an exact copy from a file <span class="hint">A .json file downloaded from here. The current rota is backed up first.</span><input type="file" id="restore-file" accept=".json,application/json" data-act="restore-file"></label></section>
       <section class="card"><h2>Copies on the server</h2>
         ${store.mode !== 'remote' ? '<p class="muted small">Copies are kept on the server. In this demo copy, use the download buttons instead.</p>'
           : !b ? '<p class="muted small">Loading…</p>' : b.error ? `<p class="notice bad small">${esc(b.error)}</p>`
-          : `<h3>Daily</h3>${table(b.daily, ui.backupsMore ? 400 : 14)}<h3>After each change</h3>${table(b.changes, ui.backupsMore ? 200 : 20)}
+          : `<h3>Daily</h3>${table(b.daily, ui.backupsMore ? 400 : 14)}<h3>Nightly CSV copies</h3>${csvTable(b.csv || [], ui.backupsMore ? 400 : 14)}<h3>After each change</h3>${table(b.changes, ui.backupsMore ? 200 : 20)}
              <div class="row"><button type="button" class="btn ghost small-btn" data-act="backups-more">${ui.backupsMore ? 'Show fewer' : 'Show all'}</button><button type="button" class="btn ghost small-btn" data-act="backups-refresh">Refresh</button></div>`}
         <p class="small muted">Restoring puts the whole rota back as it was at that moment (doctors, leave, on-calls, settings). The change log is kept, and the restore itself is logged and backed up, so it can be undone.</p></section></div>`;
   }
@@ -1336,6 +1337,11 @@
       case 'confirm-import': await confirmImport(); break;
       case 'save-rotation': await change(op('setSetting', 'rotation', { start: $('#rot-start').value }, `Rotation started ${$('#rot-start').value}`), 'Saved.'); break;
       case 'backup-excel': saveFile(`haematology-rota-backup-${TODAY}.xlsx`, E.backupWorkbook(st(), TODAY)); return;
+      case 'backup-csv': saveFile(`haematology-rota-csv-${TODAY}.zip`, E.csvBackupZip(st(), TODAY), 'application/zip'); return;
+      case 'csv-backup-download': {
+        try { saveFile(`haematology-rota-csv-${t.dataset.day}.zip`, await store.getCsvBackup(t.dataset.id), 'application/zip'); } catch (e) { toast(e.message, true); }
+        return;
+      }
       case 'backup-json': saveFile(`haematology-rota-backup-${TODAY}.json`, JSON.stringify(st()), 'application/json'); return;
       case 'backups-more': ui.backupsMore = !ui.backupsMore; break;
       case 'backups-refresh': ui.backups = null; break;

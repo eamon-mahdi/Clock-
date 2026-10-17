@@ -671,6 +671,11 @@
         return api('GET', '/api/backups');
       },
       async getBackup(id) { return api('GET', `/api/backups/${encodeURIComponent(id)}`); },
+      async getCsvBackup(id) {
+        const res = await fetch(`/api/csv-backups/${encodeURIComponent(id)}`, { credentials: 'same-origin', cache: 'no-store' });
+        if (!res.ok) { let m = `The server replied ${res.status}.`; try { m = (await res.json()).error || m; } catch (e) { /* not json */ } throw new Error(m); }
+        return new Uint8Array(await res.arrayBuffer());
+      },
       async myRequests(doctorId, email) {
         if (store.mode === 'local') return myRequests(store.state, doctorId, email);
         return api('POST', '/api/my-requests', { doctorId, email });

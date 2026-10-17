@@ -442,6 +442,19 @@ test('Rota tab: the whole rota as a grid; only changed cells are imported', asyn
   assert.match(E.rotaCsv(st, TODAY), /^\uFEFF?Date,Day,Consultant,/);
 });
 
+test('CSV backup: one CSV per table in a zip; rota.csv imports again', async () => {
+  const st = S.demoState(TODAY);
+  const files = await X.unzip(E.csvBackupZip(st, TODAY));
+  const names = Object.keys(files).sort();
+  for (const n of ['rota.csv', 'doctors.csv', 'leave-requests.csv', 'on-calls.csv', 'consultant-of-the-week.csv', 'leave-restrictions.csv', 'edt-sdt.csv', 'rota-changes.csv', 'change-log.csv', 'READ ME.txt']) assert.ok(names.includes(n), n);
+  const text = (n) => new TextDecoder().decode(files[n]);
+  const p = E.parseMaster(st, [{ name: 'rota', rows: E.parseCsv(text('rota.csv')) }, { name: 'doctors', rows: E.parseCsv(text('doctors.csv')) }]);
+  assert.ok(p.rota.columns >= 8);
+  assert.deepEqual(p.rota.changes, []);
+  assert.equal(p.doctors.length, st.doctors.length);
+  assert.match(text('leave-requests.csv'), /^\uFEFF?Doctor,Type,From,To/);
+});
+
 test('CSV: quotes, commas and formula-looking cells survive', () => {
   const rows = [['Name', 'Note'], ['Smith, J', 'said "hi"'], ['=1+1', 'x']];
   assert.deepEqual(E.parseCsv(E.toCsv(rows)), rows);

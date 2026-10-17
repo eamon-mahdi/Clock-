@@ -67,9 +67,10 @@ The rota lives in the Cloudflare D1 database `haematology-rota` (not in a file).
 
 - **After every change:** a compressed copy (the last 500 changes).
 - **Every night** (01:15 UTC, a Cloudflare Cron Trigger set in `wrangler.jsonc`): a daily copy, kept for 2 years.
+- **A nightly CSV copy** at the same time: a zip with one CSV per table (rota, doctors, leave requests, on-calls, consultant of the week, leave restrictions, EDT/SDT, rota changes, change log), kept for 2 years in the same database (table `csv_backups`). It opens in Excel without the website.
 - **Cloudflare's own restore points:** D1 Time Travel keeps the last 30 days, in case the database itself has a problem.
 
-Authorisers can see and use these under **Set up → Backups**: download any copy, or put one back (the restore is itself logged and backed up, so it can be undone). The same page downloads a full **Excel backup**. Its Doctors, Consultant of the week and Leave restrictions tabs can be imported again. It also downloads an exact **JSON copy**, which can be uploaded there to restore everything.
+Authorisers can see and use these under **Set up → Backups**: download any copy, or put one back (the restore is itself logged and backed up, so it can be undone). The same page downloads a full **Excel backup**, a **CSV backup** (the zip above, made on the spot) and any of the nightly CSV copies. Its Doctors, Consultant of the week and Leave restrictions tabs can be imported again. It also downloads an exact **JSON copy**, which can be uploaded there to restore everything.
 
 For a full database export from your computer: `npx wrangler d1 export haematology-rota --remote --output backup.sql`.
 

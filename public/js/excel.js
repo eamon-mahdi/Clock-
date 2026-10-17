@@ -526,26 +526,43 @@
     return 0;
   }
 
-  // Full backup: the master tabs (re-importable) plus everything else, read-only.
-  function backupWorkbook(state, todayIso) {
+  // Full backup: the master tabs (re-importable) plus everything else, read-only. Shared by the Excel and CSV backups.
+  function backupTables(state, todayIso) {
     const docName = (id) => (R.doctorById(state, id) || { name: id }).name;
     const changes = [[head('Date'), head('Doctor'), head('Changed to'), head('Reason'), head('By')]];
     Object.entries(state.overrides || {}).forEach(([id, m]) => Object.entries(m).forEach(([d, o]) => changes.push([{ v: d, date: true }, docName(id), o.code, o.reason || '', o.by || ''])));
+    changes.splice(1, changes.length, ...changes.slice(1).sort((a, b) => (a[0].v < b[0].v ? -1 : a[0].v > b[0].v ? 1 : 0)));
     const leave = [[head('Doctor'), head('Type'), head('From'), head('To'), head('Part'), head('Working days'), head('Status'), head('Days not approved'), head('Decided by'), head('Sent')]].concat(state.requests.map((r) => [docName(r.doctorId), r.type === 'SICK' ? 'Unavailable' : (R.LEAVE_TYPES[r.type] || R.LEAVE_TYPES.OTHER).label, { v: r.start, date: true }, { v: r.end, date: true }, r.part, r.days, r.status, (r.excludedDates || []).map(R.fmtUk).join(', '), r.decidedBy || '', (r.submittedAt || '').slice(0, 10)]));
     const edt = [[head('Date'), head('Session'), head('Doctor'), head('Type'), head('Booked by')]].concat((state.edt || []).map((e) => [{ v: e.date, date: true }, e.session, docName(e.doctorId), e.type, e.bookedBy || '']));
     const audit = [[head('When'), head('Who'), head('What'), head('Details')]].concat((state.audit || []).map((a) => [a.at.slice(0, 16).replace('T', ' '), a.by, a.action, a.detail]));
+    const r = rotaRange(state, todayIso);
+    const rota = rotaRows(state, R.addDays(todayIso, -90), r.to);
+    return [
+      { name: 'Rota', file: 'rota', rows: rota.rows, widths: rota.widths, freeze: { row: 1, col: 2 }, heights: { 0: 42 } },
+      { name: 'Doctors', file: 'doctors', rows: doctorRows(state), widths: MASTER_WIDTHS, freeze: { row: 1, col: 1 }, heights: { 0: 42 } },
+      { name: 'Consultant of the week', file: 'consultant-of-the-week', rows: consultantRows(state, todayIso), widths: [24, 30], freeze: { row: 1 } },
+      { name: 'Leave restrictions', file: 'leave-restrictions', rows: restrictionRows(state), widths: [13, 13, 20, 50], freeze: { row: 1 } },
+      { name: 'On-calls', file: 'on-calls', rows: oncallRows(state), widths: [12, 22, 20], freeze: { row: 1 } },
+      { name: 'Leave', file: 'leave-requests', rows: leave, widths: [18, 22, 12, 12, 7, 8, 11, 30, 14, 12], freeze: { row: 1 } },
+      { name: 'Rota changes', file: 'rota-changes', rows: changes, widths: [12, 20, 20, 40, 14], freeze: { row: 1 } },
+      { name: 'EDT SDT', file: 'edt-sdt', rows: edt, widths: [12, 8, 20, 8, 14], freeze: { row: 1 } },
+      { name: 'Change log', file: 'change-log', rows: audit, widths: [17, 18, 26, 90], freeze: { row: 1 } }
+    ];
+  }
+  function backupWorkbook(state, todayIso) {
     return X.write([
-      helpSheet([`Haematology rota data file and backup, ${R.fmtLong(todayIso)}`, '', 'This is the same file as Set up → Data file. The Rota, Doctors, Consultant of the week, Leave restrictions and On-calls tabs can be uploaded again there.', 'The other tabs (Leave, Rota changes, EDT SDT, Change log) are a read-only record.', 'For an exact restore of everything, use Set up → Backups on the website.']),
-      rotaSheet(state, todayIso),
-      { name: 'Doctors', rows: doctorRows(state), widths: MASTER_WIDTHS, freeze: { row: 1, col: 1 }, heights: { 0: 42 } },
-      { name: 'Consultant of the week', rows: consultantRows(state, todayIso), widths: [24, 30], freeze: { row: 1 } },
-      { name: 'Leave restrictions', rows: restrictionRows(state), widths: [13, 13, 20, 50], freeze: { row: 1 } },
-      { name: 'On-calls', rows: oncallRows(state), widths: [12, 22, 20], freeze: { row: 1 } },
-      { name: 'Leave', rows: leave, widths: [18, 22, 12, 12, 7, 8, 11, 30, 14, 12], freeze: { row: 1 } },
-      { name: 'Rota changes', rows: changes, widths: [12, 20, 20, 40, 14], freeze: { row: 1 } },
-      { name: 'EDT SDT', rows: edt, widths: [12, 8, 20, 8, 14], freeze: { row: 1 } },
-      { name: 'Change log', rows: audit, widths: [17, 18, 26, 90], freeze: { row: 1 } }
-    ]);
+      helpSheet([`Haematology rota data file and backup, ${R.fmtLong(todayIso)}`, '', 'This is the same file as Set up → Data file. The Rota, Doctors, Consultant of the week, Leave restrictions and On-calls tabs can be uploaded again there.', 'The other tabs (Leave, Rota changes, EDT SDT, Change log) are a read-only record.', 'For an exact restore of everything, use Set up → Backups on the website.'])
+    ].concat(backupTables(state, todayIso)));
+  }
+  // CSV backup: one CSV per table, in a zip. Opens in Excel; rota.csv and doctors.csv can be uploaded again under Data file.
+  function csvBackupZip(state, todayIso) {
+    const te = new TextEncoder();
+    const flat = (rows) => rows.map((row) => row.map((v) => (v && typeof v.v === 'string' && !v.date ? Object.assign({}, v, { v: v.v.replace(/\n/g, ' ') }) : v)));
+    const files = backupTables(state, todayIso).map((t) => ({ name: `${t.file}.csv`, data: te.encode(toCsv(flat(t.rows))) }));
+    files.unshift({ name: 'READ ME.txt', data: te.encode([`Haematology rota CSV backup, ${R.fmtLong(todayIso)}`, '',
+      'One CSV per table. They open in Excel.', 'rota.csv (the whole rota) and doctors.csv can be uploaded again under Set up → Data file.',
+      'The other files are a read-only record. For an exact restore of everything, use the JSON copies under Set up → Backups.'].join('\r\n')) });
+    return X.zip(files);
   }
 
   // ---------- roster export ----------
@@ -596,7 +613,7 @@
   }
 
   const api = { oncallTemplate, planTemplate, staffTemplate, parseOncall, parsePlans, parseStaff, matchDoctor, parseDate, rosterWorkbook, FILL,
-    masterTemplate, doctorsCsvTemplate, rotaCsv, parseMaster, parseCsv, toCsv, backupWorkbook };
+    masterTemplate, doctorsCsvTemplate, rotaCsv, parseMaster, parseCsv, toCsv, backupWorkbook, csvBackupZip };
   root.RotaExcel = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

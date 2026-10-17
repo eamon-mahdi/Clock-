@@ -3,6 +3,7 @@
  * Authorisers sign in with the shared password (stored only as a salted PBKDF2 hash) and can change everything. */
 import R from '../app/js/rules.js';
 import S from '../app/js/store.js';
+import E from '../app/js/excel.js';
 
 const SESSION_COOKIE = 'hr_session';
 const SESSION_HOURS = 12;
@@ -50,7 +51,8 @@ async function ensureSchema(db) {
     db.prepare('CREATE TABLE IF NOT EXISTS hits (key TEXT NOT NULL, at INTEGER NOT NULL)'),
     db.prepare('CREATE INDEX IF NOT EXISTS hits_key ON hits (key, at)'),
     db.prepare('CREATE TABLE IF NOT EXISTS backups (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, kind TEXT NOT NULL, by TEXT, note TEXT, version INTEGER, bytes INTEGER, data BLOB NOT NULL)'),
-    db.prepare('CREATE INDEX IF NOT EXISTS backups_kind ON backups (kind, id)')
+    db.prepare('CREATE INDEX IF NOT EXISTS backups_kind ON backups (kind, id)'),
+    db.prepare('CREATE TABLE IF NOT EXISTS csv_backups (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, day TEXT NOT NULL, bytes INTEGER, data BLOB NOT NULL)')
   ]);
   schemaReady = true;
 }
@@ -69,9 +71,10 @@ function trim(state) {
 // ---------- backups: a compressed copy after every change, plus one each day ----------
 const KEEP_CHANGE_BACKUPS = 500;
 const KEEP_DAILY_BACKUPS = 730;
+const KEEP_CSV_BACKUPS = 730;
 async function gzip(text) {
   const cs = new CompressionStream('gzip');
-  const w = cs.writable.getWriter(); w.write(enc.encode(text)); w.close();
+  const w = cs.writable.getWriter(); w.write(typeof text === 'string' ? enc.encode(text) : text); w.close();
   return new Uint8Array(await new Response(cs.readable).arrayBuffer());
 }
 async function gunzip(bytes) {
@@ -91,9 +94,16 @@ export async function dailyBackup(env) {
   await ensureSchema(env.DB);
   const day = todayIso();
   const done = await env.DB.prepare("SELECT id FROM backups WHERE kind = 'daily' AND at >= ? LIMIT 1").bind(day).first();
-  if (done) return;
   const row = await env.DB.prepare("SELECT json, version FROM kv WHERE id = 'state'").first();
-  if (row) await snapshot(env.DB, 'daily', row.json, row.version, 'Daily backup', day);
+  if (!row) return;
+  if (!done) await snapshot(env.DB, 'daily', row.json, row.version, 'Daily backup', day);
+  // A CSV copy too (one CSV per table, zipped), so there is a nightly copy that opens in Excel.
+  const csvDone = await env.DB.prepare('SELECT id FROM csv_backups WHERE day = ? LIMIT 1').bind(day).first();
+  if (!csvDone) {
+    const zip = E.csvBackupZip(S.upgrade(JSON.parse(row.json)), day);
+    await env.DB.prepare('INSERT INTO csv_backups (at, day, bytes, data) VALUES (?, ?, ?, ?)').bind(new Date().toISOString(), day, zip.length, await gzip(zip)).run();
+    await env.DB.prepare('DELETE FROM csv_backups WHERE id NOT IN (SELECT id FROM csv_backups ORDER BY id DESC LIMIT ?)').bind(KEEP_CSV_BACKUPS).run();
+  }
 }
 
 // Save only if nobody else saved since we read it. Returns the new version, or null on a clash.
@@ -306,7 +316,17 @@ export async function handleApi(request, env) {
       if (!me) return fail(401, 'Sign in as an authoriser first.');
       const changes = await db.prepare("SELECT id, at, kind, by, note, version, bytes FROM backups WHERE kind != 'daily' ORDER BY id DESC LIMIT 200").all();
       const daily = await db.prepare("SELECT id, at, kind, by, note, version, bytes FROM backups WHERE kind = 'daily' ORDER BY id DESC LIMIT 400").all();
-      return json({ changes: changes.results || [], daily: daily.results || [] });
+      const csv = await db.prepare('SELECT id, at, day, bytes FROM csv_backups ORDER BY id DESC LIMIT 400').all();
+      return json({ changes: changes.results || [], daily: daily.results || [], csv: csv.results || [] });
+    }
+    const mc = path.match(/^\/api\/csv-backups\/(\d+)$/);
+    if (mc && method === 'GET') {
+      if (!me) return fail(401, 'Sign in as an authoriser first.');
+      const row = await db.prepare('SELECT day, data FROM csv_backups WHERE id = ?').bind(Number(mc[1])).first();
+      if (!row) return fail(404, 'That backup no longer exists.');
+      const ds = new DecompressionStream('gzip');
+      const w = ds.writable.getWriter(); w.write(new Uint8Array(row.data)); w.close();
+      return new Response(ds.readable, { headers: { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="haematology-rota-csv-${row.day}.zip"`, 'Cache-Control': 'no-store' } });
     }
     const mb = path.match(/^\/api\/backups\/(\d+)$/);
     if (mb && method === 'GET') {
