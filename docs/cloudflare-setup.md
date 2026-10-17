@@ -63,4 +63,23 @@ Emails only go to addresses already in the rota (doctors, requesters and alert e
 
 ## Backups
 
-Download an Excel copy from the Rota page (Whole rotation → Download Excel). For a full database backup: `npx wrangler d1 export haematology-rota --remote --output backup.sql`.
+The rota lives in the Cloudflare D1 database `haematology-rota` (not in a file). Copies are kept automatically:
+
+- **After every change:** a compressed copy (the last 500 changes).
+- **Every night** (01:15 UTC, a Cloudflare Cron Trigger set in `wrangler.jsonc`): a daily copy, kept for 2 years.
+- **Cloudflare's own restore points:** D1 Time Travel keeps the last 30 days, in case the database itself has a problem.
+
+Authorisers can see and use these under **Set up → Backups**: download any copy, or put one back (the restore is itself logged and backed up, so it can be undone). The same page downloads a full **Excel backup**. Its Doctors, Consultant of the week and Leave restrictions tabs can be imported again. It also downloads an exact **JSON copy**, which can be uploaded there to restore everything.
+
+For a full database export from your computer: `npx wrangler d1 export haematology-rota --remote --output backup.sql`.
+
+## Setting the rota up from Excel
+
+**Set up → Import (Excel)** has a **master workbook** template, filled in with whatever is on the rota now. Its tabs:
+
+- **Doctors:** name, grade, category, start and finish dates, whose column they take over, usual Mon–Fri locations, leave allowances.
+- **Consultant of the week**
+- **Leave restrictions**
+- **Rotation dates:** reference only.
+
+Edit it in Excel and import it again at any time. Doctors are matched by name, so nobody is deleted. A CSV of the Doctors tab also works.

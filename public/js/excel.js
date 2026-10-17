@@ -250,6 +250,201 @@
     return { staff, problems };
   }
 
+
+  // ---------- master workbook (doctors + consultant of the week + leave restrictions) ----------
+  const MASTER_COLS = ['Name', 'Grade', 'Category (Resident or Senior)', 'Starts', 'Finishes', 'Finish date confirmed (Yes/No)', 'Takes over the column of (name)', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'NHS email', 'Annual leave days', 'Carried over / extra days', 'Study leave days', 'Other spellings (comma separated)'];
+  const MASTER_HELP = [
+    'How to fill in the rota master workbook',
+    '',
+    'This one file sets up the rota. Fill in the tabs you need and import it under Set up → Import → Master workbook. You can import it again at any time: doctors are matched by name and updated, new ones are added. Nobody is deleted by an import.',
+    '',
+    'Doctors tab: one row per doctor (or per post, for placeholders).',
+    '  • Grade: e.g. F1, F2, IMT1, IMT2, IMT3, JCF, Registrar ST3–ST8, Specialty doctor, Specialist grade, Senior clinical fellow, or anything else.',
+    '  • Category: Resident (F1, F2, IMT, JCF) or Senior (registrars, specialty doctors, specialist grade, senior clinical fellows). Left blank, it is worked out from the grade.',
+    '  • Starts / Finishes: dd/mm/yyyy. Left blank for a Foundation, IMT or registrar grade, the next rotation dates are filled in (see the Rotation dates tab).',
+    '  • Finish date confirmed: No if the finish date may change (e.g. a registrar who may stay 6 or 12 months).',
+    '  • Takes over the column of: the name of the doctor they replace, so the rota continues in the same column at the changeover.',
+    '  • Name not known yet: write "New F1" (or New + grade). It shows as TBC until you type the real name over it.',
+    '  • Mon–Fri: usual location each weekday, using the codes on the Codes tab (GUH, RGH - DAY UNIT, NHH - DAY UNIT, GUH LAB, OFF …).',
+    '  • Annual leave days: left blank, the Wales default for the grade and time in post is used. Carried over / extra: accrued or carried-over days.',
+    '',
+    'Consultant of the week tab: the Monday of each week and the consultant. Add as many weeks as you like.',
+    'Leave restrictions tab: dates when annual leave is not normally approved (NO AL) or should be avoided (AVOID).',
+    'Rotation dates tab: reference only. The changeover dates worked out from the programme rules for the next few years.',
+    '',
+    'A CSV version of the Doctors tab is also available (one sheet only: CSV files cannot have tabs).'
+  ];
+  const yesNo = (b) => (b ? 'Yes' : 'No');
+  function doctorRows(state) {
+    const rows = [MASTER_COLS.map(head)];
+    const cols = R.columns(state, '1900-01-01', '2999-12-31');
+    const order = [];
+    for (const g of ['res', 'mg']) for (const c of cols) if (c.docs[0].group === g) order.push(...c.docs);
+    for (const d of order) {
+      const prev = R.predecessorOf(state, d);
+      const plan = (d.plan && d.plan.A) || ['', '', '', '', ''];
+      rows.push([d.name, d.grade, d.group === 'mg' ? 'Senior' : 'Resident', d.start ? { v: d.start, date: true } : '', d.end ? { v: d.end, date: true } : '',
+        d.end ? yesNo(!d.endProvisional) : '', prev ? prev.name : ''].concat(plan.map((x) => x || '')).concat([d.email || '', d.alEntitlement === undefined ? '' : d.alEntitlement, d.alExtra || '', d.slEntitlement === undefined ? '' : d.slEntitlement, (d.aliases || []).join(', ')]));
+    }
+    return rows;
+  }
+  function consultantRows(state, todayIso) {
+    const map = (state.settings && state.settings.consultantOfWeek) || {};
+    const rows = [[head('Week commencing (Monday)'), head('Consultant')]];
+    const keys = Object.keys(map).sort();
+    let w = R.mondayOf((state.settings && state.settings.rotation && state.settings.rotation.start) || todayIso);
+    if (keys.length && keys[0] < w) w = keys[0];
+    let last = R.addDays(R.mondayOf(todayIso), 7 * 26);
+    if (keys.length && keys[keys.length - 1] > last) last = keys[keys.length - 1];
+    for (; w <= last; w = R.addDays(w, 7)) rows.push([{ v: w, date: true }, map[w] || '']);
+    return rows;
+  }
+  function restrictionRows(state) {
+    return [[head('From'), head('To'), head('Level (NO AL or AVOID)'), head('Note')]].concat(((state.settings && state.settings.restricted) || []).slice().sort((a, b) => (a.start < b.start ? -1 : 1))
+      .map((r) => [{ v: r.start, date: true }, { v: r.end || r.start, date: true }, r.level, r.note || '']));
+  }
+  function rotationRows(todayIso, years) {
+    const rows = [[head('Programme'), head('Rotation starts'), head('Day before the next start'), head('Rule')]];
+    const from = R.addMonths(todayIso, -6);
+    for (const [k, p] of Object.entries(R.PROGRAMMES)) {
+      const starts = R.programmeStarts(k, from, (years || 5) * p.months.length + 1);
+      for (let i = 0; i < starts.length - 1; i++) rows.push([p.label, { v: starts[i], date: true }, { v: R.addDays(starts[i + 1], -1), date: true }, i === 0 ? p.note : '']);
+    }
+    return rows;
+  }
+  function codesRows() {
+    const rows = [[head('Location code (Mon–Fri columns)'), head('Meaning')]].concat(R.SITE_CODES.map((c) => [c, CODE_MEANINGS[c] || '']));
+    rows.push(['', ''], [head('Grades'), head('Category')]);
+    ['F1', 'F2', 'IMT1', 'IMT2', 'IMT3', 'JCF'].forEach((g) => rows.push([g, 'Resident']));
+    ['Registrar ST3', 'Registrar ST4', 'Registrar ST5', 'Registrar ST6', 'Registrar ST7', 'Registrar ST8', 'Specialty doctor', 'Specialist grade', 'Senior clinical fellow'].forEach((g) => rows.push([g, 'Senior']));
+    return rows;
+  }
+  const helpSheet = (lines) => ({ name: 'How to use', rows: lines.map((t, i) => [i === 0 ? { v: t, style: { bold: true, size: 12 } } : note(t)]), widths: [130] });
+  const MASTER_WIDTHS = [20, 20, 14, 13, 13, 13, 22, 15, 15, 15, 15, 15, 30, 10, 10, 10, 30];
+  function masterTemplate(state, todayIso) {
+    return X.write([
+      helpSheet(MASTER_HELP),
+      { name: 'Doctors', rows: doctorRows(state), widths: MASTER_WIDTHS, freeze: { row: 1, col: 1 }, heights: { 0: 42 } },
+      { name: 'Consultant of the week', rows: consultantRows(state, todayIso), widths: [24, 30], freeze: { row: 1 } },
+      { name: 'Leave restrictions', rows: restrictionRows(state), widths: [13, 13, 20, 50], freeze: { row: 1 } },
+      { name: 'Rotation dates', rows: rotationRows(todayIso, 5), widths: [28, 18, 22, 70], freeze: { row: 1 } },
+      { name: 'Codes', rows: codesRows(), widths: [30, 50] }
+    ]);
+  }
+
+  // CSV (one sheet only). Dates are written dd/mm/yyyy.
+  const csvCell = (v) => {
+    let t = v === null || v === undefined ? '' : typeof v === 'object' ? (v.date ? R.fmtUk(v.v) : String(v.v === undefined ? '' : v.v)) : String(v);
+    if (/^[=+\-@]/.test(t)) t = "'" + t; // keep spreadsheet formulas from running
+    return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+  };
+  const toCsv = (rows) => '﻿' + rows.map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
+  function parseCsv(text) {
+    const t = String(text).replace(/^﻿/, '');
+    const rows = []; let row = [], cur = '', q = false;
+    for (let i = 0; i < t.length; i++) {
+      const ch = t[i];
+      if (q) { if (ch === '"') { if (t[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; continue; }
+      if (ch === '"') q = true;
+      else if (ch === ',' || ch === ';' && !t.includes(',')) { row.push(cur); cur = ''; }
+      else if (ch === '\n' || ch === '\r') { if (ch === '\r' && t[i + 1] === '\n') i++; row.push(cur); rows.push(row); row = []; cur = ''; }
+      else cur += ch;
+    }
+    if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
+    return rows.map((r) => r.map((c) => c.replace(/^'(?=[=+\-@])/, '')));
+  }
+  const doctorsCsvTemplate = (state) => toCsv(doctorRows(state));
+
+  // Reads a master workbook (or a CSV of one of its tabs). Returns what would change; nothing is applied here.
+  function parseMaster(state, sheets) {
+    const out = { doctors: [], consultants: {}, restrictions: [], problems: [], found: [] };
+    const headerOf = (sh) => { const h = findHeaderRowAny(sh.rows); return { h, cols: (sh.rows[h] || []).map((v) => cellText(v).toLowerCase()) }; };
+    for (const sh of sheets) {
+      const { h, cols } = headerOf(sh);
+      const idx = (re) => cols.findIndex((x) => re.test(x));
+      if (idx(/^name$|^name\b/) >= 0 && idx(/^grade/) >= 0) {
+        out.found.push(sh.name || 'Doctors');
+        const c = { name: idx(/^name/), grade: idx(/^grade/), cat: idx(/^categ|^group/), start: idx(/^start/), end: idx(/^finish(es)?$|^finishes|^end/), conf: idx(/confirm/), rep: idx(/takes over|replac/),
+          email: idx(/email/), al: idx(/^annual/), extra: idx(/carried|extra/), sl: idx(/^study/), alias: idx(/spelling|alias/), days: ['mon', 'tue', 'wed', 'thu', 'fri'].map((d) => idx(new RegExp('^' + d))) };
+        for (let r = h + 1; r < sh.rows.length; r++) {
+          const row = sh.rows[r] || [];
+          const name = cellText(row[c.name]);
+          if (!name) continue;
+          const grade = cellText(row[c.grade]);
+          if (!grade) { out.problems.push(`Doctors row ${r + 1}: no grade for ${name}; skipped.`); continue; }
+          const catTxt = cellText(row[c.cat]).toLowerCase();
+          const prog = R.programmeOf(grade);
+          const group = /senior|middle|\bmg\b/.test(catTxt) ? 'mg' : /resident|junior/.test(catTxt) ? 'res'
+            : (prog === 'registrar' || /specialty|specialist|senior|registrar|\bsas\b|\bst[3-9]/i.test(grade)) ? 'mg' : 'res';
+          let start = parseDate(row[c.start]) || '', end = parseDate(row[c.end]) || '';
+          if ((cellText(row[c.start]) && !start) || (cellText(row[c.end]) && !end)) out.problems.push(`Doctors row ${r + 1}: could not read a date for ${name}. Use dd/mm/yyyy.`);
+          let suggested = false;
+          if (!start && prog !== 'other') { const sug = R.suggestDates(grade, R.toIso(new Date())); start = sug.start; end = end || sug.end; suggested = true; }
+          const plan = c.days.map((i) => (i >= 0 ? R.canonicalCode(cellText(row[i])) : ''));
+          plan.forEach((code, k) => { if (code && !['site', 'lab', 'off', 'leave'].includes(R.kindOf(code))) out.problems.push(`Doctors row ${r + 1}: "${cellText(row[c.days[k]])}" is not a location code (${name}, ${R.DOW_SHORT[k]}).`); });
+          const num = (v) => { const t = cellText(v); if (t === '') return undefined; const n = Number(t); return isFinite(n) ? n : undefined; };
+          const conf = cellText(row[c.conf]).toLowerCase();
+          out.doctors.push({ row: r + 1, name, grade, group, start, end, endProvisional: conf ? /^n/.test(conf) : prog !== 'foundation' && !!end && suggested,
+            replacesName: cellText(row[c.rep]), plan, email: cellText(row[c.email]), alEntitlement: num(row[c.al]), alExtra: num(row[c.extra]), slEntitlement: num(row[c.sl]),
+            aliases: cellText(row[c.alias]).split(',').map((x) => x.trim()).filter(Boolean), placeholder: /^new\b|\btbc\b/i.test(name), suggested });
+        }
+      } else if (idx(/week/) >= 0 && idx(/consultant/) >= 0) {
+        out.found.push(sh.name || 'Consultant of the week');
+        const iw = idx(/week/), ic = idx(/consultant/);
+        for (let r = h + 1; r < sh.rows.length; r++) {
+          const row = sh.rows[r] || [];
+          const d = parseDate(row[iw]);
+          const who = cellText(row[ic]);
+          if (!d) { if (cellText(row[iw])) out.problems.push(`Consultant row ${r + 1}: could not read the date.`); continue; }
+          if (who) out.consultants[R.mondayOf(d)] = who;
+        }
+      } else if (idx(/^level/) >= 0 && idx(/^from/) >= 0) {
+        out.found.push(sh.name || 'Leave restrictions');
+        const ia = idx(/^from/), ib = idx(/^to/), il = idx(/^level/), inote = idx(/^note/);
+        for (let r = h + 1; r < sh.rows.length; r++) {
+          const row = sh.rows[r] || [];
+          const a = parseDate(row[ia]);
+          if (!a) continue;
+          const b = parseDate(row[ib]) || a;
+          const level = /avoid/i.test(cellText(row[il])) ? 'AVOID' : 'NO AL';
+          out.restrictions.push({ start: a, end: b < a ? a : b, level, note: cellText(row[inote]) });
+        }
+      }
+    }
+    if (!out.found.length) out.problems.push('No Doctors, Consultant of the week or Leave restrictions tab was found. Use the master template.');
+    return out;
+  }
+  function findHeaderRowAny(rows) {
+    for (let i = 0; i < Math.min(rows.length, 10); i++) {
+      if ((rows[i] || []).some((v) => /^(name|grade|week|from|date|doctor)/i.test(cellText(v)))) return i;
+    }
+    return 0;
+  }
+
+  // Full backup: the master tabs (re-importable) plus everything else, read-only.
+  function backupWorkbook(state, todayIso) {
+    const docName = (id) => (R.doctorById(state, id) || { name: id }).name;
+    const oncall = [[head('Date'), head('Doctor'), head('Shift')]];
+    Object.entries(state.oncall || {}).forEach(([id, m]) => Object.entries(m).forEach(([d, code]) => oncall.push([{ v: d, date: true }, docName(id), code])));
+    oncall.splice(1, oncall.length, ...oncall.slice(1).sort((a, b) => (a[0].v < b[0].v ? -1 : a[0].v > b[0].v ? 1 : 0)));
+    const changes = [[head('Date'), head('Doctor'), head('Changed to'), head('Reason'), head('By')]];
+    Object.entries(state.overrides || {}).forEach(([id, m]) => Object.entries(m).forEach(([d, o]) => changes.push([{ v: d, date: true }, docName(id), o.code, o.reason || '', o.by || ''])));
+    const leave = [[head('Doctor'), head('Type'), head('From'), head('To'), head('Part'), head('Working days'), head('Status'), head('Days not approved'), head('Decided by'), head('Sent')]].concat(state.requests.map((r) => [docName(r.doctorId), r.type === 'SICK' ? 'Unavailable' : (R.LEAVE_TYPES[r.type] || R.LEAVE_TYPES.OTHER).label, { v: r.start, date: true }, { v: r.end, date: true }, r.part, r.days, r.status, (r.excludedDates || []).map(R.fmtUk).join(', '), r.decidedBy || '', (r.submittedAt || '').slice(0, 10)]));
+    const edt = [[head('Date'), head('Session'), head('Doctor'), head('Type'), head('Booked by')]].concat((state.edt || []).map((e) => [{ v: e.date, date: true }, e.session, docName(e.doctorId), e.type, e.bookedBy || '']));
+    const audit = [[head('When'), head('Who'), head('What'), head('Details')]].concat((state.audit || []).map((a) => [a.at.slice(0, 16).replace('T', ' '), a.by, a.action, a.detail]));
+    return X.write([
+      helpSheet([`Haematology rota backup, ${R.fmtLong(todayIso)}`, '', 'The Doctors, Consultant of the week and Leave restrictions tabs can be imported again (Set up → Import → Master workbook). The On-call (list) tab can be imported as an on-call file.', 'For an exact restore of everything, use Set up → Backups on the website.']),
+      { name: 'Doctors', rows: doctorRows(state), widths: MASTER_WIDTHS, freeze: { row: 1, col: 1 }, heights: { 0: 42 } },
+      { name: 'Consultant of the week', rows: consultantRows(state, todayIso), widths: [24, 30], freeze: { row: 1 } },
+      { name: 'Leave restrictions', rows: restrictionRows(state), widths: [13, 13, 20, 50], freeze: { row: 1 } },
+      { name: 'Leave', rows: leave, widths: [18, 22, 12, 12, 7, 8, 11, 30, 14, 12], freeze: { row: 1 } },
+      { name: 'On-call (list)', rows: oncall, widths: [12, 20, 20], freeze: { row: 1 } },
+      { name: 'Rota changes', rows: changes, widths: [12, 20, 20, 40, 14], freeze: { row: 1 } },
+      { name: 'EDT SDT', rows: edt, widths: [12, 8, 20, 8, 14], freeze: { row: 1 } },
+      { name: 'Change log', rows: audit, widths: [17, 18, 26, 90], freeze: { row: 1 } }
+    ]);
+  }
+
   // ---------- roster export ----------
   function rosterWorkbook(state, from, to) {
     const docs = state.doctors.filter((d) => R.dateRange(from, to).some((iso) => R.inPost(d, iso) || (d.start && d.start <= to)))
@@ -297,7 +492,8 @@
     ]);
   }
 
-  const api = { oncallTemplate, planTemplate, staffTemplate, parseOncall, parsePlans, parseStaff, matchDoctor, parseDate, rosterWorkbook, FILL };
+  const api = { oncallTemplate, planTemplate, staffTemplate, parseOncall, parsePlans, parseStaff, matchDoctor, parseDate, rosterWorkbook, FILL,
+    masterTemplate, doctorsCsvTemplate, parseMaster, parseCsv, toCsv, backupWorkbook };
   root.RotaExcel = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1,10 +1,14 @@
 // Cloudflare Worker entry: /api/* goes to the rota API; everything else is the static site in ./public.
-import { handleApi } from './api.js';
+// A scheduled run each night keeps a daily backup of the rota (Set up → Backups).
+import { handleApi, dailyBackup } from './api.js';
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname.startsWith('/api/')) return handleApi(request, env);
     return env.ASSETS.fetch(request);
+  },
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(dailyBackup(env));
   }
 };

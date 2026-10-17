@@ -6,7 +6,7 @@ A rota and leave website for the haematology department (GUH · RGH · NHH). It 
 - **Who can do what:** anyone with the link can view the rota, send a leave request or report sickness, and check their own requests (name + NHS email). The rota authorisers sign in with one shared password and can change everything.
 - **Offline demo:** `dist/haematology-rota.html` works without a server (fictional data, saved in the browser only).
 - **Research and specification:** [docs/doctor-roster-spec.md](docs/doctor-roster-spec.md)
-- **Import templates:** [templates/](templates/) (on-call rota, weekly plan, staff list)
+- **Templates:** [templates/](templates/): the rota master workbook (doctors, consultant of the week, leave restrictions, rotation dates), the same Doctors tab as CSV, and the on-call import
 
 ## Layout
 
