@@ -28,9 +28,13 @@ The Worker name in `wrangler.jsonc` (`"name"`) must match the Worker name in the
 
 Until this is done, anyone with the link could set the password. To prevent that, add a **setup code** first: in the dashboard go to your Worker → Settings → Variables and Secrets → Add → type *Secret*, name `SETUP_CODE`, any value. The setup screen will then ask for it.
 
-The password is stored only as a salted PBKDF2 hash. Nobody can read it back. If it is forgotten, delete the row in the `auth` table (D1 → haematology-rota → Console: `DELETE FROM auth;`) and set a new one.
+The password is stored only as a salted PBKDF2 hash. Nobody can read it back. If a personal password is forgotten, another authoriser can reset it under Sign-ins. If everyone is locked out, delete the rows in the `auth` and `users` tables (D1 → haematology-rota → Console: `DELETE FROM auth; DELETE FROM users;`) and run first-time setup again.
 
 Good password: long and unguessable, for example 3 or 4 unrelated words mixed with a haematology term only the authorisers would think of. Avoid ward names, the department name, or anything shown on the site.
+
+### Personal sign-ins (recommended)
+
+Once the shared password is set, give each authoriser their own: **Set up → Settings → Sign-ins**. Type their name and a temporary password, tell them it in person or by phone, and they are asked to choose their own the first time they sign in. Each change in the change log then shows exactly who made it, and one person can be removed (or their password reset) without affecting anyone else. When everyone has their own password, click **Turn off the shared password**. Personal passwords are stored the same way (salted PBKDF2 hash, table `users`).
 
 ## 3. Start for real
 
@@ -67,11 +71,22 @@ The rota lives in the Cloudflare D1 database `haematology-rota` (not in a file).
 
 - **After every change:** a compressed copy (the last 500 changes).
 - **Every night** (01:15 UTC, a Cloudflare Cron Trigger set in `wrangler.jsonc`): a daily copy, kept for 2 years.
+- **A nightly CSV copy** at the same time: a zip with one CSV per table (rota, doctors, leave requests, on-calls, consultant of the week, leave restrictions, EDT/SDT, rota changes, change log), kept for 2 years in the same database (table `csv_backups`). It opens in Excel without the website.
 - **Cloudflare's own restore points:** D1 Time Travel keeps the last 30 days, in case the database itself has a problem.
 
-Authorisers can see and use these under **Set up → Backups**: download any copy, or put one back (the restore is itself logged and backed up, so it can be undone). The same page downloads a full **Excel backup**. Its Doctors, Consultant of the week and Leave restrictions tabs can be imported again. It also downloads an exact **JSON copy**, which can be uploaded there to restore everything.
+Authorisers can see and use these under **Set up → Backups**: download any copy, or put one back (the restore is itself logged and backed up, so it can be undone). The same page downloads a full **Excel backup**, a **CSV backup** (the zip above, made on the spot) and any of the nightly CSV copies. Its Doctors, Consultant of the week and Leave restrictions tabs can be imported again. It also downloads an exact **JSON copy**, which can be uploaded there to restore everything.
 
 For a full database export from your computer: `npx wrangler d1 export haematology-rota --remote --output backup.sql`.
+
+## Everyday changes from a spreadsheet: Update the rota
+
+**Set up → Data file → Update the rota** is the safe way to make frequent changes:
+
+1. Download the rota as it is now (CSV or Excel). The first line records when it was downloaded.
+2. Type over only the cells that need to change: a location code or an on-call shift code.
+3. Upload it on the same page. Every change is listed (now → becomes) with a tick box; untick any you don't want, then apply.
+
+It cannot erase anything: it only changes the cells that differ from the rota now. Blank cells, approved leave and NOT IN POST are never changed, and doctors, leave requests and other on-calls are not touched. Cells someone changed on the website after the file was downloaded are flagged and left unticked. Each update is listed under "Recent file updates" with an **Undo** button (cells changed again since are left as they are). For a handful of changes you can upload a short list instead: `templates/rota-changes-list.csv` (Date, Doctor, Change to).
 
 ## Setting the rota up from Excel
 
@@ -84,4 +99,11 @@ For a full database export from your computer: `npx wrangler d1 export haematolo
 - **On-calls:** the trust on-calls (Date, Doctor, Shift).
 - **Rotation dates** and **Codes:** reference only.
 
-Edit it in Excel and upload it on the same page. Doctors are matched by name, so nobody is deleted. On-calls already on the rota for the dates in the On-calls tab are replaced. The Backups page downloads the same file with extra read-only tabs. A CSV holds only one tab (the Rota tab or the Doctors tab can be downloaded and uploaded as CSV); the Excel file is the one file that holds everything.
+Use it for setting up, new doctors and rotations. Edit it in Excel and upload it on the same page. Doctors are matched by name, so nobody is deleted. On-calls already on the rota for the dates in the On-calls tab are replaced. The Backups page downloads the same file with extra read-only tabs. A CSV holds only one tab (the Rota tab or the Doctors tab can be downloaded and uploaded as CSV); the Excel file is the one file that holds everything.
+
+## Calendar feeds, printing and the phone app
+
+- **Calendar:** each doctor gets a secret link to their own rota under **My leave** (after looking themselves up). It works with iPhone, Outlook and Google Calendar and updates by itself. It shows only what the public rota shows (sickness appears as "Unavailable"). An authoriser can make a new link under **People & leave** if one is shared by mistake; the old link then stops working.
+- **Print a week:** on the Rota page, **Print a week** gives one A4 landscape page for a noticeboard, with cover checks for each day.
+- **Phone app:** open the website on a phone and choose **Add to Home Screen** (iPhone: Share → Add to Home Screen; Android: menu → Install app). It then opens like an app.
+- **Bank holidays** are worked out automatically for every year (England and Wales). One-off extras or moved dates can be set under Set up → Settings.

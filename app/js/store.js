@@ -99,13 +99,22 @@
       st.consultantOfWeek = st.consultantOfWeek || {};
       st.schema = 3;
     }
+    if (st.schema < 4) {
+      // Bank holidays are now worked out for every year; keep only real differences from the rules.
+      const old = st.bankHolidays || [];
+      const years = [...new Set(old.map((x) => Number(x.slice(0, 4))))];
+      st.bankHolidayExtra = old.filter((x) => !R.bankHolidaysFor(Number(x.slice(0, 4))).includes(x));
+      st.bankHolidayRemoved = years.flatMap((y) => R.bankHolidaysFor(y)).filter((x) => !old.includes(x));
+      delete st.bankHolidays;
+      st.schema = 4;
+    }
     return state;
   }
 
   function baseSettings() {
     return {
-      bankHolidays: R.BANK_HOLIDAYS.slice(), restricted: [], consultantOfWeek: {}, rules: Object.assign({}, R.DEFAULT_RULES),
-      rulesText: clone(DEFAULT_RULES_TEXT), changeovers: [], rotation: { start: '2026-08-05' }, schema: 3,
+      bankHolidayExtra: [], bankHolidayRemoved: [], restricted: [], consultantOfWeek: {}, rules: Object.assign({}, R.DEFAULT_RULES),
+      rulesText: clone(DEFAULT_RULES_TEXT), changeovers: [], rotation: { start: '2026-08-05' }, schema: 4,
       authorisers: ['Authoriser 1', 'Authoriser 2', 'Authoriser 3'], authoriserEmails: [], demo: false
     };
   }
@@ -278,21 +287,75 @@
     return {
       balance: { al: bal.al, sl: bal.sl, alBasis: R.alProRata(doc).basis, start: doc.start || '', end: doc.end || '' },
       requests: state.requests.filter((r) => r.doctorId === doc.id && (!r.email || r.email.toLowerCase() === mail || doc.email)).sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1)),
-      notifications: state.notifications.filter((n) => n.to === 'd:' + doc.id).slice(0, 30)
+      notifications: state.notifications.filter((n) => n.to === 'd:' + doc.id).slice(0, 30),
+      calToken: doc.calToken || ''
     };
   }
 
+  // ---------- calendar feed (one secret link per doctor) ----------
+  function newCalToken() {
+    const b = new Uint8Array(24);
+    (root.crypto || globalThis.crypto).getRandomValues(b);
+    return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+  }
+  // The doctor's own rota as an iCalendar feed. Built from what anyone can see on the rota (so no extra detail,
+  // sickness shows as Unavailable), from 2 weeks ago to 6 months ahead.
+  function icsFor(state, doctorId, todayIso, nowStamp) {
+    const pub = publicView(state);
+    const doc = R.doctorById(pub, doctorId);
+    if (!doc) return null;
+    const esc = (t) => String(t).replace(/\\/g, '\\\\').replace(/[,;]/g, (c) => '\\' + c).replace(/\n/g, '\\n');
+    const fold = (line) => { const out = []; let x = line; while (x.length > 74) { out.push(x.slice(0, 74)); x = ' ' + x.slice(74); } out.push(x); return out.join('\r\n'); };
+    const d8 = (iso) => iso.replace(/-/g, '');
+    const stamp = (nowStamp || new Date().toISOString()).replace(/[-:]/g, '').replace(/\.\d+/, '').slice(0, 15) + 'Z';
+    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Haematology Rota//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+      `X-WR-CALNAME:${esc('Haematology rota: ' + doc.name)}`, 'X-WR-TIMEZONE:Europe/London', 'REFRESH-INTERVAL;VALUE=DURATION:PT6H', 'X-PUBLISHED-TTL:PT6H'];
+    for (const iso of R.dateRange(R.addDays(todayIso, -14), R.addMonths(todayIso, 6))) {
+      const cell = R.resolveCell(pub, doc, iso);
+      if (!cell.code || cell.kind === 'gone') continue;
+      const text = cell.kind === 'sick' ? 'Unavailable' : cell.code;
+      const cons = (pub.settings.consultantOfWeek || {})[R.mondayOf(iso)];
+      lines.push('BEGIN:VEVENT', `UID:${d8(iso)}-${doc.id}@haematology-rota`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${d8(iso)}`, `DTEND;VALUE=DATE:${d8(R.addDays(iso, 1))}`,
+        `SUMMARY:${esc(text)}`, cons && !R.isWeekend(iso) ? `DESCRIPTION:${esc('Consultant of the week: ' + cons)}` : null, 'TRANSP:TRANSPARENT', 'END:VEVENT');
+    }
+    lines.push('END:VCALENDAR');
+    return lines.filter(Boolean).map(fold).join('\r\n') + '\r\n';
+  }
+
   // What anyone with the link can see (no emails, notes, reasons, sickness or audit).
+  // Sets rota cells from a file and records what each was before, so the whole upload can be undone.
+  function applyCells(state, by, changes, fileName, reason) {
+    const rec = { id: uid('u'), at: nowIso(), by, fileName: fileName || '', cells: [] };
+    let applied = 0, skipped = 0;
+    for (const c of changes) {
+      const d = R.doctorById(state, c.doctorId);
+      const code = R.canonicalCode(c.code || '');
+      const kind = R.kindOf(code);
+      const okCode = ['site', 'lab', 'off', 'oncall'].includes(kind) || ['TEACHING', 'INDUCTION', 'SPR TRAINING DAY'].includes(code);
+      if (!d || !R.isIso(c.date) || !okCode || !R.inPost(d, c.date)) { skipped++; continue; }
+      const cell = R.resolveCell(state, d, c.date);
+      if (cell.leave || R.canonicalCode(cell.code || '') === code) { skipped++; continue; }
+      state.overrides[d.id] = state.overrides[d.id] || {}; state.oncall[d.id] = state.oncall[d.id] || {};
+      const before = { override: state.overrides[d.id][c.date] || null, oncall: state.oncall[d.id][c.date] || null };
+      if (kind === 'oncall') { delete state.overrides[d.id][c.date]; state.oncall[d.id][c.date] = code; }
+      else { delete state.oncall[d.id][c.date]; state.overrides[d.id][c.date] = { code, reason, by, at: nowIso() }; }
+      rec.cells.push({ doctorId: d.id, date: c.date, before, after: { override: state.overrides[d.id][c.date] || null, oncall: state.oncall[d.id][c.date] || null } });
+      applied++;
+    }
+    if (rec.cells.length) { state.imports = [rec].concat(state.imports || []).slice(0, 30); }
+    return { applied, skipped };
+  }
+
   function publicView(state) {
     const s = clone(state);
-    s.doctors.forEach((d) => { delete d.email; delete d.alEntitlement; delete d.slEntitlement; delete d.alExtra; delete d.slExtra; delete d.note; });
+    s.doctors.forEach((d) => { delete d.calToken; delete d.email; delete d.alEntitlement; delete d.slEntitlement; delete d.alExtra; delete d.slExtra; delete d.note; });
     s.requests = s.requests.filter((r) => ['pending', 'hold', 'authorised'].includes(r.status)).map((r) => ({
       id: r.id, doctorId: r.doctorId, type: r.type === 'SICK' ? 'UNAVAIL' : (['AL', 'SL'].includes(r.type) ? r.type : 'OTHER'),
       start: r.start, end: r.end, part: r.part, status: r.status, excludedDates: r.excludedDates || [], days: r.days, cover: (r.cover || []).map((c) => ({ date: c.date, doctorId: c.doctorId, to: c.to }))
     }));
     Object.values(s.overrides || {}).forEach((m) => Object.values(m).forEach((o) => { delete o.reason; delete o.by; }));
     s.edt = (s.edt || []).map((e) => ({ id: e.id, doctorId: e.doctorId, date: e.date, session: e.session, type: e.type }));
-    s.audit = []; s.notifications = [];
+    s.audit = []; s.notifications = []; delete s.imports;
     s.settings.authoriserEmails = [];
     s.public = true;
     return s;
@@ -300,6 +363,16 @@
 
   // ---------- authoriser actions (pure functions on state; return emails to send) ----------
   const ops = {
+    // Make (or replace) a doctor's secret calendar link. Replacing it stops the old link working.
+    calendarLink(state, by, doctorId, reset) {
+      const d = R.doctorById(state, doctorId);
+      if (!d) throw new Error('Doctor not found.');
+      if (d.calToken && !reset) return [];
+      const had = !!d.calToken;
+      d.calToken = newCalToken();
+      log(state, by, had ? 'Calendar link replaced' : 'Calendar link created', `${d.name}${had ? ': the old link no longer works' : ''}`);
+      return [];
+    },
     setCell(state, by, doctorId, iso, code, reason) {
       const d = R.doctorById(state, doctorId);
       state.overrides[doctorId] = state.overrides[doctorId] || {};
@@ -461,17 +534,33 @@
         for (const [alias, id] of Object.entries(parsed.mapping || {})) { const d = R.doctorById(state, id); if (id && d && !(d.aliases || []).includes(alias)) (d.aliases = d.aliases || []).push(alias); }
         shifts = entries.length;
       }
-      // Rota tab: only the cells that were changed. Applied last so it wins over the On-calls tab.
-      let cells = 0;
-      for (const c of (parsed.rota && parsed.rota.changes) || []) {
-        if (!R.doctorById(state, c.doctorId)) continue;
-        state.overrides[c.doctorId] = state.overrides[c.doctorId] || {};
-        state.oncall[c.doctorId] = state.oncall[c.doctorId] || {};
-        if (c.kind === 'oncall') { delete state.overrides[c.doctorId][c.date]; state.oncall[c.doctorId][c.date] = c.code; }
-        else { delete state.oncall[c.doctorId][c.date]; state.overrides[c.doctorId][c.date] = { code: c.code, reason: 'Rota tab of the data file', by, at: nowIso() }; }
-        cells++;
-      }
+      // Rota tab: only the cells that were changed. Applied last so it wins over the On-calls tab. Can be undone.
+      const cells = parsed.rota ? applyCells(state, by, parsed.rota.changes || [], fileName, 'Rota tab of the data file').applied : 0;
       log(state, by, 'Rota data file imported', `${fileName || 'file'}: ${parsed.rota ? `${cells} rota cells changed, ` : ''}${added} doctors added, ${updated} updated, ${weeks.length} consultant weeks, ${restr} leave restrictions${oc ? `, ${shifts} on-call shifts (${R.fmtUk(oc.from)} to ${R.fmtUk(oc.to)})` : ''}${missing.length ? '. ' + missing.join('; ') : ''}`);
+      return [];
+    },
+    // Update the rota from an uploaded file: only the ticked cells. Nothing else is touched, and it can be undone.
+    applyUpdates(state, by, changes, fileName) {
+      if (!Array.isArray(changes) || !changes.length) throw new Error('Tick at least one change.');
+      const res = applyCells(state, by, changes, fileName, 'Rota update from ' + (fileName || 'a file'));
+      log(state, by, 'Rota updated from a file', `${fileName || 'file'}: ${res.applied} cells changed${res.skipped ? `, ${res.skipped} skipped (already the same, or approved leave)` : ''}`);
+      return [];
+    },
+    // Undo a file update: put each cell back as it was, unless it has been changed again since.
+    undoImport(state, by, id) {
+      const imp = (state.imports || []).find((x) => x.id === id);
+      if (!imp || imp.undoneAt) throw new Error('That update has already been undone.');
+      let back = 0, kept = 0;
+      for (const c of imp.cells) {
+        const ov = (state.overrides[c.doctorId] || {})[c.date] || null, oc = (state.oncall[c.doctorId] || {})[c.date] || null;
+        if (JSON.stringify(ov) !== JSON.stringify(c.after.override) || oc !== c.after.oncall) { kept++; continue; }
+        state.overrides[c.doctorId] = state.overrides[c.doctorId] || {}; state.oncall[c.doctorId] = state.oncall[c.doctorId] || {};
+        if (c.before.override) state.overrides[c.doctorId][c.date] = c.before.override; else delete state.overrides[c.doctorId][c.date];
+        if (c.before.oncall) state.oncall[c.doctorId][c.date] = c.before.oncall; else delete state.oncall[c.doctorId][c.date];
+        back++;
+      }
+      imp.undoneAt = nowIso(); imp.undoneBy = by;
+      log(state, by, 'File update undone', `${imp.fileName || 'file'} (${R.fmtShort(imp.at.slice(0, 10))}): ${back} cells put back${kept ? `, ${kept} left as they are because they were changed again since` : ''}`);
       return [];
     },
     // Put back an earlier copy of the whole rota (from a backup).
@@ -655,6 +744,10 @@
         store.me = null;
         await store.refresh(true);
       },
+      async listUsers() { return api('GET', '/api/users'); },
+      async saveUser(name, password) { await api('POST', '/api/users', { name, password }); await store.refresh(true); },
+      async removeUser(name) { const out = await api('POST', '/api/users/remove', { name }); if (out.signedOut) store.me = null; await store.refresh(true); },
+      async sharedOff() { await api('POST', '/api/shared-password/off', {}); await store.refresh(true); },
       async submitLeave(payload) {
         if (store.mode === 'local') { const out = submitLeave(store.state, payload); saveLocal(); emit(); return { request: out.request, check: out.check, emailed: false }; }
         const out = await api('POST', '/api/requests', payload);
@@ -671,6 +764,11 @@
         return api('GET', '/api/backups');
       },
       async getBackup(id) { return api('GET', `/api/backups/${encodeURIComponent(id)}`); },
+      async getCsvBackup(id) {
+        const res = await fetch(`/api/csv-backups/${encodeURIComponent(id)}`, { credentials: 'same-origin', cache: 'no-store' });
+        if (!res.ok) { let m = `The server replied ${res.status}.`; try { m = (await res.json()).error || m; } catch (e) { /* not json */ } throw new Error(m); }
+        return new Uint8Array(await res.arrayBuffer());
+      },
       async myRequests(doctorId, email) {
         if (store.mode === 'local') return myRequests(store.state, doctorId, email);
         return api('POST', '/api/my-requests', { doctorId, email });
@@ -698,7 +796,7 @@
     });
     function applyServer(data) {
       store.state = upgrade(data.state); store.version = data.version; store.me = data.me || null;
-      store.hasPassword = data.hasPassword !== false; store.emailOn = !!data.emailOn; store.setupCodeRequired = !!data.setupCodeRequired;
+      store.hasPassword = data.hasPassword !== false; store.mustChange = !!data.mustChange; store.ownPassword = !!data.ownPassword; store.emailOn = !!data.emailOn; store.setupCodeRequired = !!data.setupCodeRequired;
     }
     return store;
   }
@@ -707,7 +805,7 @@
     return ((state.settings && state.settings.restricted) || []).find((r) => iso >= r.start && iso <= (r.end || r.start)) || null;
   }
 
-  const api = { createStore, demoState, emptyState, upgrade, submitLeave, withdrawLeave, myRequests, publicView, ops, restrictionOn, DEFAULT_RULES_TEXT, LOCAL_KEY };
+  const api = { createStore, demoState, emptyState, upgrade, submitLeave, withdrawLeave, myRequests, publicView, icsFor, ops, restrictionOn, DEFAULT_RULES_TEXT, LOCAL_KEY };
   root.RotaStore = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

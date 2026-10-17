@@ -355,7 +355,28 @@ test('older saved rotas are upgraded', () => {
   S.upgrade(st);
   assert.equal(st.settings.rules.minSenRGH, 0);
   assert.equal(st.settings.rotation.end, undefined);
-  assert.equal(st.settings.schema, 3);
+  assert.equal(st.settings.schema, 4);
+});
+
+test('bank holidays are worked out for any year, with weekend substitutes and manual changes', () => {
+  assert.deepEqual([...R.bankHolidaysFor(2026), ...R.bankHolidaysFor(2027)], R.BANK_HOLIDAYS, 'matches the published 2026-27 list');
+  assert.deepEqual(R.bankHolidaysFor(2022), ['2022-01-03', '2022-04-15', '2022-04-18', '2022-05-02', '2022-05-30', '2022-08-29', '2022-12-26', '2022-12-27']);
+  assert.deepEqual(R.bankHolidaysFor(2028).slice(-2), ['2028-12-25', '2028-12-26']);
+  assert.equal(R.bankHolidaysFor(2033).length, 8);
+  const st = S.demoState(TODAY);
+  assert.ok(R.isBankHoliday(st, '2031-04-14'), 'Easter Monday 2031');
+  assert.ok(!R.isWorkday(st, '2030-08-26'));
+  st.settings.bankHolidayExtra = ['2030-06-03']; st.settings.bankHolidayRemoved = ['2030-05-06'];
+  assert.ok(R.isBankHoliday(st, '2030-06-03'));
+  assert.ok(!R.isBankHoliday(st, '2030-05-06'));
+  // an old saved list becomes "differences from the rules"
+  const old = S.demoState(TODAY);
+  old.settings.schema = 3; old.settings.bankHolidays = R.BANK_HOLIDAYS.filter((x) => x !== '2027-05-03').concat(['2026-06-08']);
+  delete old.settings.bankHolidayExtra; delete old.settings.bankHolidayRemoved;
+  S.upgrade(old);
+  assert.deepEqual(old.settings.bankHolidayExtra, ['2026-06-08']);
+  assert.deepEqual(old.settings.bankHolidayRemoved, ['2027-05-03']);
+  assert.equal(old.settings.bankHolidays, undefined);
 });
 
 test('a group of doctors can be put at a location for a block of dates', () => {
@@ -412,13 +433,15 @@ test('Rota tab: the whole rota as a grid; only changed cells are imported', asyn
   const st = S.demoState(TODAY);
   const wb = await X.read(E.masterTemplate(st, TODAY));
   const sh = wb.find((x) => x.name === 'Rota');
-  const head = sh.rows[0].map((v) => String(v || ''));
+  assert.match(String(sh.rows[0][0]), /^Rota downloaded \d{4}-\d\d-\d\dT\d\d:\d\d UTC/);
+  const head = sh.rows[1].map((v) => String(v || ''));
   assert.deepEqual(head.slice(0, 3), ['Date', 'Day', 'Consultant']);
   assert.ok(sh.rows.some((r) => r[0] === 'Changeover'), 'changeover rows repeat the column headings');
   const day = R.dateRange(R.addDays(TODAY, 3), R.addDays(TODAY, 30)).find((d) => R.isWorkday(st, d) && !R.resolveCell(st, R.doctorById(st, 'm1'), d).leave && R.resolveCell(st, R.doctorById(st, 'm1'), d).code !== 'NHH - DAY UNIT');
   const day2 = R.addDays(day, 1);
   const edit = (rows) => {
-    const h = rows[0].map((v) => String(v || ''));
+    const hr = rows.findIndex((r) => String(r[0] || '') === 'Date');
+    const h = rows[hr].map((v) => String(v || ''));
     const colOf = (name) => h.findIndex((x) => x.includes(name));
     const rowOf = (iso) => rows.findIndex((r) => E.parseDate(r[0]) === iso);
     rows[rowOf(day)][colOf('Omar')] = 'nhh - day unit';
@@ -439,7 +462,88 @@ test('Rota tab: the whole rota as a grid; only changed cells are imported', asyn
   assert.equal(R.resolveCell(st, R.doctorById(st, 'm1'), day).code, 'NHH - DAY UNIT');
   assert.equal(R.resolveCell(st, R.doctorById(st, 'm1'), day2).code, 'LONG DAY');
   assert.match(st.audit[0].detail, /2 rota cells changed/);
-  assert.match(E.rotaCsv(st, TODAY), /^\uFEFF?Date,Day,Consultant,/);
+  assert.match(E.rotaCsv(st, TODAY).split('\r\n')[1], /^Date,Day,Consultant,/);
+});
+
+test('CSV backup: one CSV per table in a zip; rota.csv imports again', async () => {
+  const st = S.demoState(TODAY);
+  const files = await X.unzip(E.csvBackupZip(st, TODAY));
+  const names = Object.keys(files).sort();
+  for (const n of ['rota.csv', 'doctors.csv', 'leave-requests.csv', 'on-calls.csv', 'consultant-of-the-week.csv', 'leave-restrictions.csv', 'edt-sdt.csv', 'rota-changes.csv', 'change-log.csv', 'READ ME.txt']) assert.ok(names.includes(n), n);
+  const text = (n) => new TextDecoder().decode(files[n]);
+  const p = E.parseMaster(st, [{ name: 'rota', rows: E.parseCsv(text('rota.csv')) }, { name: 'doctors', rows: E.parseCsv(text('doctors.csv')) }]);
+  assert.ok(p.rota.columns >= 8);
+  assert.deepEqual(p.rota.changes, []);
+  assert.equal(p.doctors.length, st.doctors.length);
+  assert.match(text('leave-requests.csv'), /^\uFEFF?Doctor,Type,From,To/);
+});
+
+test('Update the rota: only ticked cells change, newer website changes are flagged, and it can be undone', () => {
+  const st = S.demoState(TODAY);
+  const m1 = R.doctorById(st, 'm1');
+  const days = R.dateRange(R.addDays(TODAY, 3), R.addDays(TODAY, 40)).filter((d) => R.isWorkday(st, d) && !R.resolveCell(st, m1, d).leave && !['NHH - DAY UNIT', 'LONG DAY', 'RGH'].includes(R.resolveCell(st, m1, d).code));
+  const [d1, d2, d3] = days;
+  const csv = E.parseCsv(E.rotaCsv(st, TODAY, '2026-10-17T09:00:00Z'));
+  const hr = csv.findIndex((r) => r[0] === 'Date');
+  const col = csv[hr].findIndex((h) => h.includes('Omar'));
+  const set = (iso, v) => { csv[csv.findIndex((r) => E.parseDate(r[0]) === iso)][col] = v; };
+  set(d1, 'NHH - DAY UNIT'); set(d2, 'long day'); set(d3, 'RGH');
+  // someone changes d3 on the website after the download
+  S.ops.setCell(st, 'A. Other', 'm1', d3, 'GUH LAB', 'late change');
+  st.overrides.m1[d3].at = '2026-10-17T10:00:00Z';
+  const before = { docs: st.doctors.length, reqs: JSON.stringify(st.requests), oncall: Object.values(st.oncall).reduce((a, m) => a + Object.keys(m).length, 0) };
+  const p = E.parseUpdates(st, [{ name: 'rota-2026-10-17', rows: csv }]);
+  assert.equal(p.format, 'grid');
+  assert.equal(p.stamp, '2026-10-17T09:00');
+  assert.equal(p.changes.length, 3);
+  const late = p.changes.find((c) => c.date === d3);
+  assert.ok(late.recent, 'the later website change is flagged');
+  assert.equal(late.was, 'GUH LAB');
+  S.ops.applyUpdates(st, 'J. Hale', p.changes.filter((c) => !c.recent), 'rota.csv');
+  assert.equal(R.resolveCell(st, m1, d1).code, 'NHH - DAY UNIT');
+  assert.equal(R.resolveCell(st, m1, d2).code, 'LONG DAY');
+  assert.equal(R.resolveCell(st, m1, d3).code, 'GUH LAB', 'unticked change left alone');
+  assert.equal(st.doctors.length, before.docs);
+  assert.equal(JSON.stringify(st.requests), before.reqs, 'leave untouched');
+  assert.equal(Object.values(st.oncall).reduce((a, m) => a + Object.keys(m).length, 0), before.oncall + 1, 'only the new on-call added');
+  // a short list works the same way
+  const list = E.parseUpdates(st, [{ name: 'changes', rows: [['Date', 'Doctor', 'Change to'], [R.fmtUk(d3), 'omar', 'RGH'], ['', '', ''], ['31/02/2026', 'Omar', 'GUH'], [R.fmtUk(d3), 'Nobody Known', 'GUH']] }]);
+  assert.equal(list.format, 'list');
+  assert.equal(list.changes.length, 1);
+  assert.equal(list.ignored.length, 1);
+  assert.deepEqual(list.unmatched, ['Nobody Known']);
+  // undo the first update: cells go back, except one changed again since
+  S.ops.setCell(st, 'A. Other', 'm1', d1, 'GUH', 'changed again');
+  const imp = st.imports[0];
+  S.ops.undoImport(st, 'J. Hale', imp.id);
+  assert.equal(R.resolveCell(st, m1, d2).code === 'LONG DAY', false, 'on-call removed again by undo');
+  assert.equal(R.resolveCell(st, m1, d1).code, 'GUH', 'a cell changed since is kept');
+  assert.match(st.audit[0].detail, /1 cells put back, 1 left as they are/);
+  assert.throws(() => S.ops.undoImport(st, 'J. Hale', imp.id), /already been undone/);
+  assert.equal(S.publicView(st).imports, undefined);
+});
+
+test('calendar feed: a secret link per doctor, built only from what the public rota shows', () => {
+  const st = S.demoState(TODAY);
+  S.ops.calendarLink(st, 'J. Hale', 'm1');
+  const tok = R.doctorById(st, 'm1').calToken;
+  assert.match(tok, /^[0-9a-f]{48}$/);
+  S.ops.calendarLink(st, 'J. Hale', 'm1');
+  assert.equal(R.doctorById(st, 'm1').calToken, tok, 'kept unless replaced');
+  S.ops.calendarLink(st, 'J. Hale', 'm1', true);
+  assert.notEqual(R.doctorById(st, 'm1').calToken, tok, 'replaced');
+  assert.equal(S.publicView(st).doctors.find((d) => d.id === 'm1').calToken, undefined, 'never public');
+  const m1 = R.doctorById(st, 'm1');
+  assert.equal(S.myRequests(st, 'm1', m1.email).calToken, m1.calToken);
+  // a sick day shows only as Unavailable
+  const day = R.dateRange(R.addDays(TODAY, 2), R.addDays(TODAY, 20)).find((d) => R.isWorkday(st, d) && !R.resolveCell(st, m1, d).leave);
+  st.requests.push({ id: 'q-sick', doctorId: 'm1', type: 'SICK', start: day, end: day, part: 'FULL', status: 'authorised', note: 'private reason', days: 1 });
+  const ics = S.icsFor(st, 'm1', TODAY, '2026-10-17T09:00:00Z');
+  assert.match(ics, /^BEGIN:VCALENDAR\r\n/);
+  assert.match(ics, new RegExp(`DTSTART;VALUE=DATE:${day.replace(/-/g, '')}\\r\\nDTEND;VALUE=DATE:\\d{8}\\r\\nSUMMARY:Unavailable`));
+  assert.ok(!/private reason/.test(ics));
+  assert.ok(ics.split('\r\n').every((l) => l.length <= 75), 'lines folded');
+  assert.equal(S.icsFor(st, 'nobody', TODAY), null);
 });
 
 test('CSV: quotes, commas and formula-looking cells survive', () => {

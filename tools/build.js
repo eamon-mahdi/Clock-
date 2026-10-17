@@ -12,12 +12,21 @@ global.RotaStore = require('../app/js/store.js');
 const E = require('../app/js/excel.js');
 
 const body = fs.readFileSync(path.join(root, 'app/index.html'), 'utf8');
-const page = (inner) => `<!doctype html>
+// Install to a phone home screen (hosted site only): manifest, icons and theme colour.
+const pwaHead = `<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15202b">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Haem Rota">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+`;
+const page = (inner, pwa) => `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3E%3Crect x='3' y='5' width='24' height='22' rx='4' fill='%2315202b'/%3E%3Crect x='7' y='14' width='5' height='6' rx='1' fill='%23f6b4ae'/%3E%3Crect x='13' y='14' width='5' height='6' rx='1' fill='%23a3cdf3'/%3E%3Crect x='19' y='14' width='5' height='6' rx='1' fill='%23b7dd9a'/%3E%3C/svg%3E">
+${pwa ? pwaHead : ''}<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3E%3Crect x='3' y='5' width='24' height='22' rx='4' fill='%2315202b'/%3E%3Crect x='7' y='14' width='5' height='6' rx='1' fill='%23f6b4ae'/%3E%3Crect x='13' y='14' width='5' height='6' rx='1' fill='%23a3cdf3'/%3E%3Crect x='19' y='14' width='5' height='6' rx='1' fill='%23b7dd9a'/%3E%3C/svg%3E">
 ${inner.replace(/\n(<header)/, '\n</head>\n<body>\n$1')}
 </body>
 </html>
@@ -28,7 +37,19 @@ const pub = path.join(root, 'public');
 fs.rmSync(pub, { recursive: true, force: true });
 fs.mkdirSync(path.join(pub, 'js'), { recursive: true });
 for (const f of ['theme.js', 'xlsx.js', 'rules.js', 'store.js', 'excel.js', 'ui.js']) fs.copyFileSync(path.join(root, 'app/js', f), path.join(pub, 'js', f));
-fs.writeFileSync(path.join(pub, 'index.html'), page(body));
+fs.writeFileSync(path.join(pub, 'index.html'), page(body, true));
+fs.mkdirSync(path.join(pub, 'icons'), { recursive: true });
+for (const f of fs.readdirSync(path.join(root, 'app/icons'))) fs.copyFileSync(path.join(root, 'app/icons', f), path.join(pub, 'icons', f));
+fs.writeFileSync(path.join(pub, 'manifest.webmanifest'), JSON.stringify({
+  name: 'Haematology Rota', short_name: 'Haem Rota', description: 'Haematology rota for GUH, RGH and NHH: who is where, leave and EDT/SDT.',
+  start_url: '/', scope: '/', display: 'standalone', orientation: 'any', background_color: '#15202b', theme_color: '#15202b',
+  icons: [
+    { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+    { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+    { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+    { src: 'icons/icon.svg', sizes: 'any', type: 'image/svg+xml' }
+  ]
+}, null, 2));
 fs.writeFileSync(path.join(pub, 'robots.txt'), 'User-agent: *\nDisallow: /\n');
 fs.writeFileSync(path.join(pub, '_headers'), `/*
   X-Content-Type-Options: nosniff
@@ -40,6 +61,9 @@ fs.writeFileSync(path.join(pub, '_headers'), `/*
 /js/*
   Cache-Control: no-cache
 /
+  Cache-Control: no-cache
+/manifest.webmanifest
+  Content-Type: application/manifest+json
   Cache-Control: no-cache
 `);
 
@@ -58,5 +82,6 @@ fs.mkdirSync(path.join(root, 'templates'), { recursive: true });
 fs.writeFileSync(path.join(root, 'templates/rota-data-file.xlsx'), E.masterTemplate(demo, today));
 fs.writeFileSync(path.join(root, 'templates/rota-doctors.csv'), E.doctorsCsvTemplate(demo));
 fs.writeFileSync(path.join(root, 'templates/rota.csv'), E.rotaCsv(demo, today));
+fs.writeFileSync(path.join(root, 'templates/rota-changes-list.csv'), E.updatesListCsv());
 for (const old of ['weekly-plan-template.xlsx', 'staff-list-template.xlsx', 'rota-master-workbook.xlsx', 'oncall-import-template.xlsx']) fs.rmSync(path.join(root, 'templates', old), { force: true });
 console.log('Built public/ (Cloudflare), dist/haematology-rota.html (' + Math.round(single.length / 1024) + ' KB) and the templates');

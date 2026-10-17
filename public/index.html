@@ -3,6 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15202b">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Haem Rota">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3E%3Crect x='3' y='5' width='24' height='22' rx='4' fill='%2315202b'/%3E%3Crect x='7' y='14' width='5' height='6' rx='1' fill='%23f6b4ae'/%3E%3Crect x='13' y='14' width='5' height='6' rx='1' fill='%23a3cdf3'/%3E%3Crect x='19' y='14' width='5' height='6' rx='1' fill='%23b7dd9a'/%3E%3C/svg%3E">
 <title>Haematology Rota</title>
 <meta name="description" content="Haematology department rota: who is where at GUH, RGH and NHH, leave requests and authorisation, EDT/SDT and rules.">
@@ -556,6 +563,31 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
 @media (prefers-contrast: more) {
   .app-head, .sheet, .dialog, .toast { background: var(--surface); color: var(--fg); backdrop-filter: none; -webkit-backdrop-filter: none; border: 2px solid var(--fg); }
   .app-head { background: var(--head-bg); color: var(--head-fg); }
+}
+/* Printable week */
+.print-page { display: flex; flex-direction: column; gap: 10px; }
+.print-controls { flex-wrap: wrap; }
+.print-head h1 { font-size: 1.25rem; margin: 0; }
+.print-head p { margin: 2px 0 0; color: var(--muted); font-size: 0.85rem; }
+.print-grid { width: 100%; border-collapse: collapse; table-layout: fixed; background: var(--surface); }
+.print-grid th, .print-grid td { border: 1px solid var(--line-strong); padding: 3px 4px; vertical-align: middle; font-size: 0.78rem; }
+.print-grid thead th { background: var(--surface-2); text-align: center; }
+.print-grid thead th:first-child, .print-grid tbody th { width: 17%; text-align: left; font-weight: 400; }
+.print-grid th.we { color: var(--muted); }
+.print-grid tr.sec th { background: var(--surface-2); font-weight: 700; }
+.print-grid td .cell { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 28px; width: 100%; border-radius: 4px; font-size: 0.75rem; text-align: center; padding: 2px; }
+.print-grid .cover-row td, .print-grid .cover-row th { font-size: 0.7rem; color: var(--muted); }
+.print-key { color: var(--muted); }
+@media print {
+  @page { size: A4 landscape; margin: 9mm; }
+  html, body { background: #fff !important; }
+  .app-head, .tabbar, #bar, .toasts, #sheet-root, .no-print { display: none !important; }
+  main#view { padding: 0 !important; max-width: none !important; }
+  .print-head h1 { font-size: 13pt; }
+  .print-grid th, .print-grid td { padding: 1px 3px; font-size: 7.5pt; }
+  .print-grid td .cell { min-height: 0; padding: 1px 2px; font-size: 7.5pt; border-radius: 3px; }
+  .print-grid td .cell { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .print-grid tr { break-inside: avoid; }
 }
 </style>
 

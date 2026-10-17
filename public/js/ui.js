@@ -88,7 +88,7 @@
   const THEMES = [['dark', 'Dark'], ['light', 'Light'], ['blue', 'Blue']];
   function renderHead() {
     const items = navItems();
-    if (!items.some((i) => i[0] === ui.view)) ui.view = 'rota';
+    if (ui.view !== 'print' && !items.some((i) => i[0] === ui.view)) ui.view = 'rota';
     $('#nav').innerHTML = items.map(([id, label, n]) => `<button type="button" data-act="nav" data-view="${id}"${ui.view === id ? ' aria-current="page"' : ''}>${esc(label)}${n ? `<span class="badge">${n}</span>` : ''}</button>`).join('');
     // Phone: a bottom tab bar with the four most used places and "More".
     const primary = items.slice(0, 4), rest = items.slice(4);
@@ -104,6 +104,7 @@
     const bar = [];
     if (store.mode === 'local') bar.push('<strong>Demo mode.</strong> Not connected to the server: changes stay in this browser.');
     else if (!store.hasPassword) bar.push('<strong>First-time setup:</strong> no authoriser password yet. <button type="button" class="linkish" data-act="open-setup">Set it now</button>');
+    if (isAuth() && store.mustChange) bar.push('<strong>You signed in with a temporary password.</strong> <button type="button" class="linkish" data-act="go-own-pw">Choose your own password now</button>');
     if (st().settings.demo) bar.push(`<strong>Example data</strong> with fictional doctors.${isAuth() ? ' Set up → Settings → Start fresh.' : ''}`);
     if (store.error) bar.push(`<span style="color:var(--bad-text)">Could not reach the server: ${esc(store.error)}</span>`);
     $('#bar').innerHTML = bar.map((b) => `<div>${b}</div>`).join('');
@@ -146,6 +147,34 @@
     if (canEdit && cell.kind !== 'gone') return `<button type="button" class="${cls}" data-act="edit-cell" data-doc="${doc.id}" data-iso="${iso}" title="${title}" aria-label="${title}">${label}${marks}</button>`;
     return `<span class="${cls}" title="${title}">${label}${marks}</span>`;
   }
+  // A week on one A4 landscape page, for the ward or day-unit noticeboard.
+  function renderPrint() {
+    const s = st();
+    const mon = ui.printWeek || R.mondayOf(TODAY);
+    const days = R.dateRange(mon, R.addDays(mon, 6));
+    const sun = days[6];
+    const cols = R.columns(s, mon, sun);
+    const rowsFor = (g) => cols.filter((c) => c.group === g).map((c) => {
+      const holders = days.map((iso) => R.holderOn(c, iso));
+      if (!holders.some((d, i) => R.inPost(d, days[i]))) return '';
+      const names = [...new Set(holders.filter((d, i) => R.inPost(d, days[i])).map((d) => d.name))];
+      const grade = (holders.find((d, i) => R.inPost(d, days[i])) || holders[0]).grade;
+      return `<tr><th scope="row"><strong>${esc(names.join(' → '))}</strong> <span class="small muted">${esc(grade)}</span></th>${days.map((iso, i) => `<td>${cellHtml(holders[i], iso, R.resolveCell(s, holders[i], iso), false)}</td>`).join('')}</tr>`;
+    }).join('');
+    const cover = days.map((iso) => (R.isWorkday(s, iso) ? R.coverWithRisk(s, iso) : null));
+    const coverRow = (g, label) => `<tr class="cover-row"><th scope="row">${label}</th>${cover.map((c) => `<td class="small">${c ? c.rules.filter((r) => r.rule.group === g && r.status !== 'na').map((r) => `<span class="${r.status === 'gap' || r.status === 'risk' ? 'warn-text' : ''}">${esc(r.rule.short)} ${r.status === 'ok' ? '✓' : r.status === 'exception' ? '!' : '✕'}</span>`).join(' ') : ''}</td>`).join('')}</tr>`;
+    const cons = (s.settings.consultantOfWeek || {})[mon];
+    const bh = days.filter((iso) => R.isBankHoliday(s, iso));
+    return `<div class="print-page">
+      <div class="row no-print print-controls"><button type="button" class="btn" data-act="print-move" data-val="-7">← Previous week</button><label class="field inline" for="print-date"><span class="sr-only">Week of</span><input type="date" id="print-date" data-act="print-date" value="${esc(mon)}"></label><button type="button" class="btn" data-act="print-move" data-val="7">Next week →</button>
+        <button type="button" class="btn primary" data-act="print-now">Print</button><button type="button" class="btn ghost" data-act="print-close">Back to the rota</button></div>
+      <header class="print-head"><h1>Haematology rota · week commencing ${esc(R.fmtLong(mon))}</h1>
+        <p>${cons ? `Consultant of the week: <strong>${esc(cons)}</strong> · ` : ''}${bh.length ? `Bank holiday: ${esc(bh.map(R.fmtShort).join(', '))} · ` : ''}Printed ${esc(R.fmtUk(TODAY))}. Check the website for the latest version.</p></header>
+      <table class="print-grid"><thead><tr><th>Doctor</th>${days.map((iso) => `<th${R.isWeekend(iso) ? ' class="we"' : ''}>${esc(R.DOW_SHORT[R.dow(iso)])} ${esc(iso.slice(8, 10) + '/' + iso.slice(5, 7))}</th>`).join('')}</tr></thead>
+        <tbody><tr class="sec"><th colspan="8">Resident doctors</th></tr>${rowsFor('res')}${coverRow('res', 'Resident cover')}
+          <tr class="sec"><th colspan="8">Senior doctors</th></tr>${rowsFor('mg')}${coverRow('mg', 'Senior cover')}</tbody></table>
+      <p class="small print-key">Key: GUH red · RGH blue · NHH green · yellow = leave, on-call or away from the three sites · ✓ covered · ! covered by a resident only · ✕ not covered.</p></div>`;
+  }
   const coverChips = (cover, group) => (cover ? cover.rules.filter((r) => r.rule.group === group)
     .map((r) => `<span class="cv ${r.status}" title="${esc(r.rule.label)}: ${esc(statusWord[r.status])}${r.names.length ? ' (' + esc(r.names.join(', ')) + ')' : ''}">${esc(r.rule.short)} ${statusMark[r.status]}</span>`).join('') : '');
 
@@ -181,6 +210,7 @@
       <div class="row">
         <button type="button" class="btn" data-act="rota-today"${ui.start === TODAY && ui.end === R.addDays(R.addMonths(TODAY, 2), -1) ? ' aria-pressed="true"' : ''}>Today</button>
         <label class="field inline" for="rota-goto"><span class="sr-only">Go to date</span><input type="date" id="rota-goto" data-act="rota-goto" value="${esc(ui.start)}" title="Show 2 months from this date"></label>
+        <button type="button" class="btn" data-act="print-week">Print a week</button>
         <button type="button" class="btn" data-act="export">Download Excel</button>
       </div>
     </div>
@@ -501,8 +531,25 @@
       ${res && res.balance ? `<section class="card bal-card"><h2>Your leave</h2><div class="bal-grid">
         ${[['Annual leave', res.balance.al], ['Study leave', res.balance.sl]].map(([t, b]) => leaveDonut(t, b)).join('')}</div>
         <p class="small muted">Annual leave allowance: ${esc(res.balance.alBasis)}, including any carried-over days added by the authorisers. Ask them if this looks wrong.</p></section>` : ''}
+      ${res ? calCard(res.calToken, 'Your rota in your calendar', 'Add your own rota to your phone or Outlook calendar. It updates by itself (usually within a few hours of a change). Keep the link to yourself: anyone with it can see your rota.') : ''}
       ${res ? `<div class="grid-2"><div class="stack">${res.requests.map(card).join('') || '<p class="muted">No requests yet.</p>'}</div>
         <section class="card"><h2>Messages</h2>${res.notifications.map((n) => `<div class="small"><span class="muted tabular">${esc(n.at.slice(0, 10))}</span> ${esc(n.text)}</div>`).join('') || '<p class="muted small">None yet.</p>'}</section></div>` : ''}`;
+  }
+  // The secret calendar link for one doctor, with how to add it.
+  const calUrl = (token) => `${location.origin}/api/cal/${token}.ics`;
+  function calCard(token, title, intro) {
+    if (store.mode !== 'remote') return `<section class="card"><h2>${esc(title)}</h2><p class="small muted">Calendar links work on the hosted website, not in this demo copy.</p></section>`;
+    if (!token) return '';
+    const url = calUrl(token);
+    return `<section class="card"><h2>${esc(title)}</h2><p class="small muted">${esc(intro)}</p>
+      <div class="row"><input type="text" readonly value="${esc(url)}" aria-label="Calendar link" style="flex:1;min-width:220px" data-select-all>
+        <button type="button" class="btn" data-act="copy-text" data-text="${esc(url)}">Copy link</button>
+        <a class="btn ghost" href="${esc(url.replace(/^https?:/, 'webcal:'))}">Open in calendar app</a></div>
+      <details class="small"><summary>How to add it</summary><ul>
+        <li><strong>iPhone:</strong> tap "Open in calendar app", then Subscribe. (Or Settings → Calendar → Accounts → Add Account → Other → Add Subscribed Calendar, and paste the link.)</li>
+        <li><strong>Outlook:</strong> Calendar → Add calendar → Subscribe from web, paste the link.</li>
+        <li><strong>Google Calendar:</strong> on a computer, Other calendars → + → From URL, paste the link.</li>
+      </ul></details></section>`;
   }
   async function loadMine() {
     if (!ui.mine.doctorId || !ui.mine.email.trim()) return toast('Choose your name and enter your NHS email.', true);
@@ -837,7 +884,10 @@
           ${inp('aliases', 'Other spellings', 'text', (d.aliases || []).join(', '), '', 'As written on the on-call sheet, separated by commas')}
         </div>
         <p class="small muted">${esc(pr.basis)}</p>
-        <div class="bal-grid">${leaveDonut('Annual leave', bal.al)}${leaveDonut('Study leave', bal.sl)}</div>`;
+        <div class="bal-grid">${leaveDonut('Annual leave', bal.al)}${leaveDonut('Study leave', bal.sl)}</div>
+        <h3>Calendar link</h3>
+        ${d.calToken ? `<div class="row"><input type="text" readonly value="${esc(store.mode === 'remote' ? calUrl(d.calToken) : '(on the hosted website)')}" aria-label="Calendar link for ${esc(d.name)}" style="flex:1;min-width:220px" data-select-all>${store.mode === 'remote' ? `<button type="button" class="btn ghost small-btn" data-act="copy-text" data-text="${esc(calUrl(d.calToken))}">Copy</button>` : ''}<button type="button" class="btn ghost small-btn" data-act="cal-link" data-doc="${d.id}" data-reset="1">Make a new link</button></div><p class="small muted">${esc(d.name)}'s own rota as a calendar feed. A new link stops the old one working (e.g. if it was shared by mistake). Doctors also find their link under My leave.</p>`
+          : `<div class="row"><button type="button" class="btn ghost small-btn" data-act="cal-link" data-doc="${d.id}">Create calendar link</button></div><p class="small muted">Doctors get their link automatically the first time they look themselves up under My leave.</p>`}`;
     }
     return `<section class="card"><h2>Edit a doctor</h2>
         <label class="field" for="pe-doc" style="max-width:420px">Doctor<select id="pe-doc" data-act="people-doc">${docs.map((x) => `<option value="${x.id}"${x.id === ui.peopleDoc ? ' selected' : ''}>${esc(x.name)} (${esc(x.grade)})${x.end && x.end < TODAY ? ', left' : ''}</option>`).join('')}</select></label>
@@ -873,12 +923,47 @@
       ${oc && oc.badDates ? `<p class="small" style="color:var(--bad-text)">${plural(oc.badDates, 'on-call row')} skipped because the date could not be read. Use dd/mm/yyyy.</p>` : ''}
       ${sample ? `<details><summary class="small">Doctors in the file (${x.doctors.length})</summary><div class="scroll-x"><table class="plain small"><thead><tr><th>Name</th><th>Grade</th><th>Category</th><th>Starts</th><th>Finishes</th><th>Takes over from</th></tr></thead><tbody>${sample}</tbody></table></div></details>` : ''}`;
   }
+  // Set up → Data file → Update the rota: the safe, everyday way. Only ticked cells change; it can be undone.
+  function renderUpdate() {
+    const u = ui.update;
+    const when = (at) => `${R.fmtShort(at.slice(0, 10))} ${at.slice(11, 16)}`;
+    let preview = '';
+    if (u) {
+      const x = u.parsed;
+      const n = u.ticked.size;
+      const recent = x.changes.filter((c) => c.recent).length;
+      const rows = x.changes.slice(0, 1000).map((c, i) => `<tr${c.recent ? ' class="warn"' : ''}><td><input type="checkbox" data-upd-i="${i}"${u.ticked.has(i) ? ' checked' : ''} aria-label="Apply ${esc(c.name)} ${esc(R.fmtShort(c.date))}"></td>
+        <td class="tabular">${esc(R.fmtShort(c.date))}</td><td>${esc(c.name)}</td><td>${esc(c.was || '(blank)')}</td><td><strong>${esc(c.code)}</strong>${c.kind === 'oncall' ? ' <span class="muted small">on-call</span>' : ''}${c.recent ? '<br><span class="small warn-text">Changed on the website after this file was downloaded. Left unticked so it is not overwritten.</span>' : ''}</td></tr>`).join('');
+      preview = `<div class="notice info stack"><strong>${esc(u.fileName)}</strong>
+        <p class="small">${x.format === 'grid' ? `Rota grid${x.stamp ? `, downloaded ${esc(when(x.stamp))} UTC` : ' (no download time in the file, so changes made on the website since cannot be spotted: check the list)'}` : 'List of changes'}${x.from ? `, ${esc(R.fmtUk(x.from))} to ${esc(R.fmtUk(x.to))}` : ''}.
+          <strong>${plural(x.changes.length, 'cell')}</strong> differ from the rota now${recent ? `, ${recent} of them changed on the website since the download` : ''}. Everything else is left exactly as it is.</p>
+        ${x.unmatched.length ? `<p class="small warn-text">Not matched to a doctor (skipped): ${esc(x.unmatched.slice(0, 8).join(', '))}. Add them on the Master sheet first, or check the spelling.</p>` : ''}
+        ${x.ignored.length ? `<details><summary class="small warn-text">${plural(x.ignored.length, 'cell')} not used</summary><ul class="small">${x.ignored.slice(0, 80).map((m) => `<li>${esc(m)}</li>`).join('')}</ul></details>` : ''}
+        ${x.changes.length ? `<div class="row small"><button type="button" class="btn ghost small-btn" data-act="upd-all">Tick all</button><button type="button" class="btn ghost small-btn" data-act="upd-none">Untick all</button></div>
+        <div class="scroll-x" style="max-height:420px;overflow:auto"><table class="plain small"><thead><tr><th></th><th>Date</th><th>Doctor</th><th>Now</th><th>Becomes</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="small">Nothing to change: the file matches the rota.</p>'}
+        <div class="row"><button type="button" class="btn primary" data-act="apply-updates"${n ? '' : ' disabled'}>Apply ${plural(n, 'change')}</button><button type="button" class="btn ghost" data-act="cancel-update">Cancel</button></div></div>`;
+    }
+    const imps = (st().imports || []).slice(0, 10);
+    const history = imps.length ? `<h3>Recent file updates</h3><div class="scroll-x"><table class="plain small"><thead><tr><th>When (UTC)</th><th>By</th><th>File</th><th>Cells</th><th></th></tr></thead><tbody>${imps.map((m) => `<tr><td class="tabular">${esc(when(m.at))}</td><td>${esc(m.by || '')}</td><td>${esc(m.fileName)}</td><td class="tabular">${m.cells.length}</td>
+      <td>${m.undoneAt ? `<span class="muted">Undone ${esc(when(m.undoneAt))}</span>` : `<button type="button" class="btn ghost small-btn" data-act="undo-import" data-id="${m.id}">${ui.confirm === 'undo:' + m.id ? 'Confirm: undo' : 'Undo'}</button>`}</td></tr>`).join('')}</tbody></table></div>` : '';
+    return `<section class="card"><h2>Update the rota</h2>
+      <p class="small muted">The everyday way to make changes from a spreadsheet. It only changes the cells you edited. It never deletes doctors, leave, on-calls or anything else, and every update can be undone.</p>
+      <ol class="small">
+        <li>Download the rota as it is now (CSV or Excel).</li>
+        <li>Type over the cells that need to change: a location (GUH, RGH - DAY UNIT, NHH - DAY UNIT, OFF …) or an on-call shift (LONG DAY, NIGHTS …). Leave blank cells blank.</li>
+        <li>Upload it here. You see every change (now → becomes) and can untick any before applying.</li>
+      </ol>
+      <p class="small muted">Safety checks: blank cells, leave and NOT IN POST are never changed; cells changed on the website after you downloaded the file are flagged and left unticked; if someone else saves at the same moment, nothing is lost (you are asked to try again). A copy of the whole rota is also kept after every change (Backups). For a few changes you can upload a short list instead (Date, Doctor, Change to).</p>
+      <div class="drop"><div class="row"><button type="button" class="btn primary" data-act="template" data-kind="rota-csv">Download the rota (CSV)</button><button type="button" class="btn ghost" data-act="template" data-kind="master">Download as Excel</button><button type="button" class="btn ghost" data-act="template" data-kind="updates-csv">Short list template (CSV)</button></div>
+        <label class="field" for="file-update">Upload your changes (.csv or .xlsx)<input type="file" id="file-update" accept=".csv,.xlsx" data-act="import-file" data-kind="update"></label></div>
+      ${preview}${history}</section>`;
+  }
   // Set up → Data file: one Excel file holds everything that is imported, and is also the backup.
   function renderImport() {
     const p = ui.importPreview;
     const preview = p ? `<div class="notice info stack"><strong>${esc(p.fileName)}</strong>${masterPreview(p)}
       <div class="row"><button type="button" class="btn primary" data-act="confirm-import"${p.count ? '' : ' disabled'}>Import</button><button type="button" class="btn ghost" data-act="cancel-import">Cancel</button></div></div>` : '';
-    return `<section class="card"><h2>Rota data file</h2>
+    return `${renderUpdate()}<section class="card"><h2>Full data file (setting up, new doctors, rotations)</h2>
       <p class="small muted">One Excel file holds everything the rota is built from. Download it (it comes filled in with what is on the rota now), change it in Excel, and upload it again. You can do this as often as you like.</p>
       <ul class="small">
         <li><strong>Rota:</strong> the whole rota, laid out like the rota page (dates down, one column per doctor, changeover rows). Type over a cell to change where someone is that day, or to add an on-call shift. Only changed cells are imported; leave stays as it is.</li>
@@ -888,7 +973,7 @@
         <li><strong>On-calls:</strong> paste in the trust on-calls each week (Date, Doctor, Shift).</li>
         <li><strong>Rotation dates</strong> and <strong>Codes</strong>, for reference.</li>
       </ul>
-      <p class="small muted">Doctors are matched by name: existing ones are updated, new ones added, nobody is deleted. You see what will change before anything is saved. The same file (with extra read-only tabs) is what Backups downloads. A CSV holds one tab only, so the Excel file is the one to use; a CSV of a single tab (Rota or Doctors) is also accepted.</p>
+      <p class="small muted">Doctors are matched by name: existing ones are updated, new ones added, nobody is deleted. <strong>Note:</strong> on-calls in its On-calls tab replace the on-calls already on the rota for those dates, so for everyday changes use "Update the rota" above. You see what will change before anything is saved. The same file (with extra read-only tabs) is what Backups downloads. A CSV holds one tab only, so the Excel file is the one to use; a CSV of a single tab (Rota or Doctors) is also accepted.</p>
       <div class="drop"><div class="row"><button type="button" class="btn primary" data-act="template" data-kind="master">Download the rota data file</button><button type="button" class="btn ghost" data-act="template" data-kind="rota-csv">Rota tab as CSV</button><button type="button" class="btn ghost" data-act="template" data-kind="master-csv">Doctors tab as CSV</button></div>
         <label class="field" for="file-master">Upload the filled-in file (.xlsx, or a .csv of one tab)<input type="file" id="file-master" accept=".xlsx,.csv" data-act="import-file" data-kind="master"></label></div>
       ${preview}</section>`;
@@ -928,22 +1013,23 @@
     const when = (at) => `${R.fmtShort(at.slice(0, 10))} ${at.slice(11, 16)}`;
     const row = (x) => `<tr><td class="tabular">${esc(when(x.at))}</td><td>${esc(x.by || '')}</td><td class="small">${esc(x.note || '')}</td><td class="small muted">${Math.round((x.bytes || 0) / 1024)} KB</td>
       <td><div class="row"><button type="button" class="btn ghost small-btn" data-act="backup-download" data-id="${x.id}">Download</button><button type="button" class="btn small-btn" data-act="restore-backup" data-id="${x.id}" data-at="${esc(when(x.at))}">${ui.confirm === 'restore:' + x.id ? 'Confirm: put this copy back' : 'Restore'}</button></div></td></tr>`;
+    const csvTable = (list, n) => list.length ? `<div class="scroll-x"><table class="plain small"><thead><tr><th>Day</th><th>Size</th><th></th></tr></thead><tbody>${list.slice(0, n).map((x) => `<tr><td class="tabular">${esc(R.fmtLong(x.day))}</td><td class="small muted">${Math.round((x.bytes || 0) / 1024)} KB</td><td><button type="button" class="btn ghost small-btn" data-act="csv-backup-download" data-id="${x.id}" data-day="${esc(x.day)}">Download CSV (zip)</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted small">The first one is made tonight.</p>';
     const table = (list, n) => list.length ? `<div class="scroll-x"><table class="plain small"><thead><tr><th>When (UTC)</th><th>By</th><th>What changed</th><th>Size</th><th></th></tr></thead><tbody>${list.slice(0, n).map(row).join('')}</tbody></table></div>` : '<p class="muted small">None yet.</p>';
     return `<div class="grid-2">
       <section class="card"><h2>Where the rota is kept</h2>
         <ul class="small">
           <li><strong>The live rota</strong> is stored in your Cloudflare database (D1, called <code>haematology-rota</code>), not in a file. Every change is saved straight away.</li>
           <li><strong>After every change</strong> a compressed copy is kept (the last 500 changes).</li>
-          <li><strong>Every night</strong> (about 01:15 UTC) a daily copy is kept for 2 years.</li>
+          <li><strong>Every night</strong> (about 01:15 UTC) a daily copy is kept for 2 years, together with a <strong>CSV copy</strong> (a zip with one CSV per table, which opens in Excel).</li>
           <li><strong>Cloudflare also keeps its own restore points</strong> for the last 30 days (D1 Time Travel), in case the database itself has a problem.</li>
-          <li>You can <strong>download a copy</strong> at any time. The Excel version is the rota data file plus read-only tabs (leave, changes, EDT/SDT, change log); upload it under Data file to bring its doctors, consultants, leave restrictions and on-calls back. The exact copy (JSON) puts back everything in one step.</li>
+          <li>You can <strong>download a copy</strong> at any time. The Excel version is the rota data file plus read-only tabs (leave, changes, EDT/SDT, change log); upload it under Data file to bring its doctors, consultants, leave restrictions and on-calls back. The CSV backup is the same tables as separate CSV files in one zip; its rota.csv and doctors.csv can be uploaded under Data file. The exact copy (JSON) puts back everything in one step.</li>
         </ul>
-        <div class="row"><button type="button" class="btn primary" data-act="backup-excel">Download full backup (Excel)</button><button type="button" class="btn" data-act="backup-json">Download exact copy (JSON)</button></div>
+        <div class="row"><button type="button" class="btn primary" data-act="backup-excel">Download full backup (Excel)</button><button type="button" class="btn" data-act="backup-csv">Download CSV backup (zip)</button><button type="button" class="btn" data-act="backup-json">Download exact copy (JSON)</button></div>
         <label class="field" for="restore-file">Put back an exact copy from a file <span class="hint">A .json file downloaded from here. The current rota is backed up first.</span><input type="file" id="restore-file" accept=".json,application/json" data-act="restore-file"></label></section>
       <section class="card"><h2>Copies on the server</h2>
         ${store.mode !== 'remote' ? '<p class="muted small">Copies are kept on the server. In this demo copy, use the download buttons instead.</p>'
           : !b ? '<p class="muted small">Loading…</p>' : b.error ? `<p class="notice bad small">${esc(b.error)}</p>`
-          : `<h3>Daily</h3>${table(b.daily, ui.backupsMore ? 400 : 14)}<h3>After each change</h3>${table(b.changes, ui.backupsMore ? 200 : 20)}
+          : `<h3>Daily</h3>${table(b.daily, ui.backupsMore ? 400 : 14)}<h3>Nightly CSV copies</h3>${csvTable(b.csv || [], ui.backupsMore ? 400 : 14)}<h3>After each change</h3>${table(b.changes, ui.backupsMore ? 200 : 20)}
              <div class="row"><button type="button" class="btn ghost small-btn" data-act="backups-more">${ui.backupsMore ? 'Show fewer' : 'Show all'}</button><button type="button" class="btn ghost small-btn" data-act="backups-refresh">Refresh</button></div>`}
         <p class="small muted">Restoring puts the whole rota back as it was at that moment (doctors, leave, on-calls, settings). The change log is kept, and the restore itself is logged and backed up, so it can be undone.</p></section></div>`;
   }
@@ -984,20 +1070,47 @@
           <label class="field" for="rs-note">Note<input type="text" id="rs-note" placeholder="Why"></label>
           <button type="button" class="btn primary" data-act="add-restr">Add</button></div></section>`;
   }
+  // Settings → Sign-ins: each authoriser's own password, and the shared password until it is turned off.
+  function renderSignins() {
+    const u = ui.users;
+    if (!u && !ui.usersLoading) { ui.usersLoading = true; store.listUsers().then((x) => { ui.users = x; }).catch((e) => { ui.users = { error: e.message, users: [], sharedOn: true }; }).finally(() => { ui.usersLoading = false; render(); }); }
+    const when = (at) => (at ? R.fmtShort(at.slice(0, 10)) + ' ' + at.slice(0, 4) : '');
+    const list = !u ? '<p class="muted small">Loading…</p>' : u.error ? `<p class="notice bad small">${esc(u.error)}</p>`
+      : u.users.length ? `<div class="scroll-x"><table class="plain small"><thead><tr><th>Name</th><th>Password</th><th></th></tr></thead><tbody>${u.users.map((x) => `<tr><td><strong>${esc(x.name)}</strong>${x.name === store.me ? ' <span class="muted">(you)</span>' : ''}</td>
+          <td>${x.temp ? '<span class="warn-text">Temporary: not changed yet</span>' : `Own, set ${esc(when(x.set_at))}`}</td>
+          <td><div class="row"><button type="button" class="btn ghost small-btn" data-act="user-reset" data-name="${esc(x.name)}">Reset</button><button type="button" class="btn ghost small-btn" data-act="user-remove" data-name="${esc(x.name)}">${ui.confirm === 'user:' + x.name ? 'Confirm: remove' : 'Remove'}</button></div></td></tr>`).join('')}</tbody></table></div>`
+      : '<p class="muted small">Nobody has their own password yet: everyone uses the shared password.</p>';
+    const sharedOn = !u || u.sharedOn;
+    return `<section class="card"><h2>Sign-ins</h2>
+        <p class="small muted">Give each authoriser their own password, so the change log shows exactly who did what and one person can be removed without changing everyone's password. Set a temporary password, tell them in person or by phone (never by email), and they choose their own the first time they sign in.</p>
+        ${list}
+        <div class="grid-2" style="align-items:end"><label class="field" for="nu-name">Name<input type="text" id="nu-name" list="nu-names" autocomplete="off" value="${esc(ui.nuName || '')}"><datalist id="nu-names">${(st().settings.authorisers || []).map((n) => `<option value="${esc(n)}">`).join('')}</datalist></label>
+          <label class="field" for="nu-pw">Temporary password <span class="hint">At least 12 characters</span><input type="text" id="nu-pw" autocomplete="off" spellcheck="false"></label></div>
+        <div class="row"><button type="button" class="btn primary" data-act="user-add">Add or reset</button></div>
+        <h3>Shared password</h3>
+        ${sharedOn ? `<p class="small">On: authorisers without their own password sign in with the shared password.${store.ownPassword && !store.mustChange ? '' : ' To turn it off, first set your own password and sign in with it.'}</p>
+          ${store.ownPassword && !store.mustChange ? `<div class="row"><button type="button" class="btn" data-act="shared-off">${ui.confirm === 'shared-off' ? 'Confirm: turn off the shared password' : 'Turn off the shared password'}</button></div><p class="small muted">Anyone without their own password will no longer be able to sign in.</p>` : ''}`
+          : '<p class="small">Off: everyone signs in with their own password.</p>'}
+      </section>
+      <section class="card" id="own-pw"><h2>${store.ownPassword ? 'Change your password' : 'Change the shared password'}</h2><p class="small muted">${store.ownPassword ? 'Only your own password changes. You are signed out afterwards.' : 'Everyone is signed out afterwards. Share the new password in person or by phone, never by email.'}</p>
+        <label class="field" for="pw-cur">Current ${store.mustChange ? '(temporary) ' : ''}password<input type="password" id="pw-cur" autocomplete="current-password"></label>
+        <label class="field" for="pw-new">New password <span class="hint">At least 12 characters</span><input type="password" id="pw-new" autocomplete="new-password"></label>
+        <div class="row"><button type="button" class="btn primary" data-act="change-pw">Change password</button></div></section>`;
+  }
   function renderSettings() {
     const s = st().settings;
     return `<div class="grid-2">
-      <section class="card"><h2>Authorisers</h2><p class="small muted">The names that can sign in (they share one password). Shown in the change log next to every change.</p>
+      <section class="card"><h2>Authorisers</h2><p class="small muted">The names that can sign in. Shown in the change log next to every change. Names with their own password are managed under "Sign-ins".</p>
         <label class="field" for="set-auth">Names <span class="hint">One per line</span><textarea id="set-auth" rows="4">${esc((s.authorisers || []).join('\n'))}</textarea></label>
         <label class="opt small"><input type="checkbox" id="set-email-docs"${s.emailDoctors ? ' checked' : ''}> <span>Also email doctors (decisions and cover). Off: doctors check "Check my request" instead, and only the alert emails below are sent.</span></label>
         <label class="field" for="set-mail">Alert emails <span class="hint">Who is emailed about new requests and sickness. One per line.</span><textarea id="set-mail" rows="3">${esc((s.authoriserEmails || []).join('\n'))}</textarea></label>
         <div class="row"><button type="button" class="btn primary" data-act="save-authorisers">Save</button><span class="small muted">Emails: ${store.emailOn ? '<strong style="color:var(--ok-fg)">switched on</strong>' : store.mode === 'local' ? 'not available in demo mode' : 'not switched on yet (in-app messages only). See the README to add an email key.'}</span></div></section>
-      ${store.mode === 'remote' ? `<section class="card"><h2>Change the authoriser password</h2><p class="small muted">Everyone is signed out afterwards. Share the new password in person or by phone, never by email.</p>
-        <label class="field" for="pw-cur">Current password<input type="password" id="pw-cur" autocomplete="current-password"></label>
-        <label class="field" for="pw-new">New password <span class="hint">At least 12 characters</span><input type="password" id="pw-new" autocomplete="new-password"></label>
-        <div class="row"><button type="button" class="btn primary" data-act="change-pw">Change password</button></div></section>` : ''}
-      <section class="card"><h2>Bank holidays</h2><p class="small muted">One date per line (yyyy-mm-dd). Bank holidays are not working days.</p>
-        <textarea id="set-bh" rows="6">${esc((s.bankHolidays || []).join('\n'))}</textarea><div class="row"><button type="button" class="btn" data-act="save-bh">Save</button></div></section>
+      ${store.mode === 'remote' ? renderSignins() : ''}
+      <section class="card"><h2>Bank holidays</h2><p class="small muted">Worked out automatically for every year (England and Wales rules, with substitute days when one falls at a weekend). Bank holidays are not working days.</p>
+        <p class="small"><strong>Next 12 months:</strong> ${R.bankHolidaysBetween(st(), TODAY, R.addMonths(TODAY, 12)).map((x) => esc(R.fmtShort(x) + ' ' + x.slice(0, 4))).join(' · ') || 'none'}</p>
+        <div class="grid-2"><label class="field" for="set-bh-extra">Extra one-off bank holidays <span class="hint">e.g. a coronation. One date per line (yyyy-mm-dd).</span><textarea id="set-bh-extra" rows="3">${esc((s.bankHolidayExtra || []).join('\n'))}</textarea></label>
+        <label class="field" for="set-bh-removed">Not a bank holiday this time <span class="hint">If a date is moved by the government. One per line.</span><textarea id="set-bh-removed" rows="3">${esc((s.bankHolidayRemoved || []).join('\n'))}</textarea></label></div>
+        <div class="row"><button type="button" class="btn" data-act="save-bh">Save</button></div></section>
       <section class="card"><h2>${s.demo ? 'Start for real' : 'Data'}</h2>
         <p class="small muted">${s.demo ? 'The rota is showing example data with fictional doctors. "Start fresh" removes all doctors, plans, on-calls, requests and EDT, and keeps the rules, authorisers and alert emails. Then add your doctors under People or import the staff list.' : 'Download a full Excel copy from the Rota page at any time.'}</p>
         <div class="row">${s.demo || store.mode === 'local' ? `<button type="button" class="btn danger" data-act="start-fresh">${ui.confirm === 'fresh' ? 'Confirm: remove all example data' : 'Start fresh'}</button>` : ''}
@@ -1140,7 +1253,7 @@
     const scroller = $('#rota-scroll');
     const keep = scroller ? [scroller.scrollTop, scroller.scrollLeft] : null;
     renderHead();
-    const views = { rota: renderRota, request: renderRequest, mine: renderMine, rules: renderRules, requests: renderRequests, edt: renderEdt, setup: renderSetup, log: renderLog };
+    const views = { print: renderPrint, rota: renderRota, request: renderRequest, mine: renderMine, rules: renderRules, requests: renderRequests, edt: renderEdt, setup: renderSetup, log: renderLog };
     $('#view').innerHTML = (views[ui.view] || renderRota)();
     $('#sheet-root').innerHTML = (ui.view === 'rota' && isAuth() ? renderEditSheet() : '') + renderDialog();
     const overlayKey = (ui.dialog || '') + '|' + (ui.editing && ui.view === 'rota' ? ui.editing.doc + ui.editing.iso : '');
@@ -1184,7 +1297,7 @@
     if (!t || t.tagName === 'SELECT' || (t.tagName === 'INPUT' && t.type !== 'button')) return;
     const act = t.dataset.act, val = t.dataset.val;
     const confirmStep = (key) => { if (ui.confirm === key) { ui.confirm = null; return true; } ui.confirm = key; render(); return false; };
-    if (!['remove-doc', 'start-fresh', 'withdraw', 'revoke', 'restore-backup'].includes(act)) ui.confirm = null;
+    if (!['remove-doc', 'start-fresh', 'withdraw', 'revoke', 'restore-backup', 'undo-import', 'user-remove', 'shared-off'].includes(act)) ui.confirm = null;
     switch (act) {
       case 'nav': go(t.dataset.view); return;
       case 'open-rota-at': resetRange(R.addDays(val, -3)); ui.layout = 'grid'; go('rota'); ui.scrollToToday = false; return;
@@ -1326,16 +1439,36 @@
       case 'remove-doc': if (!confirmStep('remove:' + t.dataset.doc)) return; await change(op('removeDoctor', t.dataset.doc), 'Doctor removed.'); break;
       case 'template': {
         const kind = t.dataset.kind;
-        if (kind === 'rota-csv') { saveFile('rota.csv', E.rotaCsv(st(), TODAY), 'text/csv;charset=utf-8'); return; }
+        if (kind === 'updates-csv') { saveFile('rota-changes-list.csv', E.updatesListCsv(), 'text/csv;charset=utf-8'); return; }
+        if (kind === 'rota-csv') { saveFile(`rota-${TODAY}.csv`, E.rotaCsv(st(), TODAY), 'text/csv;charset=utf-8'); return; }
         if (kind === 'master-csv') { saveFile('rota-doctors.csv', E.doctorsCsvTemplate(st()), 'text/csv;charset=utf-8'); return; }
         const bytes = kind === 'oncall' ? E.oncallTemplate(TODAY) : E.masterTemplate(st(), TODAY);
         saveFile(kind === 'oncall' ? 'oncall-import-template.xlsx' : 'rota-data-file.xlsx', bytes);
         return;
       }
       case 'cancel-import': ui.importPreview = null; break;
+      case 'cancel-update': ui.update = null; break;
+      case 'upd-all': ui.update.parsed.changes.forEach((c, i) => ui.update.ticked.add(i)); break;
+      case 'upd-none': ui.update.ticked.clear(); break;
+      case 'apply-updates': {
+        const u = ui.update;
+        const list = u.parsed.changes.filter((c, i) => u.ticked.has(i));
+        if (await change(op('applyUpdates', list, u.fileName), `${plural(list.length, 'change')} applied. You can undo this below.`)) ui.update = null;
+        break;
+      }
+      case 'undo-import': {
+        if (!confirmStep('undo:' + t.dataset.id)) return;
+        await change(op('undoImport', t.dataset.id), 'Update undone.');
+        break;
+      }
       case 'confirm-import': await confirmImport(); break;
       case 'save-rotation': await change(op('setSetting', 'rotation', { start: $('#rot-start').value }, `Rotation started ${$('#rot-start').value}`), 'Saved.'); break;
       case 'backup-excel': saveFile(`haematology-rota-backup-${TODAY}.xlsx`, E.backupWorkbook(st(), TODAY)); return;
+      case 'backup-csv': saveFile(`haematology-rota-csv-${TODAY}.zip`, E.csvBackupZip(st(), TODAY), 'application/zip'); return;
+      case 'csv-backup-download': {
+        try { saveFile(`haematology-rota-csv-${t.dataset.day}.zip`, await store.getCsvBackup(t.dataset.id), 'application/zip'); } catch (e) { toast(e.message, true); }
+        return;
+      }
       case 'backup-json': saveFile(`haematology-rota-backup-${TODAY}.json`, JSON.stringify(st()), 'application/json'); return;
       case 'backups-more': ui.backupsMore = !ui.backupsMore; break;
       case 'backups-refresh': ui.backups = null; break;
@@ -1367,15 +1500,41 @@
         break;
       }
       case 'save-bh': {
-        const list = $('#set-bh').value.split(/\s+/).map((x) => x.trim()).filter(Boolean);
-        if (list.some((x) => !R.isIso(x))) { toast('Write each date as yyyy-mm-dd.', true); return; }
-        await change(op('setSetting', 'bankHolidays', list.sort(), `Bank holidays: ${list.length}`), 'Bank holidays saved.');
+        const read = (id) => $(id).value.split(/\s+/).map((x) => x.trim()).filter(Boolean);
+        const extra = read('#set-bh-extra'), removed = read('#set-bh-removed');
+        if (extra.concat(removed).some((x) => !R.isIso(x))) { toast('Write each date as yyyy-mm-dd.', true); return; }
+        await change((st2, by) => { S.ops.setSetting(st2, by, 'bankHolidayExtra', extra.sort(), `Extra bank holidays: ${extra.join(', ') || 'none'}`); S.ops.setSetting(st2, by, 'bankHolidayRemoved', removed.sort(), `Bank holidays removed: ${removed.join(', ') || 'none'}`); return []; }, 'Bank holidays saved.');
         break;
       }
       case 'change-pw': {
         const cur = $('#pw-cur').value, next = $('#pw-new').value;
         try { await store.changePassword(cur, next); toast('Password changed. Please sign in again.'); go('rota'); } catch (e) { toast(e.message, true); }
         return;
+      }
+      case 'print-week': ui.printWeek = R.mondayOf(ui.start && ui.start > TODAY ? ui.start : TODAY); ui.view = 'print'; break;
+      case 'print-move': ui.printWeek = R.addDays(ui.printWeek, Number(t.dataset.val)); break;
+      case 'print-now': window.print(); return;
+      case 'print-close': ui.view = 'rota'; break;
+      case 'copy-text': try { await navigator.clipboard.writeText(t.dataset.text); toast('Link copied.'); } catch (e) { toast('Select the link and copy it.', true); } return;
+      case 'cal-link': await change(op('calendarLink', t.dataset.doc, !!t.dataset.reset), t.dataset.reset ? 'New link made. The old one no longer works.' : 'Calendar link created.'); break;
+      case 'go-own-pw': ui.view = 'setup'; ui.setupTab = 'settings'; render(); setTimeout(() => { const el = document.getElementById('own-pw'); if (el) el.scrollIntoView({ block: 'center' }); const f = document.getElementById('pw-cur'); if (f) f.focus(); }, 50); return;
+      case 'user-add': case 'user-reset': {
+        const name = act === 'user-reset' ? t.dataset.name : $('#nu-name').value.trim();
+        const pw = act === 'user-reset' ? (window.prompt(`Temporary password for ${name} (at least 12 characters). Tell them in person or by phone.`) || '') : $('#nu-pw').value;
+        if (!name) { toast('Type the name.', true); return; }
+        if (!pw) return;
+        try { await store.saveUser(name, pw); ui.users = null; ui.nuName = ''; toast(`${name} can now sign in with the temporary password. They will be asked to choose their own.`); } catch (e) { toast(e.message, true); }
+        break;
+      }
+      case 'user-remove': {
+        if (!confirmStep('user:' + t.dataset.name)) return;
+        try { await store.removeUser(t.dataset.name); ui.users = null; toast(`${t.dataset.name} removed.`); } catch (e) { toast(e.message, true); }
+        break;
+      }
+      case 'shared-off': {
+        if (!confirmStep('shared-off')) return;
+        try { await store.sharedOff(); ui.users = null; toast('Shared password turned off. Everyone now signs in with their own password.'); } catch (e) { toast(e.message, true); }
+        break;
       }
       case 'start-fresh': if (!confirmStep('fresh')) return; await change(op('startFresh'), 'Example data removed. Add your doctors under People.'); ui.setupTab = 'people'; break;
       case 'reset-demo': store.resetLocalDemo(); toast('Example data reloaded.'); return;
@@ -1409,9 +1568,11 @@
     if (t.dataset.bulk && ui.bulk) { ui.bulk[t.dataset.bulk] = t.value; return; }
     if (t.dataset.bulkId && ui.bulk) { const id = t.dataset.bulkId; ui.bulk.ids = ui.bulk.ids.filter((x) => x !== id).concat(t.checked ? [id] : []); return; }
     if (t.dataset.bulkDay && ui.bulk) { const k = Number(t.dataset.bulkDay); ui.bulk.days = ui.bulk.days.filter((x) => x !== k).concat(t.checked ? [k] : []); return; }
+    if (t.dataset.updI !== undefined && ui.update) { const i = Number(t.dataset.updI); if (t.checked) ui.update.ticked.add(i); else ui.update.ticked.delete(i); const b = document.querySelector('[data-act="apply-updates"]'); if (b) { b.textContent = `Apply ${plural(ui.update.ticked.size, 'change')}`; b.disabled = !ui.update.ticked.size; } return; }
     if (t.dataset.rule && ui.rulesDraft) { ui.rulesDraft.rules[t.dataset.rule] = t.value; return; }
     const act = t.dataset.act;
     switch (act) {
+      case 'print-date': if (R.isIso(t.value)) ui.printWeek = R.mondayOf(t.value); break;
       case 'rota-goto': if (R.isIso(t.value)) { resetRange(t.value); ui.scrollToToday = false; } break;
       case 'hide-weekends': ui.hideWeekends = t.checked; break;
       case 'doc-field': {
@@ -1454,9 +1615,16 @@
         if (!file) return;
         const kind = t.dataset.kind;
         const isCsv = /\.csv$/i.test(file.name);
-        if (!/\.xlsx$/i.test(file.name) && !(isCsv && kind === 'master')) { toast('Save the file as an Excel Workbook (.xlsx)' + (kind === 'master' ? ' or CSV' : '') + ' and choose it again.', true); return; }
+        if (!/\.xlsx$/i.test(file.name) && !(isCsv && (kind === 'master' || kind === 'update'))) { toast('Save the file as an Excel Workbook (.xlsx)' + (kind === 'master' ? ' or CSV' : '') + ' and choose it again.', true); return; }
         try {
           const sheets = isCsv ? [{ name: file.name.replace(/\.csv$/i, ''), rows: E.parseCsv(await file.text()) }] : await X.read(await file.arrayBuffer());
+          if (kind === 'update') {
+            const parsed = E.parseUpdates(st(), sheets);
+            t.value = '';
+            if (!parsed) { toast(`${file.name} has no rota grid (Date, Day, doctors…) or list (Date, Doctor, Change to). Download the rota here and edit that.`, true); return; }
+            ui.update = { fileName: file.name, parsed, ticked: new Set(parsed.changes.map((c, i) => (c.recent ? -1 : i)).filter((i) => i >= 0)) };
+            break;
+          }
           const parsed = kind === 'oncall' ? E.parseOncall(st(), sheets) : E.parseMaster(st(), sheets);
           ui.importPreview = { kind, fileName: file.name, parsed, mapping: {} };
         } catch (e) { toast(`Could not read ${file.name}: ${e.message}`, true); }
@@ -1487,7 +1655,7 @@
     if (id === 'leave-form') return submitForm();
     if (id === 'mine-form') return loadMine();
     if (id === 'signin-form') {
-      try { await store.login($('#si-name').value, $('#si-pw') ? $('#si-pw').value : ''); ui.dialog = null; toast(`Signed in as ${store.me}.`); render(); } catch (e) { toast(e.message, true); }
+      try { await store.login($('#si-name').value, $('#si-pw') ? $('#si-pw').value : ''); ui.dialog = null; ui.users = null; toast(store.mustChange ? 'Signed in. Please choose your own password now.' : `Signed in as ${store.me}.`); render(); } catch (e) { toast(e.message, true); }
       return;
     }
     if (id === 'setup-form') {
@@ -1498,6 +1666,12 @@
       try { await store.setupPassword(pw, $('#su-code') ? $('#su-code').value : '', names); ui.dialog = 'signin'; toast('Password set. Now sign in.'); render(); } catch (e) { toast(e.message, true); }
     }
   });
+
+  // Print in the light theme whatever theme is on screen.
+  let themeBeforePrint = null;
+  window.addEventListener('beforeprint', () => { themeBeforePrint = document.documentElement.getAttribute('data-theme'); document.documentElement.setAttribute('data-theme', 'light'); });
+  window.addEventListener('afterprint', () => { if (themeBeforePrint) document.documentElement.setAttribute('data-theme', themeBeforePrint); themeBeforePrint = null; });
+  document.addEventListener('focusin', (ev) => { const t = ev.target; if (t && t.dataset && 'selectAll' in t.dataset && t.select) t.select(); });
 
   document.addEventListener('toggle', (ev) => { if (ev.target.classList && ev.target.classList.contains('filters')) ui.filtersOpen = ev.target.open; }, true);
 

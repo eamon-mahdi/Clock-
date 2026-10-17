@@ -565,6 +565,31 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
   .app-head, .sheet, .dialog, .toast { background: var(--surface); color: var(--fg); backdrop-filter: none; -webkit-backdrop-filter: none; border: 2px solid var(--fg); }
   .app-head { background: var(--head-bg); color: var(--head-fg); }
 }
+/* Printable week */
+.print-page { display: flex; flex-direction: column; gap: 10px; }
+.print-controls { flex-wrap: wrap; }
+.print-head h1 { font-size: 1.25rem; margin: 0; }
+.print-head p { margin: 2px 0 0; color: var(--muted); font-size: 0.85rem; }
+.print-grid { width: 100%; border-collapse: collapse; table-layout: fixed; background: var(--surface); }
+.print-grid th, .print-grid td { border: 1px solid var(--line-strong); padding: 3px 4px; vertical-align: middle; font-size: 0.78rem; }
+.print-grid thead th { background: var(--surface-2); text-align: center; }
+.print-grid thead th:first-child, .print-grid tbody th { width: 17%; text-align: left; font-weight: 400; }
+.print-grid th.we { color: var(--muted); }
+.print-grid tr.sec th { background: var(--surface-2); font-weight: 700; }
+.print-grid td .cell { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 28px; width: 100%; border-radius: 4px; font-size: 0.75rem; text-align: center; padding: 2px; }
+.print-grid .cover-row td, .print-grid .cover-row th { font-size: 0.7rem; color: var(--muted); }
+.print-key { color: var(--muted); }
+@media print {
+  @page { size: A4 landscape; margin: 9mm; }
+  html, body { background: #fff !important; }
+  .app-head, .tabbar, #bar, .toasts, #sheet-root, .no-print { display: none !important; }
+  main#view { padding: 0 !important; max-width: none !important; }
+  .print-head h1 { font-size: 13pt; }
+  .print-grid th, .print-grid td { padding: 1px 3px; font-size: 7.5pt; }
+  .print-grid td .cell { min-height: 0; padding: 1px 2px; font-size: 7.5pt; border-radius: 3px; }
+  .print-grid td .cell { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .print-grid tr { break-inside: avoid; }
+}
 </style>
 
 </head>
@@ -1005,7 +1030,35 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
   const worse = (a, b) => (STATUS_RANK[b] > STATUS_RANK[a] ? b : a);
 
   // ---------- state helpers ----------
-  const isBankHoliday = (state, iso) => ((state.settings && state.settings.bankHolidays) || BANK_HOLIDAYS).includes(iso);
+  // England and Wales bank holidays for any year, worked out from the rules (with weekend substitute days).
+  const bhCache = {};
+  function bankHolidaysFor(year) {
+    if (bhCache[year]) return bhCache[year];
+    const pad = (n) => String(n).padStart(2, '0');
+    const iso = (m, d) => `${year}-${pad(m)}-${pad(d)}`;
+    // Easter Sunday (anonymous Gregorian algorithm)
+    const a = year % 19, b = Math.floor(year / 100), c = year % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const em = Math.floor((h + l - 7 * m + 114) / 31), ed = ((h + l - 7 * m + 114) % 31) + 1;
+    const easter = iso(em, ed);
+    const firstMon = (mo) => { let x = iso(mo, 1); while (dow(x) !== 0) x = addDays(x, 1); return x; };
+    const lastMon = (mo) => { let x = addDays(iso(mo + 1, 1), -1); while (dow(x) !== 0) x = addDays(x, -1); return x; };
+    const out = [addDays(easter, -2), addDays(easter, 1), firstMon(5), lastMon(5), lastMon(8)];
+    // New Year, Christmas and Boxing Day move to the next free weekday when they fall at a weekend.
+    const fixed = [iso(1, 1), iso(12, 25), iso(12, 26)];
+    fixed.filter((x) => !isWeekend(x)).forEach((x) => out.push(x));
+    for (const x of fixed.filter(isWeekend)) { let y = addDays(x, 1); while (isWeekend(y) || out.includes(y)) y = addDays(y, 1); out.push(y); }
+    bhCache[year] = out.sort();
+    return bhCache[year];
+  }
+  // Settings can add one-off extras (e.g. a coronation) or remove a date that the government has moved.
+  function isBankHoliday(state, iso) {
+    const st = (state && state.settings) || {};
+    if ((st.bankHolidayRemoved || []).includes(iso)) return false;
+    if ((st.bankHolidayExtra || []).includes(iso)) return true;
+    return bankHolidaysFor(Number(iso.slice(0, 4))).includes(iso);
+  }
+  const bankHolidaysBetween = (state, from, to) => dateRange(from, to).filter((x) => isBankHoliday(state, x));
   const isWorkday = (state, iso) => !isWeekend(iso) && !isBankHoliday(state, iso);
   const inPost = (doc, iso) => (!doc.start || iso >= doc.start) && (!doc.end || iso <= doc.end);
   const doctorById = (state, id) => state.doctors.find((d) => d.id === id);
@@ -1455,7 +1508,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
   const api = {
     toDate, toIso, addDays, dow, isWeekend, isWorkday, mondayOf, daysBetween, dateRange, isIso, fmtShort, fmtLong, fmtUk, DOW_SHORT, DOW_LONG, halfRound,
     BANK_HOLIDAYS, SITE_CODES, ONCALL_CODES, LEAVE_TYPES, FORM_LEAVE_TYPES, LEAVE_CODES, COVER_RULES, STATUS_RANK, DEFAULT_RULES, ruleNum, groupLabel,
-    norm, siteOf, kindOf, canonicalCode, isBankHoliday, inPost, doctorById, planCode, resolveCell, coverFor, coverWithRisk, coverCode,
+    norm, siteOf, kindOf, canonicalCode, isBankHoliday, bankHolidaysFor, bankHolidaysBetween, inPost, doctorById, planCode, resolveCell, coverFor, coverWithRisk, coverCode,
     worstStatus, leaveDays, balance, restrictedIn, suggestCover, availability, coverRoleFor, staffingCheck, nearestDates,
     edtDefault, edtEntitlement, edtCheck, edtOn, alPerYear, alProRata, changeoversIn,
     slotOf, predecessorOf, columns, holderOn, programmeOf, PROGRAMMES, programmeStarts, firstWednesday, suggestDates, shortNotice, rotaHorizon, addMonths
@@ -1566,13 +1619,22 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
       st.consultantOfWeek = st.consultantOfWeek || {};
       st.schema = 3;
     }
+    if (st.schema < 4) {
+      // Bank holidays are now worked out for every year; keep only real differences from the rules.
+      const old = st.bankHolidays || [];
+      const years = [...new Set(old.map((x) => Number(x.slice(0, 4))))];
+      st.bankHolidayExtra = old.filter((x) => !R.bankHolidaysFor(Number(x.slice(0, 4))).includes(x));
+      st.bankHolidayRemoved = years.flatMap((y) => R.bankHolidaysFor(y)).filter((x) => !old.includes(x));
+      delete st.bankHolidays;
+      st.schema = 4;
+    }
     return state;
   }
 
   function baseSettings() {
     return {
-      bankHolidays: R.BANK_HOLIDAYS.slice(), restricted: [], consultantOfWeek: {}, rules: Object.assign({}, R.DEFAULT_RULES),
-      rulesText: clone(DEFAULT_RULES_TEXT), changeovers: [], rotation: { start: '2026-08-05' }, schema: 3,
+      bankHolidayExtra: [], bankHolidayRemoved: [], restricted: [], consultantOfWeek: {}, rules: Object.assign({}, R.DEFAULT_RULES),
+      rulesText: clone(DEFAULT_RULES_TEXT), changeovers: [], rotation: { start: '2026-08-05' }, schema: 4,
       authorisers: ['Authoriser 1', 'Authoriser 2', 'Authoriser 3'], authoriserEmails: [], demo: false
     };
   }
@@ -1745,21 +1807,75 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     return {
       balance: { al: bal.al, sl: bal.sl, alBasis: R.alProRata(doc).basis, start: doc.start || '', end: doc.end || '' },
       requests: state.requests.filter((r) => r.doctorId === doc.id && (!r.email || r.email.toLowerCase() === mail || doc.email)).sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1)),
-      notifications: state.notifications.filter((n) => n.to === 'd:' + doc.id).slice(0, 30)
+      notifications: state.notifications.filter((n) => n.to === 'd:' + doc.id).slice(0, 30),
+      calToken: doc.calToken || ''
     };
   }
 
+  // ---------- calendar feed (one secret link per doctor) ----------
+  function newCalToken() {
+    const b = new Uint8Array(24);
+    (root.crypto || globalThis.crypto).getRandomValues(b);
+    return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+  }
+  // The doctor's own rota as an iCalendar feed. Built from what anyone can see on the rota (so no extra detail,
+  // sickness shows as Unavailable), from 2 weeks ago to 6 months ahead.
+  function icsFor(state, doctorId, todayIso, nowStamp) {
+    const pub = publicView(state);
+    const doc = R.doctorById(pub, doctorId);
+    if (!doc) return null;
+    const esc = (t) => String(t).replace(/\\/g, '\\\\').replace(/[,;]/g, (c) => '\\' + c).replace(/\n/g, '\\n');
+    const fold = (line) => { const out = []; let x = line; while (x.length > 74) { out.push(x.slice(0, 74)); x = ' ' + x.slice(74); } out.push(x); return out.join('\r\n'); };
+    const d8 = (iso) => iso.replace(/-/g, '');
+    const stamp = (nowStamp || new Date().toISOString()).replace(/[-:]/g, '').replace(/\.\d+/, '').slice(0, 15) + 'Z';
+    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Haematology Rota//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+      `X-WR-CALNAME:${esc('Haematology rota: ' + doc.name)}`, 'X-WR-TIMEZONE:Europe/London', 'REFRESH-INTERVAL;VALUE=DURATION:PT6H', 'X-PUBLISHED-TTL:PT6H'];
+    for (const iso of R.dateRange(R.addDays(todayIso, -14), R.addMonths(todayIso, 6))) {
+      const cell = R.resolveCell(pub, doc, iso);
+      if (!cell.code || cell.kind === 'gone') continue;
+      const text = cell.kind === 'sick' ? 'Unavailable' : cell.code;
+      const cons = (pub.settings.consultantOfWeek || {})[R.mondayOf(iso)];
+      lines.push('BEGIN:VEVENT', `UID:${d8(iso)}-${doc.id}@haematology-rota`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${d8(iso)}`, `DTEND;VALUE=DATE:${d8(R.addDays(iso, 1))}`,
+        `SUMMARY:${esc(text)}`, cons && !R.isWeekend(iso) ? `DESCRIPTION:${esc('Consultant of the week: ' + cons)}` : null, 'TRANSP:TRANSPARENT', 'END:VEVENT');
+    }
+    lines.push('END:VCALENDAR');
+    return lines.filter(Boolean).map(fold).join('\r\n') + '\r\n';
+  }
+
   // What anyone with the link can see (no emails, notes, reasons, sickness or audit).
+  // Sets rota cells from a file and records what each was before, so the whole upload can be undone.
+  function applyCells(state, by, changes, fileName, reason) {
+    const rec = { id: uid('u'), at: nowIso(), by, fileName: fileName || '', cells: [] };
+    let applied = 0, skipped = 0;
+    for (const c of changes) {
+      const d = R.doctorById(state, c.doctorId);
+      const code = R.canonicalCode(c.code || '');
+      const kind = R.kindOf(code);
+      const okCode = ['site', 'lab', 'off', 'oncall'].includes(kind) || ['TEACHING', 'INDUCTION', 'SPR TRAINING DAY'].includes(code);
+      if (!d || !R.isIso(c.date) || !okCode || !R.inPost(d, c.date)) { skipped++; continue; }
+      const cell = R.resolveCell(state, d, c.date);
+      if (cell.leave || R.canonicalCode(cell.code || '') === code) { skipped++; continue; }
+      state.overrides[d.id] = state.overrides[d.id] || {}; state.oncall[d.id] = state.oncall[d.id] || {};
+      const before = { override: state.overrides[d.id][c.date] || null, oncall: state.oncall[d.id][c.date] || null };
+      if (kind === 'oncall') { delete state.overrides[d.id][c.date]; state.oncall[d.id][c.date] = code; }
+      else { delete state.oncall[d.id][c.date]; state.overrides[d.id][c.date] = { code, reason, by, at: nowIso() }; }
+      rec.cells.push({ doctorId: d.id, date: c.date, before, after: { override: state.overrides[d.id][c.date] || null, oncall: state.oncall[d.id][c.date] || null } });
+      applied++;
+    }
+    if (rec.cells.length) { state.imports = [rec].concat(state.imports || []).slice(0, 30); }
+    return { applied, skipped };
+  }
+
   function publicView(state) {
     const s = clone(state);
-    s.doctors.forEach((d) => { delete d.email; delete d.alEntitlement; delete d.slEntitlement; delete d.alExtra; delete d.slExtra; delete d.note; });
+    s.doctors.forEach((d) => { delete d.calToken; delete d.email; delete d.alEntitlement; delete d.slEntitlement; delete d.alExtra; delete d.slExtra; delete d.note; });
     s.requests = s.requests.filter((r) => ['pending', 'hold', 'authorised'].includes(r.status)).map((r) => ({
       id: r.id, doctorId: r.doctorId, type: r.type === 'SICK' ? 'UNAVAIL' : (['AL', 'SL'].includes(r.type) ? r.type : 'OTHER'),
       start: r.start, end: r.end, part: r.part, status: r.status, excludedDates: r.excludedDates || [], days: r.days, cover: (r.cover || []).map((c) => ({ date: c.date, doctorId: c.doctorId, to: c.to }))
     }));
     Object.values(s.overrides || {}).forEach((m) => Object.values(m).forEach((o) => { delete o.reason; delete o.by; }));
     s.edt = (s.edt || []).map((e) => ({ id: e.id, doctorId: e.doctorId, date: e.date, session: e.session, type: e.type }));
-    s.audit = []; s.notifications = [];
+    s.audit = []; s.notifications = []; delete s.imports;
     s.settings.authoriserEmails = [];
     s.public = true;
     return s;
@@ -1767,6 +1883,16 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
 
   // ---------- authoriser actions (pure functions on state; return emails to send) ----------
   const ops = {
+    // Make (or replace) a doctor's secret calendar link. Replacing it stops the old link working.
+    calendarLink(state, by, doctorId, reset) {
+      const d = R.doctorById(state, doctorId);
+      if (!d) throw new Error('Doctor not found.');
+      if (d.calToken && !reset) return [];
+      const had = !!d.calToken;
+      d.calToken = newCalToken();
+      log(state, by, had ? 'Calendar link replaced' : 'Calendar link created', `${d.name}${had ? ': the old link no longer works' : ''}`);
+      return [];
+    },
     setCell(state, by, doctorId, iso, code, reason) {
       const d = R.doctorById(state, doctorId);
       state.overrides[doctorId] = state.overrides[doctorId] || {};
@@ -1928,17 +2054,33 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
         for (const [alias, id] of Object.entries(parsed.mapping || {})) { const d = R.doctorById(state, id); if (id && d && !(d.aliases || []).includes(alias)) (d.aliases = d.aliases || []).push(alias); }
         shifts = entries.length;
       }
-      // Rota tab: only the cells that were changed. Applied last so it wins over the On-calls tab.
-      let cells = 0;
-      for (const c of (parsed.rota && parsed.rota.changes) || []) {
-        if (!R.doctorById(state, c.doctorId)) continue;
-        state.overrides[c.doctorId] = state.overrides[c.doctorId] || {};
-        state.oncall[c.doctorId] = state.oncall[c.doctorId] || {};
-        if (c.kind === 'oncall') { delete state.overrides[c.doctorId][c.date]; state.oncall[c.doctorId][c.date] = c.code; }
-        else { delete state.oncall[c.doctorId][c.date]; state.overrides[c.doctorId][c.date] = { code: c.code, reason: 'Rota tab of the data file', by, at: nowIso() }; }
-        cells++;
-      }
+      // Rota tab: only the cells that were changed. Applied last so it wins over the On-calls tab. Can be undone.
+      const cells = parsed.rota ? applyCells(state, by, parsed.rota.changes || [], fileName, 'Rota tab of the data file').applied : 0;
       log(state, by, 'Rota data file imported', `${fileName || 'file'}: ${parsed.rota ? `${cells} rota cells changed, ` : ''}${added} doctors added, ${updated} updated, ${weeks.length} consultant weeks, ${restr} leave restrictions${oc ? `, ${shifts} on-call shifts (${R.fmtUk(oc.from)} to ${R.fmtUk(oc.to)})` : ''}${missing.length ? '. ' + missing.join('; ') : ''}`);
+      return [];
+    },
+    // Update the rota from an uploaded file: only the ticked cells. Nothing else is touched, and it can be undone.
+    applyUpdates(state, by, changes, fileName) {
+      if (!Array.isArray(changes) || !changes.length) throw new Error('Tick at least one change.');
+      const res = applyCells(state, by, changes, fileName, 'Rota update from ' + (fileName || 'a file'));
+      log(state, by, 'Rota updated from a file', `${fileName || 'file'}: ${res.applied} cells changed${res.skipped ? `, ${res.skipped} skipped (already the same, or approved leave)` : ''}`);
+      return [];
+    },
+    // Undo a file update: put each cell back as it was, unless it has been changed again since.
+    undoImport(state, by, id) {
+      const imp = (state.imports || []).find((x) => x.id === id);
+      if (!imp || imp.undoneAt) throw new Error('That update has already been undone.');
+      let back = 0, kept = 0;
+      for (const c of imp.cells) {
+        const ov = (state.overrides[c.doctorId] || {})[c.date] || null, oc = (state.oncall[c.doctorId] || {})[c.date] || null;
+        if (JSON.stringify(ov) !== JSON.stringify(c.after.override) || oc !== c.after.oncall) { kept++; continue; }
+        state.overrides[c.doctorId] = state.overrides[c.doctorId] || {}; state.oncall[c.doctorId] = state.oncall[c.doctorId] || {};
+        if (c.before.override) state.overrides[c.doctorId][c.date] = c.before.override; else delete state.overrides[c.doctorId][c.date];
+        if (c.before.oncall) state.oncall[c.doctorId][c.date] = c.before.oncall; else delete state.oncall[c.doctorId][c.date];
+        back++;
+      }
+      imp.undoneAt = nowIso(); imp.undoneBy = by;
+      log(state, by, 'File update undone', `${imp.fileName || 'file'} (${R.fmtShort(imp.at.slice(0, 10))}): ${back} cells put back${kept ? `, ${kept} left as they are because they were changed again since` : ''}`);
       return [];
     },
     // Put back an earlier copy of the whole rota (from a backup).
@@ -2122,6 +2264,10 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
         store.me = null;
         await store.refresh(true);
       },
+      async listUsers() { return api('GET', '/api/users'); },
+      async saveUser(name, password) { await api('POST', '/api/users', { name, password }); await store.refresh(true); },
+      async removeUser(name) { const out = await api('POST', '/api/users/remove', { name }); if (out.signedOut) store.me = null; await store.refresh(true); },
+      async sharedOff() { await api('POST', '/api/shared-password/off', {}); await store.refresh(true); },
       async submitLeave(payload) {
         if (store.mode === 'local') { const out = submitLeave(store.state, payload); saveLocal(); emit(); return { request: out.request, check: out.check, emailed: false }; }
         const out = await api('POST', '/api/requests', payload);
@@ -2138,6 +2284,11 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
         return api('GET', '/api/backups');
       },
       async getBackup(id) { return api('GET', `/api/backups/${encodeURIComponent(id)}`); },
+      async getCsvBackup(id) {
+        const res = await fetch(`/api/csv-backups/${encodeURIComponent(id)}`, { credentials: 'same-origin', cache: 'no-store' });
+        if (!res.ok) { let m = `The server replied ${res.status}.`; try { m = (await res.json()).error || m; } catch (e) { /* not json */ } throw new Error(m); }
+        return new Uint8Array(await res.arrayBuffer());
+      },
       async myRequests(doctorId, email) {
         if (store.mode === 'local') return myRequests(store.state, doctorId, email);
         return api('POST', '/api/my-requests', { doctorId, email });
@@ -2165,7 +2316,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     });
     function applyServer(data) {
       store.state = upgrade(data.state); store.version = data.version; store.me = data.me || null;
-      store.hasPassword = data.hasPassword !== false; store.emailOn = !!data.emailOn; store.setupCodeRequired = !!data.setupCodeRequired;
+      store.hasPassword = data.hasPassword !== false; store.mustChange = !!data.mustChange; store.ownPassword = !!data.ownPassword; store.emailOn = !!data.emailOn; store.setupCodeRequired = !!data.setupCodeRequired;
     }
     return store;
   }
@@ -2174,7 +2325,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     return ((state.settings && state.settings.restricted) || []).find((r) => iso >= r.start && iso <= (r.end || r.start)) || null;
   }
 
-  const api = { createStore, demoState, emptyState, upgrade, submitLeave, withdrawLeave, myRequests, publicView, ops, restrictionOn, DEFAULT_RULES_TEXT, LOCAL_KEY };
+  const api = { createStore, demoState, emptyState, upgrade, submitLeave, withdrawLeave, myRequests, publicView, icsFor, ops, restrictionOn, DEFAULT_RULES_TEXT, LOCAL_KEY };
   root.RotaStore = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -2298,13 +2449,14 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     if (typeof v === 'object' && v.date) return v.date;
     if (typeof v === 'number' && v > 20000 && v < 80000) return X.serialToIso(v);
     const s = String(v).trim();
+    const real = (iso) => (R.toIso(R.toDate(iso)) === iso ? iso : null); // rejects 31/02 and the like
     let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
-    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    if (m) return real(`${m[1]}-${m[2]}-${m[3]}`);
     m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$/.exec(s);
     if (m) {
       const y = m[3].length === 2 ? '20' + m[3] : m[3];
       const iso = `${y}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
-      return isNaN(R.toDate(iso)) ? null : iso;
+      return isNaN(R.toDate(iso)) ? null : real(iso);
     }
     return null;
   }
@@ -2521,11 +2673,14 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
   // ---------- Rota tab: the whole rota as a grid, like the rota view ----------
   const rotaRange = (state, todayIso) => ({ from: R.addDays(todayIso, -14), to: R.addMonths(todayIso, 6) < R.rotaHorizon(state, todayIso) ? R.addMonths(todayIso, 6) : R.rotaHorizon(state, todayIso) });
   const colHead = (d) => `${d.grade}\n${d.name}`;
-  function rotaRows(state, from, to) {
+  // The first line of a downloaded rota says when it was downloaded, so an upload can spot cells changed on the website since.
+  const STAMP_RE = /downloaded (\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d)?)/i;
+  const stampLine = (at) => `Rota downloaded ${String(at).slice(0, 16)} UTC. Keep this line and the column headings as they are; change the cells you need and upload the file under Set up → Data file → Update the rota.`;
+  function rotaRows(state, from, to, at) {
     const cols = [];
     for (const g of ['res', 'mg']) for (const c of R.columns(state, from, to)) if (c.group === g) cols.push(c);
     const base = { border: true, center: true, wrap: true };
-    const rows = [[head('Date'), head('Day'), head('Consultant')].concat(cols.map((c) => head(colHead(R.holderOn(c, from)))))];
+    const rows = [[note(stampLine(at || new Date().toISOString()))], [head('Date'), head('Day'), head('Consultant')].concat(cols.map((c) => head(colHead(R.holderOn(c, from)))))];
     let prev = null;
     for (const iso of R.dateRange(from, to)) {
       const holders = cols.map((c) => R.holderOn(c, iso));
@@ -2547,16 +2702,35 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     }
     return { rows, widths: [12, 6, 14].concat(cols.map(() => 15)) };
   }
-  function rotaSheet(state, todayIso) {
+  function rotaSheet(state, todayIso, at) {
     const r = rotaRange(state, todayIso);
-    const x = rotaRows(state, r.from, r.to);
-    return { name: 'Rota', rows: x.rows, widths: x.widths, freeze: { row: 1, col: 2 }, heights: { 0: 42 } };
+    const x = rotaRows(state, r.from, r.to, at);
+    return { name: 'Rota', rows: x.rows, widths: x.widths, freeze: { row: 2, col: 2 }, heights: { 1: 42 } };
   }
-  const rotaCsv = (state, todayIso) => { const r = rotaRange(state, todayIso); return toCsv(rotaRows(state, r.from, r.to).rows.map((row) => row.map((v) => (v && typeof v.v === 'string' ? Object.assign({}, v, { v: v.v.replace(/\n/g, ' ') }) : v)))); };
+  const rotaCsv = (state, todayIso, at) => { const r = rotaRange(state, todayIso); return toCsv(rotaRows(state, r.from, r.to, at).rows.map((row) => row.map((v) => (v && typeof v.v === 'string' ? Object.assign({}, v, { v: v.v.replace(/\n/g, ' ') }) : v)))); };
+
+  // One uploaded cell against the rota now: null (no change or nothing to do), { change } or { ignored }.
+  // Never touches leave, NOT IN POST or blanks. "recent" = changed on the website after the file was downloaded.
+  function classifyCell(state, doc, iso, raw, stamp) {
+    if (!raw || !R.inPost(doc, iso)) return null;
+    const code = R.canonicalCode(raw);
+    const cell = R.resolveCell(state, doc, iso);
+    if (code === R.canonicalCode(cell.code || '')) return null;
+    const kind = R.kindOf(code);
+    if (cell.leave) return { ignored: `${doc.name}, ${R.fmtUk(iso)}: has approved leave, so "${raw}" was not used. Change leave through the request.` };
+    const ov = (state.overrides[doc.id] || {})[iso];
+    const recent = !!(stamp && ov && ov.at && ov.at.slice(0, 16) > stamp.slice(0, 16));
+    const base = { doctorId: doc.id, name: doc.name, date: iso, code, was: cell.code || '', recent };
+    if (kind === 'oncall') return { change: Object.assign(base, { kind }) };
+    if (['site', 'lab', 'off'].includes(kind) || code === 'TEACHING' || code === 'INDUCTION' || code === 'SPR TRAINING DAY') return { change: Object.assign(base, { kind: 'site' }) };
+    if (kind === 'gone') return null;
+    return { ignored: `${doc.name}, ${R.fmtUk(iso)}: "${raw}" is not a location or on-call code${kind === 'leave' || kind === 'sick' ? ' (leave is added through leave requests)' : ''}.` };
+  }
+  const stampOf = (sh, h) => { for (let r = 0; r < h; r++) for (const v of sh.rows[r] || []) { const m = STAMP_RE.exec(cellText(v)); if (m) return m[1]; } return ''; };
 
   // Reads a Rota tab. Only cells that differ from the rota now are returned. Leave, NOT IN POST and blanks are left alone.
   function parseRota(state, sh, h, colIndex) {
-    const out = { from: '', to: '', changes: [], ignored: [], unmatched: [], columns: 0 };
+    const out = { format: 'grid', stamp: stampOf(sh, h), from: '', to: '', changes: [], ignored: [], unmatched: [], columns: 0 };
     const all = R.columns(state, '1900-01-01', '2999-12-31');
     const named = [];
     for (const c of all) for (const d of c.docs) named.push({ name: d.name.toLowerCase(), col: c });
@@ -2577,22 +2751,55 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
       if (!out.from || iso < out.from) out.from = iso;
       if (!out.to || iso > out.to) out.to = iso;
       for (const { i, col } of map) {
-        const raw = cellText(row[i]);
-        if (!raw) continue;
-        const doc = R.holderOn(col, iso);
-        if (!R.inPost(doc, iso)) continue;
-        const code = R.canonicalCode(raw);
-        const cell = R.resolveCell(state, doc, iso);
-        if (code === R.canonicalCode(cell.code || '')) continue;
-        const kind = R.kindOf(code);
-        if (cell.leave) { out.ignored.push(`${doc.name}, ${R.fmtUk(iso)}: has approved leave, so "${raw}" was not used. Change leave through the request.`); continue; }
-        if (kind === 'oncall') out.changes.push({ doctorId: doc.id, name: doc.name, date: iso, code, kind });
-        else if (['site', 'lab', 'off', 'bh'].includes(kind) || code === 'TEACHING' || code === 'INDUCTION' || code === 'SPR TRAINING DAY') out.changes.push({ doctorId: doc.id, name: doc.name, date: iso, code, kind: 'site' });
-        else if (kind === 'gone') continue;
-        else out.ignored.push(`${doc.name}, ${R.fmtUk(iso)}: "${raw}" is not a location or on-call code${kind === 'leave' || kind === 'sick' ? ' (leave is added through leave requests)' : ''}.`);
+        const x = classifyCell(state, R.holderOn(col, iso), iso, cellText(row[i]), out.stamp);
+        if (x && x.change) out.changes.push(x.change); else if (x && x.ignored) out.ignored.push(x.ignored);
       }
     }
     return out;
+  }
+
+  // A short list of changes: Date, Doctor, Change to (one row each). Same rules as the Rota tab.
+  function parseUpdateList(state, sh, h, ci) {
+    const out = { format: 'list', stamp: '', from: '', to: '', changes: [], ignored: [], unmatched: [], columns: 0 };
+    const seen = new Set();
+    for (let r = h + 1; r < sh.rows.length; r++) {
+      const row = sh.rows[r] || [];
+      const rawDate = cellText(row[ci.date]), name = cellText(row[ci.doc]), raw = cellText(row[ci.val]);
+      if (!rawDate && !name && !raw) continue;
+      const iso = parseDate(row[ci.date]);
+      if (!iso) { out.ignored.push(`Row ${r + 1}: could not read the date "${rawDate}". Use dd/mm/yyyy.`); continue; }
+      const doc = matchDoctor(state, name);
+      if (!doc) { if (name && !out.unmatched.includes(name)) out.unmatched.push(name); continue; }
+      if (!raw) continue;
+      if (!R.inPost(doc, iso)) { out.ignored.push(`Row ${r + 1}: ${doc.name} is not in post on ${R.fmtUk(iso)}.`); continue; }
+      if (seen.has(doc.id + iso)) { out.ignored.push(`Row ${r + 1}: ${doc.name} on ${R.fmtUk(iso)} is in the file twice; only the first row is used.`); continue; }
+      seen.add(doc.id + iso);
+      if (!out.from || iso < out.from) out.from = iso;
+      if (!out.to || iso > out.to) out.to = iso;
+      const x = classifyCell(state, doc, iso, raw, '');
+      if (x && x.change) out.changes.push(x.change); else if (x && x.ignored) out.ignored.push(`Row ${r + 1}: ${x.ignored}`);
+    }
+    out.columns = 1;
+    return out;
+  }
+  const updatesListCsv = () => toCsv([[head('Date'), head('Doctor'), head('Change to')], ['01/12/2026', 'Omar', 'NHH - DAY UNIT'], ['02/12/2026', 'Omar', 'LONG DAY']]);
+
+  // Reads an upload for "Update the rota": a Rota tab (grid) or a list (Date, Doctor, Change to). Nothing is applied here.
+  function parseUpdates(state, sheets) {
+    const ordered = sheets.slice().sort((a, b) => (/^rota$/i.test(b.name || '') ? 1 : 0) - (/^rota$/i.test(a.name || '') ? 1 : 0));
+    for (const sh of ordered) {
+      const h = findHeaderRowAny(sh.rows);
+      const cols = (sh.rows[h] || []).map((v) => cellText(v).toLowerCase());
+      const idx = (re) => cols.findIndex((x) => re.test(x));
+      if (idx(/^date/) >= 0 && idx(/^day$/) >= 0) {
+        const g = parseRota(state, sh, h, { date: idx(/^date/), day: idx(/^day$/), cons: idx(/^consultant/) });
+        if (g.columns) return Object.assign(g, { sheet: sh.name || '' });
+      }
+      if (idx(/^date/) >= 0 && idx(/^doctor|^name/) >= 0 && idx(/^change|^new|^code|^shift|^location|^value/) >= 0) {
+        return Object.assign(parseUpdateList(state, sh, h, { date: idx(/^date/), doc: idx(/^doctor|^name/), val: idx(/^change|^new|^code|^shift|^location|^value/) }), { sheet: sh.name || '' });
+      }
+    }
+    return null;
   }
 
   function masterTemplate(state, todayIso) {
@@ -2708,26 +2915,43 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     return 0;
   }
 
-  // Full backup: the master tabs (re-importable) plus everything else, read-only.
-  function backupWorkbook(state, todayIso) {
+  // Full backup: the master tabs (re-importable) plus everything else, read-only. Shared by the Excel and CSV backups.
+  function backupTables(state, todayIso) {
     const docName = (id) => (R.doctorById(state, id) || { name: id }).name;
     const changes = [[head('Date'), head('Doctor'), head('Changed to'), head('Reason'), head('By')]];
     Object.entries(state.overrides || {}).forEach(([id, m]) => Object.entries(m).forEach(([d, o]) => changes.push([{ v: d, date: true }, docName(id), o.code, o.reason || '', o.by || ''])));
+    changes.splice(1, changes.length, ...changes.slice(1).sort((a, b) => (a[0].v < b[0].v ? -1 : a[0].v > b[0].v ? 1 : 0)));
     const leave = [[head('Doctor'), head('Type'), head('From'), head('To'), head('Part'), head('Working days'), head('Status'), head('Days not approved'), head('Decided by'), head('Sent')]].concat(state.requests.map((r) => [docName(r.doctorId), r.type === 'SICK' ? 'Unavailable' : (R.LEAVE_TYPES[r.type] || R.LEAVE_TYPES.OTHER).label, { v: r.start, date: true }, { v: r.end, date: true }, r.part, r.days, r.status, (r.excludedDates || []).map(R.fmtUk).join(', '), r.decidedBy || '', (r.submittedAt || '').slice(0, 10)]));
     const edt = [[head('Date'), head('Session'), head('Doctor'), head('Type'), head('Booked by')]].concat((state.edt || []).map((e) => [{ v: e.date, date: true }, e.session, docName(e.doctorId), e.type, e.bookedBy || '']));
     const audit = [[head('When'), head('Who'), head('What'), head('Details')]].concat((state.audit || []).map((a) => [a.at.slice(0, 16).replace('T', ' '), a.by, a.action, a.detail]));
+    const r = rotaRange(state, todayIso);
+    const rota = rotaRows(state, R.addDays(todayIso, -90), r.to);
+    return [
+      { name: 'Rota', file: 'rota', rows: rota.rows, widths: rota.widths, freeze: { row: 1, col: 2 }, heights: { 0: 42 } },
+      { name: 'Doctors', file: 'doctors', rows: doctorRows(state), widths: MASTER_WIDTHS, freeze: { row: 1, col: 1 }, heights: { 0: 42 } },
+      { name: 'Consultant of the week', file: 'consultant-of-the-week', rows: consultantRows(state, todayIso), widths: [24, 30], freeze: { row: 1 } },
+      { name: 'Leave restrictions', file: 'leave-restrictions', rows: restrictionRows(state), widths: [13, 13, 20, 50], freeze: { row: 1 } },
+      { name: 'On-calls', file: 'on-calls', rows: oncallRows(state), widths: [12, 22, 20], freeze: { row: 1 } },
+      { name: 'Leave', file: 'leave-requests', rows: leave, widths: [18, 22, 12, 12, 7, 8, 11, 30, 14, 12], freeze: { row: 1 } },
+      { name: 'Rota changes', file: 'rota-changes', rows: changes, widths: [12, 20, 20, 40, 14], freeze: { row: 1 } },
+      { name: 'EDT SDT', file: 'edt-sdt', rows: edt, widths: [12, 8, 20, 8, 14], freeze: { row: 1 } },
+      { name: 'Change log', file: 'change-log', rows: audit, widths: [17, 18, 26, 90], freeze: { row: 1 } }
+    ];
+  }
+  function backupWorkbook(state, todayIso) {
     return X.write([
-      helpSheet([`Haematology rota data file and backup, ${R.fmtLong(todayIso)}`, '', 'This is the same file as Set up → Data file. The Rota, Doctors, Consultant of the week, Leave restrictions and On-calls tabs can be uploaded again there.', 'The other tabs (Leave, Rota changes, EDT SDT, Change log) are a read-only record.', 'For an exact restore of everything, use Set up → Backups on the website.']),
-      rotaSheet(state, todayIso),
-      { name: 'Doctors', rows: doctorRows(state), widths: MASTER_WIDTHS, freeze: { row: 1, col: 1 }, heights: { 0: 42 } },
-      { name: 'Consultant of the week', rows: consultantRows(state, todayIso), widths: [24, 30], freeze: { row: 1 } },
-      { name: 'Leave restrictions', rows: restrictionRows(state), widths: [13, 13, 20, 50], freeze: { row: 1 } },
-      { name: 'On-calls', rows: oncallRows(state), widths: [12, 22, 20], freeze: { row: 1 } },
-      { name: 'Leave', rows: leave, widths: [18, 22, 12, 12, 7, 8, 11, 30, 14, 12], freeze: { row: 1 } },
-      { name: 'Rota changes', rows: changes, widths: [12, 20, 20, 40, 14], freeze: { row: 1 } },
-      { name: 'EDT SDT', rows: edt, widths: [12, 8, 20, 8, 14], freeze: { row: 1 } },
-      { name: 'Change log', rows: audit, widths: [17, 18, 26, 90], freeze: { row: 1 } }
-    ]);
+      helpSheet([`Haematology rota data file and backup, ${R.fmtLong(todayIso)}`, '', 'This is the same file as Set up → Data file. The Rota, Doctors, Consultant of the week, Leave restrictions and On-calls tabs can be uploaded again there.', 'The other tabs (Leave, Rota changes, EDT SDT, Change log) are a read-only record.', 'For an exact restore of everything, use Set up → Backups on the website.'])
+    ].concat(backupTables(state, todayIso)));
+  }
+  // CSV backup: one CSV per table, in a zip. Opens in Excel; rota.csv and doctors.csv can be uploaded again under Data file.
+  function csvBackupZip(state, todayIso) {
+    const te = new TextEncoder();
+    const flat = (rows) => rows.map((row) => row.map((v) => (v && typeof v.v === 'string' && !v.date ? Object.assign({}, v, { v: v.v.replace(/\n/g, ' ') }) : v)));
+    const files = backupTables(state, todayIso).map((t) => ({ name: `${t.file}.csv`, data: te.encode(toCsv(flat(t.rows))) }));
+    files.unshift({ name: 'READ ME.txt', data: te.encode([`Haematology rota CSV backup, ${R.fmtLong(todayIso)}`, '',
+      'One CSV per table. They open in Excel.', 'rota.csv (the whole rota) and doctors.csv can be uploaded again under Set up → Data file.',
+      'The other files are a read-only record. For an exact restore of everything, use the JSON copies under Set up → Backups.'].join('\r\n')) });
+    return X.zip(files);
   }
 
   // ---------- roster export ----------
@@ -2778,7 +3002,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
   }
 
   const api = { oncallTemplate, planTemplate, staffTemplate, parseOncall, parsePlans, parseStaff, matchDoctor, parseDate, rosterWorkbook, FILL,
-    masterTemplate, doctorsCsvTemplate, rotaCsv, parseMaster, parseCsv, toCsv, backupWorkbook };
+    masterTemplate, doctorsCsvTemplate, rotaCsv, parseUpdates, updatesListCsv, parseMaster, parseCsv, toCsv, backupWorkbook, csvBackupZip };
   root.RotaExcel = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -2874,7 +3098,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
   const THEMES = [['dark', 'Dark'], ['light', 'Light'], ['blue', 'Blue']];
   function renderHead() {
     const items = navItems();
-    if (!items.some((i) => i[0] === ui.view)) ui.view = 'rota';
+    if (ui.view !== 'print' && !items.some((i) => i[0] === ui.view)) ui.view = 'rota';
     $('#nav').innerHTML = items.map(([id, label, n]) => `<button type="button" data-act="nav" data-view="${id}"${ui.view === id ? ' aria-current="page"' : ''}>${esc(label)}${n ? `<span class="badge">${n}</span>` : ''}</button>`).join('');
     // Phone: a bottom tab bar with the four most used places and "More".
     const primary = items.slice(0, 4), rest = items.slice(4);
@@ -2890,6 +3114,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     const bar = [];
     if (store.mode === 'local') bar.push('<strong>Demo mode.</strong> Not connected to the server: changes stay in this browser.');
     else if (!store.hasPassword) bar.push('<strong>First-time setup:</strong> no authoriser password yet. <button type="button" class="linkish" data-act="open-setup">Set it now</button>');
+    if (isAuth() && store.mustChange) bar.push('<strong>You signed in with a temporary password.</strong> <button type="button" class="linkish" data-act="go-own-pw">Choose your own password now</button>');
     if (st().settings.demo) bar.push(`<strong>Example data</strong> with fictional doctors.${isAuth() ? ' Set up → Settings → Start fresh.' : ''}`);
     if (store.error) bar.push(`<span style="color:var(--bad-text)">Could not reach the server: ${esc(store.error)}</span>`);
     $('#bar').innerHTML = bar.map((b) => `<div>${b}</div>`).join('');
@@ -2932,6 +3157,34 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     if (canEdit && cell.kind !== 'gone') return `<button type="button" class="${cls}" data-act="edit-cell" data-doc="${doc.id}" data-iso="${iso}" title="${title}" aria-label="${title}">${label}${marks}</button>`;
     return `<span class="${cls}" title="${title}">${label}${marks}</span>`;
   }
+  // A week on one A4 landscape page, for the ward or day-unit noticeboard.
+  function renderPrint() {
+    const s = st();
+    const mon = ui.printWeek || R.mondayOf(TODAY);
+    const days = R.dateRange(mon, R.addDays(mon, 6));
+    const sun = days[6];
+    const cols = R.columns(s, mon, sun);
+    const rowsFor = (g) => cols.filter((c) => c.group === g).map((c) => {
+      const holders = days.map((iso) => R.holderOn(c, iso));
+      if (!holders.some((d, i) => R.inPost(d, days[i]))) return '';
+      const names = [...new Set(holders.filter((d, i) => R.inPost(d, days[i])).map((d) => d.name))];
+      const grade = (holders.find((d, i) => R.inPost(d, days[i])) || holders[0]).grade;
+      return `<tr><th scope="row"><strong>${esc(names.join(' → '))}</strong> <span class="small muted">${esc(grade)}</span></th>${days.map((iso, i) => `<td>${cellHtml(holders[i], iso, R.resolveCell(s, holders[i], iso), false)}</td>`).join('')}</tr>`;
+    }).join('');
+    const cover = days.map((iso) => (R.isWorkday(s, iso) ? R.coverWithRisk(s, iso) : null));
+    const coverRow = (g, label) => `<tr class="cover-row"><th scope="row">${label}</th>${cover.map((c) => `<td class="small">${c ? c.rules.filter((r) => r.rule.group === g && r.status !== 'na').map((r) => `<span class="${r.status === 'gap' || r.status === 'risk' ? 'warn-text' : ''}">${esc(r.rule.short)} ${r.status === 'ok' ? '✓' : r.status === 'exception' ? '!' : '✕'}</span>`).join(' ') : ''}</td>`).join('')}</tr>`;
+    const cons = (s.settings.consultantOfWeek || {})[mon];
+    const bh = days.filter((iso) => R.isBankHoliday(s, iso));
+    return `<div class="print-page">
+      <div class="row no-print print-controls"><button type="button" class="btn" data-act="print-move" data-val="-7">← Previous week</button><label class="field inline" for="print-date"><span class="sr-only">Week of</span><input type="date" id="print-date" data-act="print-date" value="${esc(mon)}"></label><button type="button" class="btn" data-act="print-move" data-val="7">Next week →</button>
+        <button type="button" class="btn primary" data-act="print-now">Print</button><button type="button" class="btn ghost" data-act="print-close">Back to the rota</button></div>
+      <header class="print-head"><h1>Haematology rota · week commencing ${esc(R.fmtLong(mon))}</h1>
+        <p>${cons ? `Consultant of the week: <strong>${esc(cons)}</strong> · ` : ''}${bh.length ? `Bank holiday: ${esc(bh.map(R.fmtShort).join(', '))} · ` : ''}Printed ${esc(R.fmtUk(TODAY))}. Check the website for the latest version.</p></header>
+      <table class="print-grid"><thead><tr><th>Doctor</th>${days.map((iso) => `<th${R.isWeekend(iso) ? ' class="we"' : ''}>${esc(R.DOW_SHORT[R.dow(iso)])} ${esc(iso.slice(8, 10) + '/' + iso.slice(5, 7))}</th>`).join('')}</tr></thead>
+        <tbody><tr class="sec"><th colspan="8">Resident doctors</th></tr>${rowsFor('res')}${coverRow('res', 'Resident cover')}
+          <tr class="sec"><th colspan="8">Senior doctors</th></tr>${rowsFor('mg')}${coverRow('mg', 'Senior cover')}</tbody></table>
+      <p class="small print-key">Key: GUH red · RGH blue · NHH green · yellow = leave, on-call or away from the three sites · ✓ covered · ! covered by a resident only · ✕ not covered.</p></div>`;
+  }
   const coverChips = (cover, group) => (cover ? cover.rules.filter((r) => r.rule.group === group)
     .map((r) => `<span class="cv ${r.status}" title="${esc(r.rule.label)}: ${esc(statusWord[r.status])}${r.names.length ? ' (' + esc(r.names.join(', ')) + ')' : ''}">${esc(r.rule.short)} ${statusMark[r.status]}</span>`).join('') : '');
 
@@ -2967,6 +3220,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
       <div class="row">
         <button type="button" class="btn" data-act="rota-today"${ui.start === TODAY && ui.end === R.addDays(R.addMonths(TODAY, 2), -1) ? ' aria-pressed="true"' : ''}>Today</button>
         <label class="field inline" for="rota-goto"><span class="sr-only">Go to date</span><input type="date" id="rota-goto" data-act="rota-goto" value="${esc(ui.start)}" title="Show 2 months from this date"></label>
+        <button type="button" class="btn" data-act="print-week">Print a week</button>
         <button type="button" class="btn" data-act="export">Download Excel</button>
       </div>
     </div>
@@ -3287,8 +3541,25 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
       ${res && res.balance ? `<section class="card bal-card"><h2>Your leave</h2><div class="bal-grid">
         ${[['Annual leave', res.balance.al], ['Study leave', res.balance.sl]].map(([t, b]) => leaveDonut(t, b)).join('')}</div>
         <p class="small muted">Annual leave allowance: ${esc(res.balance.alBasis)}, including any carried-over days added by the authorisers. Ask them if this looks wrong.</p></section>` : ''}
+      ${res ? calCard(res.calToken, 'Your rota in your calendar', 'Add your own rota to your phone or Outlook calendar. It updates by itself (usually within a few hours of a change). Keep the link to yourself: anyone with it can see your rota.') : ''}
       ${res ? `<div class="grid-2"><div class="stack">${res.requests.map(card).join('') || '<p class="muted">No requests yet.</p>'}</div>
         <section class="card"><h2>Messages</h2>${res.notifications.map((n) => `<div class="small"><span class="muted tabular">${esc(n.at.slice(0, 10))}</span> ${esc(n.text)}</div>`).join('') || '<p class="muted small">None yet.</p>'}</section></div>` : ''}`;
+  }
+  // The secret calendar link for one doctor, with how to add it.
+  const calUrl = (token) => `${location.origin}/api/cal/${token}.ics`;
+  function calCard(token, title, intro) {
+    if (store.mode !== 'remote') return `<section class="card"><h2>${esc(title)}</h2><p class="small muted">Calendar links work on the hosted website, not in this demo copy.</p></section>`;
+    if (!token) return '';
+    const url = calUrl(token);
+    return `<section class="card"><h2>${esc(title)}</h2><p class="small muted">${esc(intro)}</p>
+      <div class="row"><input type="text" readonly value="${esc(url)}" aria-label="Calendar link" style="flex:1;min-width:220px" data-select-all>
+        <button type="button" class="btn" data-act="copy-text" data-text="${esc(url)}">Copy link</button>
+        <a class="btn ghost" href="${esc(url.replace(/^https?:/, 'webcal:'))}">Open in calendar app</a></div>
+      <details class="small"><summary>How to add it</summary><ul>
+        <li><strong>iPhone:</strong> tap "Open in calendar app", then Subscribe. (Or Settings → Calendar → Accounts → Add Account → Other → Add Subscribed Calendar, and paste the link.)</li>
+        <li><strong>Outlook:</strong> Calendar → Add calendar → Subscribe from web, paste the link.</li>
+        <li><strong>Google Calendar:</strong> on a computer, Other calendars → + → From URL, paste the link.</li>
+      </ul></details></section>`;
   }
   async function loadMine() {
     if (!ui.mine.doctorId || !ui.mine.email.trim()) return toast('Choose your name and enter your NHS email.', true);
@@ -3623,7 +3894,10 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
           ${inp('aliases', 'Other spellings', 'text', (d.aliases || []).join(', '), '', 'As written on the on-call sheet, separated by commas')}
         </div>
         <p class="small muted">${esc(pr.basis)}</p>
-        <div class="bal-grid">${leaveDonut('Annual leave', bal.al)}${leaveDonut('Study leave', bal.sl)}</div>`;
+        <div class="bal-grid">${leaveDonut('Annual leave', bal.al)}${leaveDonut('Study leave', bal.sl)}</div>
+        <h3>Calendar link</h3>
+        ${d.calToken ? `<div class="row"><input type="text" readonly value="${esc(store.mode === 'remote' ? calUrl(d.calToken) : '(on the hosted website)')}" aria-label="Calendar link for ${esc(d.name)}" style="flex:1;min-width:220px" data-select-all>${store.mode === 'remote' ? `<button type="button" class="btn ghost small-btn" data-act="copy-text" data-text="${esc(calUrl(d.calToken))}">Copy</button>` : ''}<button type="button" class="btn ghost small-btn" data-act="cal-link" data-doc="${d.id}" data-reset="1">Make a new link</button></div><p class="small muted">${esc(d.name)}'s own rota as a calendar feed. A new link stops the old one working (e.g. if it was shared by mistake). Doctors also find their link under My leave.</p>`
+          : `<div class="row"><button type="button" class="btn ghost small-btn" data-act="cal-link" data-doc="${d.id}">Create calendar link</button></div><p class="small muted">Doctors get their link automatically the first time they look themselves up under My leave.</p>`}`;
     }
     return `<section class="card"><h2>Edit a doctor</h2>
         <label class="field" for="pe-doc" style="max-width:420px">Doctor<select id="pe-doc" data-act="people-doc">${docs.map((x) => `<option value="${x.id}"${x.id === ui.peopleDoc ? ' selected' : ''}>${esc(x.name)} (${esc(x.grade)})${x.end && x.end < TODAY ? ', left' : ''}</option>`).join('')}</select></label>
@@ -3659,12 +3933,47 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
       ${oc && oc.badDates ? `<p class="small" style="color:var(--bad-text)">${plural(oc.badDates, 'on-call row')} skipped because the date could not be read. Use dd/mm/yyyy.</p>` : ''}
       ${sample ? `<details><summary class="small">Doctors in the file (${x.doctors.length})</summary><div class="scroll-x"><table class="plain small"><thead><tr><th>Name</th><th>Grade</th><th>Category</th><th>Starts</th><th>Finishes</th><th>Takes over from</th></tr></thead><tbody>${sample}</tbody></table></div></details>` : ''}`;
   }
+  // Set up → Data file → Update the rota: the safe, everyday way. Only ticked cells change; it can be undone.
+  function renderUpdate() {
+    const u = ui.update;
+    const when = (at) => `${R.fmtShort(at.slice(0, 10))} ${at.slice(11, 16)}`;
+    let preview = '';
+    if (u) {
+      const x = u.parsed;
+      const n = u.ticked.size;
+      const recent = x.changes.filter((c) => c.recent).length;
+      const rows = x.changes.slice(0, 1000).map((c, i) => `<tr${c.recent ? ' class="warn"' : ''}><td><input type="checkbox" data-upd-i="${i}"${u.ticked.has(i) ? ' checked' : ''} aria-label="Apply ${esc(c.name)} ${esc(R.fmtShort(c.date))}"></td>
+        <td class="tabular">${esc(R.fmtShort(c.date))}</td><td>${esc(c.name)}</td><td>${esc(c.was || '(blank)')}</td><td><strong>${esc(c.code)}</strong>${c.kind === 'oncall' ? ' <span class="muted small">on-call</span>' : ''}${c.recent ? '<br><span class="small warn-text">Changed on the website after this file was downloaded. Left unticked so it is not overwritten.</span>' : ''}</td></tr>`).join('');
+      preview = `<div class="notice info stack"><strong>${esc(u.fileName)}</strong>
+        <p class="small">${x.format === 'grid' ? `Rota grid${x.stamp ? `, downloaded ${esc(when(x.stamp))} UTC` : ' (no download time in the file, so changes made on the website since cannot be spotted: check the list)'}` : 'List of changes'}${x.from ? `, ${esc(R.fmtUk(x.from))} to ${esc(R.fmtUk(x.to))}` : ''}.
+          <strong>${plural(x.changes.length, 'cell')}</strong> differ from the rota now${recent ? `, ${recent} of them changed on the website since the download` : ''}. Everything else is left exactly as it is.</p>
+        ${x.unmatched.length ? `<p class="small warn-text">Not matched to a doctor (skipped): ${esc(x.unmatched.slice(0, 8).join(', '))}. Add them on the Master sheet first, or check the spelling.</p>` : ''}
+        ${x.ignored.length ? `<details><summary class="small warn-text">${plural(x.ignored.length, 'cell')} not used</summary><ul class="small">${x.ignored.slice(0, 80).map((m) => `<li>${esc(m)}</li>`).join('')}</ul></details>` : ''}
+        ${x.changes.length ? `<div class="row small"><button type="button" class="btn ghost small-btn" data-act="upd-all">Tick all</button><button type="button" class="btn ghost small-btn" data-act="upd-none">Untick all</button></div>
+        <div class="scroll-x" style="max-height:420px;overflow:auto"><table class="plain small"><thead><tr><th></th><th>Date</th><th>Doctor</th><th>Now</th><th>Becomes</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="small">Nothing to change: the file matches the rota.</p>'}
+        <div class="row"><button type="button" class="btn primary" data-act="apply-updates"${n ? '' : ' disabled'}>Apply ${plural(n, 'change')}</button><button type="button" class="btn ghost" data-act="cancel-update">Cancel</button></div></div>`;
+    }
+    const imps = (st().imports || []).slice(0, 10);
+    const history = imps.length ? `<h3>Recent file updates</h3><div class="scroll-x"><table class="plain small"><thead><tr><th>When (UTC)</th><th>By</th><th>File</th><th>Cells</th><th></th></tr></thead><tbody>${imps.map((m) => `<tr><td class="tabular">${esc(when(m.at))}</td><td>${esc(m.by || '')}</td><td>${esc(m.fileName)}</td><td class="tabular">${m.cells.length}</td>
+      <td>${m.undoneAt ? `<span class="muted">Undone ${esc(when(m.undoneAt))}</span>` : `<button type="button" class="btn ghost small-btn" data-act="undo-import" data-id="${m.id}">${ui.confirm === 'undo:' + m.id ? 'Confirm: undo' : 'Undo'}</button>`}</td></tr>`).join('')}</tbody></table></div>` : '';
+    return `<section class="card"><h2>Update the rota</h2>
+      <p class="small muted">The everyday way to make changes from a spreadsheet. It only changes the cells you edited. It never deletes doctors, leave, on-calls or anything else, and every update can be undone.</p>
+      <ol class="small">
+        <li>Download the rota as it is now (CSV or Excel).</li>
+        <li>Type over the cells that need to change: a location (GUH, RGH - DAY UNIT, NHH - DAY UNIT, OFF …) or an on-call shift (LONG DAY, NIGHTS …). Leave blank cells blank.</li>
+        <li>Upload it here. You see every change (now → becomes) and can untick any before applying.</li>
+      </ol>
+      <p class="small muted">Safety checks: blank cells, leave and NOT IN POST are never changed; cells changed on the website after you downloaded the file are flagged and left unticked; if someone else saves at the same moment, nothing is lost (you are asked to try again). A copy of the whole rota is also kept after every change (Backups). For a few changes you can upload a short list instead (Date, Doctor, Change to).</p>
+      <div class="drop"><div class="row"><button type="button" class="btn primary" data-act="template" data-kind="rota-csv">Download the rota (CSV)</button><button type="button" class="btn ghost" data-act="template" data-kind="master">Download as Excel</button><button type="button" class="btn ghost" data-act="template" data-kind="updates-csv">Short list template (CSV)</button></div>
+        <label class="field" for="file-update">Upload your changes (.csv or .xlsx)<input type="file" id="file-update" accept=".csv,.xlsx" data-act="import-file" data-kind="update"></label></div>
+      ${preview}${history}</section>`;
+  }
   // Set up → Data file: one Excel file holds everything that is imported, and is also the backup.
   function renderImport() {
     const p = ui.importPreview;
     const preview = p ? `<div class="notice info stack"><strong>${esc(p.fileName)}</strong>${masterPreview(p)}
       <div class="row"><button type="button" class="btn primary" data-act="confirm-import"${p.count ? '' : ' disabled'}>Import</button><button type="button" class="btn ghost" data-act="cancel-import">Cancel</button></div></div>` : '';
-    return `<section class="card"><h2>Rota data file</h2>
+    return `${renderUpdate()}<section class="card"><h2>Full data file (setting up, new doctors, rotations)</h2>
       <p class="small muted">One Excel file holds everything the rota is built from. Download it (it comes filled in with what is on the rota now), change it in Excel, and upload it again. You can do this as often as you like.</p>
       <ul class="small">
         <li><strong>Rota:</strong> the whole rota, laid out like the rota page (dates down, one column per doctor, changeover rows). Type over a cell to change where someone is that day, or to add an on-call shift. Only changed cells are imported; leave stays as it is.</li>
@@ -3674,7 +3983,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
         <li><strong>On-calls:</strong> paste in the trust on-calls each week (Date, Doctor, Shift).</li>
         <li><strong>Rotation dates</strong> and <strong>Codes</strong>, for reference.</li>
       </ul>
-      <p class="small muted">Doctors are matched by name: existing ones are updated, new ones added, nobody is deleted. You see what will change before anything is saved. The same file (with extra read-only tabs) is what Backups downloads. A CSV holds one tab only, so the Excel file is the one to use; a CSV of a single tab (Rota or Doctors) is also accepted.</p>
+      <p class="small muted">Doctors are matched by name: existing ones are updated, new ones added, nobody is deleted. <strong>Note:</strong> on-calls in its On-calls tab replace the on-calls already on the rota for those dates, so for everyday changes use "Update the rota" above. You see what will change before anything is saved. The same file (with extra read-only tabs) is what Backups downloads. A CSV holds one tab only, so the Excel file is the one to use; a CSV of a single tab (Rota or Doctors) is also accepted.</p>
       <div class="drop"><div class="row"><button type="button" class="btn primary" data-act="template" data-kind="master">Download the rota data file</button><button type="button" class="btn ghost" data-act="template" data-kind="rota-csv">Rota tab as CSV</button><button type="button" class="btn ghost" data-act="template" data-kind="master-csv">Doctors tab as CSV</button></div>
         <label class="field" for="file-master">Upload the filled-in file (.xlsx, or a .csv of one tab)<input type="file" id="file-master" accept=".xlsx,.csv" data-act="import-file" data-kind="master"></label></div>
       ${preview}</section>`;
@@ -3714,22 +4023,23 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     const when = (at) => `${R.fmtShort(at.slice(0, 10))} ${at.slice(11, 16)}`;
     const row = (x) => `<tr><td class="tabular">${esc(when(x.at))}</td><td>${esc(x.by || '')}</td><td class="small">${esc(x.note || '')}</td><td class="small muted">${Math.round((x.bytes || 0) / 1024)} KB</td>
       <td><div class="row"><button type="button" class="btn ghost small-btn" data-act="backup-download" data-id="${x.id}">Download</button><button type="button" class="btn small-btn" data-act="restore-backup" data-id="${x.id}" data-at="${esc(when(x.at))}">${ui.confirm === 'restore:' + x.id ? 'Confirm: put this copy back' : 'Restore'}</button></div></td></tr>`;
+    const csvTable = (list, n) => list.length ? `<div class="scroll-x"><table class="plain small"><thead><tr><th>Day</th><th>Size</th><th></th></tr></thead><tbody>${list.slice(0, n).map((x) => `<tr><td class="tabular">${esc(R.fmtLong(x.day))}</td><td class="small muted">${Math.round((x.bytes || 0) / 1024)} KB</td><td><button type="button" class="btn ghost small-btn" data-act="csv-backup-download" data-id="${x.id}" data-day="${esc(x.day)}">Download CSV (zip)</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted small">The first one is made tonight.</p>';
     const table = (list, n) => list.length ? `<div class="scroll-x"><table class="plain small"><thead><tr><th>When (UTC)</th><th>By</th><th>What changed</th><th>Size</th><th></th></tr></thead><tbody>${list.slice(0, n).map(row).join('')}</tbody></table></div>` : '<p class="muted small">None yet.</p>';
     return `<div class="grid-2">
       <section class="card"><h2>Where the rota is kept</h2>
         <ul class="small">
           <li><strong>The live rota</strong> is stored in your Cloudflare database (D1, called <code>haematology-rota</code>), not in a file. Every change is saved straight away.</li>
           <li><strong>After every change</strong> a compressed copy is kept (the last 500 changes).</li>
-          <li><strong>Every night</strong> (about 01:15 UTC) a daily copy is kept for 2 years.</li>
+          <li><strong>Every night</strong> (about 01:15 UTC) a daily copy is kept for 2 years, together with a <strong>CSV copy</strong> (a zip with one CSV per table, which opens in Excel).</li>
           <li><strong>Cloudflare also keeps its own restore points</strong> for the last 30 days (D1 Time Travel), in case the database itself has a problem.</li>
-          <li>You can <strong>download a copy</strong> at any time. The Excel version is the rota data file plus read-only tabs (leave, changes, EDT/SDT, change log); upload it under Data file to bring its doctors, consultants, leave restrictions and on-calls back. The exact copy (JSON) puts back everything in one step.</li>
+          <li>You can <strong>download a copy</strong> at any time. The Excel version is the rota data file plus read-only tabs (leave, changes, EDT/SDT, change log); upload it under Data file to bring its doctors, consultants, leave restrictions and on-calls back. The CSV backup is the same tables as separate CSV files in one zip; its rota.csv and doctors.csv can be uploaded under Data file. The exact copy (JSON) puts back everything in one step.</li>
         </ul>
-        <div class="row"><button type="button" class="btn primary" data-act="backup-excel">Download full backup (Excel)</button><button type="button" class="btn" data-act="backup-json">Download exact copy (JSON)</button></div>
+        <div class="row"><button type="button" class="btn primary" data-act="backup-excel">Download full backup (Excel)</button><button type="button" class="btn" data-act="backup-csv">Download CSV backup (zip)</button><button type="button" class="btn" data-act="backup-json">Download exact copy (JSON)</button></div>
         <label class="field" for="restore-file">Put back an exact copy from a file <span class="hint">A .json file downloaded from here. The current rota is backed up first.</span><input type="file" id="restore-file" accept=".json,application/json" data-act="restore-file"></label></section>
       <section class="card"><h2>Copies on the server</h2>
         ${store.mode !== 'remote' ? '<p class="muted small">Copies are kept on the server. In this demo copy, use the download buttons instead.</p>'
           : !b ? '<p class="muted small">Loading…</p>' : b.error ? `<p class="notice bad small">${esc(b.error)}</p>`
-          : `<h3>Daily</h3>${table(b.daily, ui.backupsMore ? 400 : 14)}<h3>After each change</h3>${table(b.changes, ui.backupsMore ? 200 : 20)}
+          : `<h3>Daily</h3>${table(b.daily, ui.backupsMore ? 400 : 14)}<h3>Nightly CSV copies</h3>${csvTable(b.csv || [], ui.backupsMore ? 400 : 14)}<h3>After each change</h3>${table(b.changes, ui.backupsMore ? 200 : 20)}
              <div class="row"><button type="button" class="btn ghost small-btn" data-act="backups-more">${ui.backupsMore ? 'Show fewer' : 'Show all'}</button><button type="button" class="btn ghost small-btn" data-act="backups-refresh">Refresh</button></div>`}
         <p class="small muted">Restoring puts the whole rota back as it was at that moment (doctors, leave, on-calls, settings). The change log is kept, and the restore itself is logged and backed up, so it can be undone.</p></section></div>`;
   }
@@ -3770,20 +4080,47 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
           <label class="field" for="rs-note">Note<input type="text" id="rs-note" placeholder="Why"></label>
           <button type="button" class="btn primary" data-act="add-restr">Add</button></div></section>`;
   }
+  // Settings → Sign-ins: each authoriser's own password, and the shared password until it is turned off.
+  function renderSignins() {
+    const u = ui.users;
+    if (!u && !ui.usersLoading) { ui.usersLoading = true; store.listUsers().then((x) => { ui.users = x; }).catch((e) => { ui.users = { error: e.message, users: [], sharedOn: true }; }).finally(() => { ui.usersLoading = false; render(); }); }
+    const when = (at) => (at ? R.fmtShort(at.slice(0, 10)) + ' ' + at.slice(0, 4) : '');
+    const list = !u ? '<p class="muted small">Loading…</p>' : u.error ? `<p class="notice bad small">${esc(u.error)}</p>`
+      : u.users.length ? `<div class="scroll-x"><table class="plain small"><thead><tr><th>Name</th><th>Password</th><th></th></tr></thead><tbody>${u.users.map((x) => `<tr><td><strong>${esc(x.name)}</strong>${x.name === store.me ? ' <span class="muted">(you)</span>' : ''}</td>
+          <td>${x.temp ? '<span class="warn-text">Temporary: not changed yet</span>' : `Own, set ${esc(when(x.set_at))}`}</td>
+          <td><div class="row"><button type="button" class="btn ghost small-btn" data-act="user-reset" data-name="${esc(x.name)}">Reset</button><button type="button" class="btn ghost small-btn" data-act="user-remove" data-name="${esc(x.name)}">${ui.confirm === 'user:' + x.name ? 'Confirm: remove' : 'Remove'}</button></div></td></tr>`).join('')}</tbody></table></div>`
+      : '<p class="muted small">Nobody has their own password yet: everyone uses the shared password.</p>';
+    const sharedOn = !u || u.sharedOn;
+    return `<section class="card"><h2>Sign-ins</h2>
+        <p class="small muted">Give each authoriser their own password, so the change log shows exactly who did what and one person can be removed without changing everyone's password. Set a temporary password, tell them in person or by phone (never by email), and they choose their own the first time they sign in.</p>
+        ${list}
+        <div class="grid-2" style="align-items:end"><label class="field" for="nu-name">Name<input type="text" id="nu-name" list="nu-names" autocomplete="off" value="${esc(ui.nuName || '')}"><datalist id="nu-names">${(st().settings.authorisers || []).map((n) => `<option value="${esc(n)}">`).join('')}</datalist></label>
+          <label class="field" for="nu-pw">Temporary password <span class="hint">At least 12 characters</span><input type="text" id="nu-pw" autocomplete="off" spellcheck="false"></label></div>
+        <div class="row"><button type="button" class="btn primary" data-act="user-add">Add or reset</button></div>
+        <h3>Shared password</h3>
+        ${sharedOn ? `<p class="small">On: authorisers without their own password sign in with the shared password.${store.ownPassword && !store.mustChange ? '' : ' To turn it off, first set your own password and sign in with it.'}</p>
+          ${store.ownPassword && !store.mustChange ? `<div class="row"><button type="button" class="btn" data-act="shared-off">${ui.confirm === 'shared-off' ? 'Confirm: turn off the shared password' : 'Turn off the shared password'}</button></div><p class="small muted">Anyone without their own password will no longer be able to sign in.</p>` : ''}`
+          : '<p class="small">Off: everyone signs in with their own password.</p>'}
+      </section>
+      <section class="card" id="own-pw"><h2>${store.ownPassword ? 'Change your password' : 'Change the shared password'}</h2><p class="small muted">${store.ownPassword ? 'Only your own password changes. You are signed out afterwards.' : 'Everyone is signed out afterwards. Share the new password in person or by phone, never by email.'}</p>
+        <label class="field" for="pw-cur">Current ${store.mustChange ? '(temporary) ' : ''}password<input type="password" id="pw-cur" autocomplete="current-password"></label>
+        <label class="field" for="pw-new">New password <span class="hint">At least 12 characters</span><input type="password" id="pw-new" autocomplete="new-password"></label>
+        <div class="row"><button type="button" class="btn primary" data-act="change-pw">Change password</button></div></section>`;
+  }
   function renderSettings() {
     const s = st().settings;
     return `<div class="grid-2">
-      <section class="card"><h2>Authorisers</h2><p class="small muted">The names that can sign in (they share one password). Shown in the change log next to every change.</p>
+      <section class="card"><h2>Authorisers</h2><p class="small muted">The names that can sign in. Shown in the change log next to every change. Names with their own password are managed under "Sign-ins".</p>
         <label class="field" for="set-auth">Names <span class="hint">One per line</span><textarea id="set-auth" rows="4">${esc((s.authorisers || []).join('\n'))}</textarea></label>
         <label class="opt small"><input type="checkbox" id="set-email-docs"${s.emailDoctors ? ' checked' : ''}> <span>Also email doctors (decisions and cover). Off: doctors check "Check my request" instead, and only the alert emails below are sent.</span></label>
         <label class="field" for="set-mail">Alert emails <span class="hint">Who is emailed about new requests and sickness. One per line.</span><textarea id="set-mail" rows="3">${esc((s.authoriserEmails || []).join('\n'))}</textarea></label>
         <div class="row"><button type="button" class="btn primary" data-act="save-authorisers">Save</button><span class="small muted">Emails: ${store.emailOn ? '<strong style="color:var(--ok-fg)">switched on</strong>' : store.mode === 'local' ? 'not available in demo mode' : 'not switched on yet (in-app messages only). See the README to add an email key.'}</span></div></section>
-      ${store.mode === 'remote' ? `<section class="card"><h2>Change the authoriser password</h2><p class="small muted">Everyone is signed out afterwards. Share the new password in person or by phone, never by email.</p>
-        <label class="field" for="pw-cur">Current password<input type="password" id="pw-cur" autocomplete="current-password"></label>
-        <label class="field" for="pw-new">New password <span class="hint">At least 12 characters</span><input type="password" id="pw-new" autocomplete="new-password"></label>
-        <div class="row"><button type="button" class="btn primary" data-act="change-pw">Change password</button></div></section>` : ''}
-      <section class="card"><h2>Bank holidays</h2><p class="small muted">One date per line (yyyy-mm-dd). Bank holidays are not working days.</p>
-        <textarea id="set-bh" rows="6">${esc((s.bankHolidays || []).join('\n'))}</textarea><div class="row"><button type="button" class="btn" data-act="save-bh">Save</button></div></section>
+      ${store.mode === 'remote' ? renderSignins() : ''}
+      <section class="card"><h2>Bank holidays</h2><p class="small muted">Worked out automatically for every year (England and Wales rules, with substitute days when one falls at a weekend). Bank holidays are not working days.</p>
+        <p class="small"><strong>Next 12 months:</strong> ${R.bankHolidaysBetween(st(), TODAY, R.addMonths(TODAY, 12)).map((x) => esc(R.fmtShort(x) + ' ' + x.slice(0, 4))).join(' · ') || 'none'}</p>
+        <div class="grid-2"><label class="field" for="set-bh-extra">Extra one-off bank holidays <span class="hint">e.g. a coronation. One date per line (yyyy-mm-dd).</span><textarea id="set-bh-extra" rows="3">${esc((s.bankHolidayExtra || []).join('\n'))}</textarea></label>
+        <label class="field" for="set-bh-removed">Not a bank holiday this time <span class="hint">If a date is moved by the government. One per line.</span><textarea id="set-bh-removed" rows="3">${esc((s.bankHolidayRemoved || []).join('\n'))}</textarea></label></div>
+        <div class="row"><button type="button" class="btn" data-act="save-bh">Save</button></div></section>
       <section class="card"><h2>${s.demo ? 'Start for real' : 'Data'}</h2>
         <p class="small muted">${s.demo ? 'The rota is showing example data with fictional doctors. "Start fresh" removes all doctors, plans, on-calls, requests and EDT, and keeps the rules, authorisers and alert emails. Then add your doctors under People or import the staff list.' : 'Download a full Excel copy from the Rota page at any time.'}</p>
         <div class="row">${s.demo || store.mode === 'local' ? `<button type="button" class="btn danger" data-act="start-fresh">${ui.confirm === 'fresh' ? 'Confirm: remove all example data' : 'Start fresh'}</button>` : ''}
@@ -3926,7 +4263,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     const scroller = $('#rota-scroll');
     const keep = scroller ? [scroller.scrollTop, scroller.scrollLeft] : null;
     renderHead();
-    const views = { rota: renderRota, request: renderRequest, mine: renderMine, rules: renderRules, requests: renderRequests, edt: renderEdt, setup: renderSetup, log: renderLog };
+    const views = { print: renderPrint, rota: renderRota, request: renderRequest, mine: renderMine, rules: renderRules, requests: renderRequests, edt: renderEdt, setup: renderSetup, log: renderLog };
     $('#view').innerHTML = (views[ui.view] || renderRota)();
     $('#sheet-root').innerHTML = (ui.view === 'rota' && isAuth() ? renderEditSheet() : '') + renderDialog();
     const overlayKey = (ui.dialog || '') + '|' + (ui.editing && ui.view === 'rota' ? ui.editing.doc + ui.editing.iso : '');
@@ -3970,7 +4307,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     if (!t || t.tagName === 'SELECT' || (t.tagName === 'INPUT' && t.type !== 'button')) return;
     const act = t.dataset.act, val = t.dataset.val;
     const confirmStep = (key) => { if (ui.confirm === key) { ui.confirm = null; return true; } ui.confirm = key; render(); return false; };
-    if (!['remove-doc', 'start-fresh', 'withdraw', 'revoke', 'restore-backup'].includes(act)) ui.confirm = null;
+    if (!['remove-doc', 'start-fresh', 'withdraw', 'revoke', 'restore-backup', 'undo-import', 'user-remove', 'shared-off'].includes(act)) ui.confirm = null;
     switch (act) {
       case 'nav': go(t.dataset.view); return;
       case 'open-rota-at': resetRange(R.addDays(val, -3)); ui.layout = 'grid'; go('rota'); ui.scrollToToday = false; return;
@@ -4112,16 +4449,36 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
       case 'remove-doc': if (!confirmStep('remove:' + t.dataset.doc)) return; await change(op('removeDoctor', t.dataset.doc), 'Doctor removed.'); break;
       case 'template': {
         const kind = t.dataset.kind;
-        if (kind === 'rota-csv') { saveFile('rota.csv', E.rotaCsv(st(), TODAY), 'text/csv;charset=utf-8'); return; }
+        if (kind === 'updates-csv') { saveFile('rota-changes-list.csv', E.updatesListCsv(), 'text/csv;charset=utf-8'); return; }
+        if (kind === 'rota-csv') { saveFile(`rota-${TODAY}.csv`, E.rotaCsv(st(), TODAY), 'text/csv;charset=utf-8'); return; }
         if (kind === 'master-csv') { saveFile('rota-doctors.csv', E.doctorsCsvTemplate(st()), 'text/csv;charset=utf-8'); return; }
         const bytes = kind === 'oncall' ? E.oncallTemplate(TODAY) : E.masterTemplate(st(), TODAY);
         saveFile(kind === 'oncall' ? 'oncall-import-template.xlsx' : 'rota-data-file.xlsx', bytes);
         return;
       }
       case 'cancel-import': ui.importPreview = null; break;
+      case 'cancel-update': ui.update = null; break;
+      case 'upd-all': ui.update.parsed.changes.forEach((c, i) => ui.update.ticked.add(i)); break;
+      case 'upd-none': ui.update.ticked.clear(); break;
+      case 'apply-updates': {
+        const u = ui.update;
+        const list = u.parsed.changes.filter((c, i) => u.ticked.has(i));
+        if (await change(op('applyUpdates', list, u.fileName), `${plural(list.length, 'change')} applied. You can undo this below.`)) ui.update = null;
+        break;
+      }
+      case 'undo-import': {
+        if (!confirmStep('undo:' + t.dataset.id)) return;
+        await change(op('undoImport', t.dataset.id), 'Update undone.');
+        break;
+      }
       case 'confirm-import': await confirmImport(); break;
       case 'save-rotation': await change(op('setSetting', 'rotation', { start: $('#rot-start').value }, `Rotation started ${$('#rot-start').value}`), 'Saved.'); break;
       case 'backup-excel': saveFile(`haematology-rota-backup-${TODAY}.xlsx`, E.backupWorkbook(st(), TODAY)); return;
+      case 'backup-csv': saveFile(`haematology-rota-csv-${TODAY}.zip`, E.csvBackupZip(st(), TODAY), 'application/zip'); return;
+      case 'csv-backup-download': {
+        try { saveFile(`haematology-rota-csv-${t.dataset.day}.zip`, await store.getCsvBackup(t.dataset.id), 'application/zip'); } catch (e) { toast(e.message, true); }
+        return;
+      }
       case 'backup-json': saveFile(`haematology-rota-backup-${TODAY}.json`, JSON.stringify(st()), 'application/json'); return;
       case 'backups-more': ui.backupsMore = !ui.backupsMore; break;
       case 'backups-refresh': ui.backups = null; break;
@@ -4153,15 +4510,41 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
         break;
       }
       case 'save-bh': {
-        const list = $('#set-bh').value.split(/\s+/).map((x) => x.trim()).filter(Boolean);
-        if (list.some((x) => !R.isIso(x))) { toast('Write each date as yyyy-mm-dd.', true); return; }
-        await change(op('setSetting', 'bankHolidays', list.sort(), `Bank holidays: ${list.length}`), 'Bank holidays saved.');
+        const read = (id) => $(id).value.split(/\s+/).map((x) => x.trim()).filter(Boolean);
+        const extra = read('#set-bh-extra'), removed = read('#set-bh-removed');
+        if (extra.concat(removed).some((x) => !R.isIso(x))) { toast('Write each date as yyyy-mm-dd.', true); return; }
+        await change((st2, by) => { S.ops.setSetting(st2, by, 'bankHolidayExtra', extra.sort(), `Extra bank holidays: ${extra.join(', ') || 'none'}`); S.ops.setSetting(st2, by, 'bankHolidayRemoved', removed.sort(), `Bank holidays removed: ${removed.join(', ') || 'none'}`); return []; }, 'Bank holidays saved.');
         break;
       }
       case 'change-pw': {
         const cur = $('#pw-cur').value, next = $('#pw-new').value;
         try { await store.changePassword(cur, next); toast('Password changed. Please sign in again.'); go('rota'); } catch (e) { toast(e.message, true); }
         return;
+      }
+      case 'print-week': ui.printWeek = R.mondayOf(ui.start && ui.start > TODAY ? ui.start : TODAY); ui.view = 'print'; break;
+      case 'print-move': ui.printWeek = R.addDays(ui.printWeek, Number(t.dataset.val)); break;
+      case 'print-now': window.print(); return;
+      case 'print-close': ui.view = 'rota'; break;
+      case 'copy-text': try { await navigator.clipboard.writeText(t.dataset.text); toast('Link copied.'); } catch (e) { toast('Select the link and copy it.', true); } return;
+      case 'cal-link': await change(op('calendarLink', t.dataset.doc, !!t.dataset.reset), t.dataset.reset ? 'New link made. The old one no longer works.' : 'Calendar link created.'); break;
+      case 'go-own-pw': ui.view = 'setup'; ui.setupTab = 'settings'; render(); setTimeout(() => { const el = document.getElementById('own-pw'); if (el) el.scrollIntoView({ block: 'center' }); const f = document.getElementById('pw-cur'); if (f) f.focus(); }, 50); return;
+      case 'user-add': case 'user-reset': {
+        const name = act === 'user-reset' ? t.dataset.name : $('#nu-name').value.trim();
+        const pw = act === 'user-reset' ? (window.prompt(`Temporary password for ${name} (at least 12 characters). Tell them in person or by phone.`) || '') : $('#nu-pw').value;
+        if (!name) { toast('Type the name.', true); return; }
+        if (!pw) return;
+        try { await store.saveUser(name, pw); ui.users = null; ui.nuName = ''; toast(`${name} can now sign in with the temporary password. They will be asked to choose their own.`); } catch (e) { toast(e.message, true); }
+        break;
+      }
+      case 'user-remove': {
+        if (!confirmStep('user:' + t.dataset.name)) return;
+        try { await store.removeUser(t.dataset.name); ui.users = null; toast(`${t.dataset.name} removed.`); } catch (e) { toast(e.message, true); }
+        break;
+      }
+      case 'shared-off': {
+        if (!confirmStep('shared-off')) return;
+        try { await store.sharedOff(); ui.users = null; toast('Shared password turned off. Everyone now signs in with their own password.'); } catch (e) { toast(e.message, true); }
+        break;
       }
       case 'start-fresh': if (!confirmStep('fresh')) return; await change(op('startFresh'), 'Example data removed. Add your doctors under People.'); ui.setupTab = 'people'; break;
       case 'reset-demo': store.resetLocalDemo(); toast('Example data reloaded.'); return;
@@ -4195,9 +4578,11 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     if (t.dataset.bulk && ui.bulk) { ui.bulk[t.dataset.bulk] = t.value; return; }
     if (t.dataset.bulkId && ui.bulk) { const id = t.dataset.bulkId; ui.bulk.ids = ui.bulk.ids.filter((x) => x !== id).concat(t.checked ? [id] : []); return; }
     if (t.dataset.bulkDay && ui.bulk) { const k = Number(t.dataset.bulkDay); ui.bulk.days = ui.bulk.days.filter((x) => x !== k).concat(t.checked ? [k] : []); return; }
+    if (t.dataset.updI !== undefined && ui.update) { const i = Number(t.dataset.updI); if (t.checked) ui.update.ticked.add(i); else ui.update.ticked.delete(i); const b = document.querySelector('[data-act="apply-updates"]'); if (b) { b.textContent = `Apply ${plural(ui.update.ticked.size, 'change')}`; b.disabled = !ui.update.ticked.size; } return; }
     if (t.dataset.rule && ui.rulesDraft) { ui.rulesDraft.rules[t.dataset.rule] = t.value; return; }
     const act = t.dataset.act;
     switch (act) {
+      case 'print-date': if (R.isIso(t.value)) ui.printWeek = R.mondayOf(t.value); break;
       case 'rota-goto': if (R.isIso(t.value)) { resetRange(t.value); ui.scrollToToday = false; } break;
       case 'hide-weekends': ui.hideWeekends = t.checked; break;
       case 'doc-field': {
@@ -4240,9 +4625,16 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
         if (!file) return;
         const kind = t.dataset.kind;
         const isCsv = /\.csv$/i.test(file.name);
-        if (!/\.xlsx$/i.test(file.name) && !(isCsv && kind === 'master')) { toast('Save the file as an Excel Workbook (.xlsx)' + (kind === 'master' ? ' or CSV' : '') + ' and choose it again.', true); return; }
+        if (!/\.xlsx$/i.test(file.name) && !(isCsv && (kind === 'master' || kind === 'update'))) { toast('Save the file as an Excel Workbook (.xlsx)' + (kind === 'master' ? ' or CSV' : '') + ' and choose it again.', true); return; }
         try {
           const sheets = isCsv ? [{ name: file.name.replace(/\.csv$/i, ''), rows: E.parseCsv(await file.text()) }] : await X.read(await file.arrayBuffer());
+          if (kind === 'update') {
+            const parsed = E.parseUpdates(st(), sheets);
+            t.value = '';
+            if (!parsed) { toast(`${file.name} has no rota grid (Date, Day, doctors…) or list (Date, Doctor, Change to). Download the rota here and edit that.`, true); return; }
+            ui.update = { fileName: file.name, parsed, ticked: new Set(parsed.changes.map((c, i) => (c.recent ? -1 : i)).filter((i) => i >= 0)) };
+            break;
+          }
           const parsed = kind === 'oncall' ? E.parseOncall(st(), sheets) : E.parseMaster(st(), sheets);
           ui.importPreview = { kind, fileName: file.name, parsed, mapping: {} };
         } catch (e) { toast(`Could not read ${file.name}: ${e.message}`, true); }
@@ -4273,7 +4665,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     if (id === 'leave-form') return submitForm();
     if (id === 'mine-form') return loadMine();
     if (id === 'signin-form') {
-      try { await store.login($('#si-name').value, $('#si-pw') ? $('#si-pw').value : ''); ui.dialog = null; toast(`Signed in as ${store.me}.`); render(); } catch (e) { toast(e.message, true); }
+      try { await store.login($('#si-name').value, $('#si-pw') ? $('#si-pw').value : ''); ui.dialog = null; ui.users = null; toast(store.mustChange ? 'Signed in. Please choose your own password now.' : `Signed in as ${store.me}.`); render(); } catch (e) { toast(e.message, true); }
       return;
     }
     if (id === 'setup-form') {
@@ -4284,6 +4676,12 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
       try { await store.setupPassword(pw, $('#su-code') ? $('#su-code').value : '', names); ui.dialog = 'signin'; toast('Password set. Now sign in.'); render(); } catch (e) { toast(e.message, true); }
     }
   });
+
+  // Print in the light theme whatever theme is on screen.
+  let themeBeforePrint = null;
+  window.addEventListener('beforeprint', () => { themeBeforePrint = document.documentElement.getAttribute('data-theme'); document.documentElement.setAttribute('data-theme', 'light'); });
+  window.addEventListener('afterprint', () => { if (themeBeforePrint) document.documentElement.setAttribute('data-theme', themeBeforePrint); themeBeforePrint = null; });
+  document.addEventListener('focusin', (ev) => { const t = ev.target; if (t && t.dataset && 'selectAll' in t.dataset && t.select) t.select(); });
 
   document.addEventListener('toggle', (ev) => { if (ev.target.classList && ev.target.classList.contains('filters')) ui.filtersOpen = ev.target.open; }, true);
 
