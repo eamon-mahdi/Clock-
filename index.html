@@ -1,0 +1,2225 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MPN Virtual Clinic</title>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy:#0f1b2d;--navy-light:#162236;--navy-hover:rgba(255,255,255,0.08);--navy-active:rgba(255,255,255,0.14);
+    --blue:#2563eb;--blue-light:#eff4ff;--blue-mid:#dbeafe;
+    --green:#059669;--green-light:#ecfdf5;
+    --amber:#d97706;--amber-light:#fffbeb;
+    --red:#dc2626;--red-light:#fef2f2;
+    --grey-50:#f8fafc;--grey-100:#f1f5f9;--grey-200:#e2e8f0;--grey-300:#cbd5e1;
+    --grey-400:#94a3b8;--grey-500:#64748b;--grey-600:#475569;--grey-700:#334155;
+    --grey-800:#1e293b;--grey-900:#0f172a;
+    --bg-body:var(--grey-100);--bg-card:white;--bg-input:white;
+    --border-card:var(--grey-200);--border-input:var(--grey-200);
+    --text-primary:var(--grey-800);--text-heading:var(--grey-900);
+    --text-muted:var(--grey-500);--text-label:var(--grey-600);
+    --table-header-bg:var(--grey-50);--table-row-hover:var(--grey-50);--table-border:var(--grey-100);
+    --radius:10px;--radius-lg:14px;
+    --shadow-sm:0 1px 2px rgba(0,0,0,0.05);
+    --shadow:0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md:0 4px 6px -1px rgba(0,0,0,0.08),0 2px 4px -2px rgba(0,0,0,0.04);
+    --font:'Source Sans 3',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  }
+  html.dark {
+    --navy:#0a0f18;--navy-light:#0f1520;--blue:#3b82f6;--blue-light:#1e293b;--blue-mid:#1e3a5f;
+    --green-light:#0f2a1f;--amber-light:#2a1f0a;--red-light:#2a0f0f;
+    --grey-50:#1a2332;--grey-100:#111827;--grey-200:#1f2937;--grey-300:#374151;
+    --grey-400:#6b7280;--grey-500:#9ca3af;--grey-600:#d1d5db;--grey-700:#e5e7eb;
+    --grey-800:#f3f4f6;--grey-900:#f9fafb;
+    --bg-body:#0f1419;--bg-card:#1a2332;--bg-input:#111827;
+    --border-card:#2a3544;--border-input:#374151;
+    --text-primary:#e5e7eb;--text-heading:#f9fafb;--text-muted:#9ca3af;--text-label:#d1d5db;
+    --table-header-bg:#111827;--table-row-hover:#1f2937;--table-border:#1f2937;
+  }
+  *,*::before,*::after{box-sizing:border-box;}
+  body{margin:0;font-family:var(--font);background:var(--bg-body);color:var(--text-primary);font-size:15px;line-height:1.5;transition:background 0.2s,color 0.2s;}
+  .app{display:grid;grid-template-columns:250px 1fr;min-height:100vh;}
+
+  /* Reload banner */
+  .reload-banner{background:var(--blue);color:white;padding:10px 20px;display:flex;align-items:center;gap:12px;font-size:13px;font-weight:600;position:sticky;top:0;z-index:200;}
+  .reload-banner.hidden{display:none;}
+
+  /* Sidebar */
+  .sidebar{background:var(--navy);color:white;padding:24px 16px;display:flex;flex-direction:column;gap:4px;}
+  .sidebar-brand{padding:0 8px 20px;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:12px;}
+  .sidebar-brand h1{margin:0;font-size:19px;font-weight:700;letter-spacing:-0.3px;}
+  .sidebar-brand .subtitle{font-size:12px;color:var(--grey-400);margin-top:2px;}
+  .nav-btn{width:100%;display:flex;align-items:center;gap:10px;border:0;background:transparent;color:rgba(255,255,255,0.7);text-align:left;padding:10px 12px;border-radius:8px;cursor:pointer;font:inherit;font-size:14px;font-weight:500;transition:all 0.15s;}
+  .nav-btn:hover{background:var(--navy-hover);color:white;}
+  .nav-btn.active{background:var(--navy-active);color:white;font-weight:600;}
+  .nav-icon{width:20px;text-align:center;font-size:16px;flex-shrink:0;}
+  .sidebar-footer{margin-top:auto;padding-top:16px;border-top:1px solid rgba(255,255,255,0.1);}
+  .save-indicator{font-size:12px;color:var(--grey-400);padding:4px 8px;}
+  .save-indicator.unsaved{color:#fbbf24;}
+  .save-indicator .dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:middle;}
+  .save-indicator .dot.saved{background:var(--green);}
+  .save-indicator .dot.unsaved{background:#fbbf24;}
+  /* Sync status */
+  .sync-badge{display:inline-block;font-size:11px;font-weight:600;padding:3px 8px;border-radius:6px;margin-top:4px;}
+  .sync-saved{background:var(--green-light);color:var(--green);}
+  .sync-saving{background:var(--amber-light);color:var(--amber);}
+  .sync-error{background:var(--red-light);color:var(--red);}
+  .sync-none{background:var(--grey-200);color:var(--grey-500);}
+
+  /* Main */
+  .main{padding:24px 28px;overflow-y:auto;max-height:100vh;}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:20px;flex-wrap:wrap;}
+  .topbar h2{margin:0;font-size:24px;font-weight:700;color:var(--text-heading);letter-spacing:-0.3px;}
+  .topbar .page-desc{font-size:13px;color:var(--text-muted);margin-top:2px;}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+
+  /* Buttons */
+  .btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-card);background:var(--bg-card);color:var(--text-primary);padding:8px 14px;border-radius:8px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;transition:all 0.15s;white-space:nowrap;}
+  .btn:hover{background:var(--grey-50);border-color:var(--grey-300);}
+  .btn.primary{background:var(--blue);color:white;border-color:var(--blue);}
+  .btn.primary:hover{background:#1d4ed8;}
+  .btn.soft{background:var(--blue-light);color:var(--blue);border-color:transparent;}
+  .btn.soft:hover{background:var(--blue-mid);}
+  .btn.danger{background:var(--red-light);color:var(--red);border-color:transparent;}
+  .btn.danger:hover{background:#fee2e2;}
+  .btn.success{background:var(--green-light);color:var(--green);border-color:transparent;}
+  .btn.success:hover{background:#d1fae5;}
+  .btn.sm{padding:5px 10px;font-size:12px;}
+  .btn-group{display:inline-flex;gap:0;}
+  .btn-group .btn{border-radius:0;margin-left:-1px;}
+  .btn-group .btn:first-child{border-radius:8px 0 0 8px;margin-left:0;}
+  .btn-group .btn:last-child{border-radius:0 8px 8px 0;}
+
+  /* Views */
+  .view{display:none;}
+  .view.active{display:block;}
+
+  /* Cards */
+  .card{background:var(--bg-card);border:1px solid var(--border-card);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;box-shadow:var(--shadow-sm);}
+  .card-header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;}
+  .card-header h3{margin:0;font-size:17px;font-weight:700;color:var(--text-heading);}
+
+  /* Progress bar */
+  .progress-bar-wrap{height:6px;background:var(--grey-200);border-radius:3px;margin:8px 0 4px;overflow:hidden;flex:1;}
+  .progress-bar{height:100%;background:var(--blue);border-radius:3px;transition:width 0.4s ease;}
+  .progress-row{display:flex;align-items:center;gap:10px;margin-bottom:4px;}
+
+  /* Metrics */
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:20px;}
+  .metric-card{background:var(--bg-card);border:1px solid var(--border-card);border-radius:var(--radius-lg);padding:18px 20px;box-shadow:var(--shadow-sm);}
+  .metric-label{font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;}
+  .metric-value{font-size:32px;font-weight:700;color:var(--text-heading);margin-top:4px;line-height:1.1;}
+
+  /* Grids */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+
+  /* Forms */
+  label{display:block;font-size:13px;font-weight:600;color:var(--text-label);margin-bottom:12px;}
+  input,select,textarea{width:100%;padding:9px 12px;border:1px solid var(--border-input);border-radius:8px;font:inherit;font-size:14px;box-sizing:border-box;margin-top:5px;background:var(--bg-input);color:var(--text-primary);transition:border-color 0.15s;}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,0.1);}
+  input[readonly]{background:var(--grey-50);color:var(--text-muted);}
+  textarea{min-height:80px;resize:vertical;}
+  .field-hint{font-size:11px;color:var(--text-muted);font-weight:400;margin-top:3px;}
+  .field-warning{font-size:11px;color:var(--amber);font-weight:600;margin-top:3px;}
+  .field-alert{font-size:11px;color:var(--red);font-weight:600;margin-top:3px;}
+  input.warn{border-color:var(--amber);background:var(--amber-light);}
+  input.alert{border-color:var(--red);background:var(--red-light);}
+  .hidden{display:none;}
+
+  /* Tables */
+  .table-wrap{overflow:auto;border:1px solid var(--border-card);border-radius:var(--radius);}
+  table{width:100%;border-collapse:collapse;}
+  th,td{border-bottom:1px solid var(--table-border);padding:10px 12px;text-align:left;vertical-align:top;font-size:13px;}
+  th{color:var(--text-muted);background:var(--table-header-bg);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:0.3px;white-space:nowrap;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:var(--table-row-hover);}
+
+  /* Status badges */
+  .status{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;}
+  .status::before{content:'';width:6px;height:6px;border-radius:50%;}
+  .not-started{background:var(--grey-100);color:var(--grey-600);}
+  .not-started::before{background:var(--grey-400);}
+  .in-progress{background:var(--amber-light);color:var(--amber);}
+  .in-progress::before{background:var(--amber);}
+  .completed{background:var(--green-light);color:var(--green);}
+  .completed::before{background:var(--green);}
+  .overdue-flag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;background:var(--red-light);color:var(--red);}
+  .missed-bloods-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;background:var(--amber-light);color:var(--amber);}
+
+  .small{font-size:12px;color:var(--text-muted);}
+
+  /* Clinical alerts */
+  #alertsPanel{border-radius:10px;padding:12px;background:var(--bg-card);border:1px solid var(--border-card);margin-bottom:12px;}
+  .alert-panel-hdr{font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;letter-spacing:0.5px;}
+  .alert-pill{display:flex;align-items:flex-start;gap:8px;padding:7px 10px;border-radius:8px;font-size:13px;font-weight:600;margin-bottom:5px;line-height:1.35;}
+  .alert-pill:last-child{margin-bottom:0;}
+  .alert-urgent{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;}
+  .alert-action{background:#fffbeb;color:#d97706;border:1px solid #fde68a;}
+  .alert-warning{background:#fefce8;color:#ca8a04;border:1px solid #fef08a;}
+  html.dark .alert-urgent{background:#2a0f0f;color:#f87171;border-color:#7f1d1d;}
+  html.dark .alert-action{background:#2a1f0a;color:#fbbf24;border-color:#78350f;}
+  html.dark .alert-warning{background:#1c1a00;color:#facc15;border-color:#713f12;}
+
+  /* Sparklines */
+  .sparkline-row{display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding:8px 0;border-bottom:1px solid var(--table-border);margin-bottom:12px;}
+  .sparkline-item{display:flex;align-items:center;gap:5px;}
+  .sparkline-label{font-size:11px;font-weight:700;color:var(--text-muted);min-width:28px;}
+  .sparkline-val{font-size:12px;font-weight:700;min-width:30px;}
+  .sparkline-no-data{font-size:11px;color:var(--text-muted);font-style:italic;}
+
+  /* MPN-10 */
+  .mpn10-grid{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
+  .mpn10-item{display:grid;grid-template-columns:160px 1fr 28px;align-items:center;gap:8px;}
+  .mpn10-item-label{font-size:13px;color:var(--text-label);}
+  .mpn10-slider-wrap{display:flex;align-items:center;gap:5px;}
+  .mpn10-slider{flex:1;margin:0;cursor:pointer;accent-color:var(--blue);}
+  .mpn10-num{font-size:10px;color:var(--text-muted);}
+  .mpn10-val{font-size:14px;font-weight:700;color:var(--text-heading);text-align:center;}
+  .mpn10-total-row{font-size:14px;font-weight:600;color:var(--text-label);padding:8px 0;border-top:1px solid var(--table-border);margin-top:4px;}
+
+  /* Regimen history */
+  .regimen-history-wrap{margin-top:8px;}
+  .regimen-history-wrap summary{font-size:13px;font-weight:600;cursor:pointer;color:var(--text-label);padding:4px 0;list-style:none;}
+  .regimen-history-wrap summary::-webkit-details-marker{display:none;}
+
+  /* Visit history panel */
+  .visit-history-wrap{margin-bottom:12px;}
+  .visit-history-wrap summary{font-size:13px;font-weight:600;cursor:pointer;color:var(--text-label);padding:4px 0;list-style:none;}
+  .visit-history-wrap summary::-webkit-details-marker{display:none;}
+
+  /* Letter */
+  .letter-layout{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .letter-preview{background:#fff!important;border:1px solid var(--border-card);border-radius:var(--radius-lg);padding:24px 28px;line-height:1.35;font-size:12px;box-shadow:var(--shadow);color:#1e293b!important;}
+  .letter-preview p{margin:6px 0;}
+  .letter-preview ul{margin:6px 0 6px 20px;padding:0;}
+  .letter-header{text-align:center;font-weight:700;margin-bottom:12px;line-height:1.2;padding-bottom:10px;border-bottom:2px solid var(--grey-800);}
+  .letter-header .big{font-size:14px;}
+  .letter-header div{font-size:11px;}
+  .letter-table{width:100%;border-collapse:collapse;margin:8px 0;}
+  .letter-table th,.letter-table td{border:1px solid var(--grey-400);padding:4px 8px;font-size:11px;}
+  .letter-table th{background:var(--grey-50);font-weight:600;}
+
+  /* Toast */
+  .toast-container{position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;}
+  .toast{padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;color:white;box-shadow:var(--shadow-md);animation:toastIn 0.3s ease,toastOut 0.3s ease 2.7s forwards;max-width:380px;}
+  .toast.success{background:var(--green);}
+  .toast.info{background:var(--blue);}
+  .toast.warning{background:var(--amber);}
+  .toast.error{background:var(--red);}
+  @keyframes toastIn{from{opacity:0;transform:translateY(-10px);}to{opacity:1;transform:translateY(0);}}
+  @keyframes toastOut{from{opacity:1;}to{opacity:0;transform:translateY(-10px);}}
+
+  /* Archived sessions */
+  .archive-session{border:1px solid var(--border-card);border-radius:var(--radius);margin-bottom:8px;overflow:hidden;}
+  .archive-session summary{padding:12px 16px;cursor:pointer;font-weight:600;font-size:14px;color:var(--text-heading);background:var(--table-header-bg);display:flex;align-items:center;gap:12px;list-style:none;}
+  .archive-session summary::-webkit-details-marker{display:none;}
+  .archive-session summary::before{content:'▶';font-size:10px;transition:transform 0.2s;flex-shrink:0;}
+  .archive-session[open] summary::before{transform:rotate(90deg);}
+  .archive-session .session-meta{flex:1;display:flex;align-items:center;gap:12px;}
+  .archive-session .session-count{background:var(--blue-light);color:var(--blue);padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;}
+  .archive-session .session-body{padding:12px 16px;}
+  .archive-session .session-patient{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--table-border);}
+  .archive-session .session-patient:last-child{border-bottom:none;}
+
+  /* Theme toggle */
+  .theme-toggle{background:var(--bg-card);border:1px solid var(--border-card);border-radius:8px;padding:6px 12px;cursor:pointer;font:inherit;font-size:18px;line-height:1;display:inline-flex;align-items:center;transition:all 0.15s;}
+  .theme-toggle:hover{border-color:var(--grey-300);}
+
+  /* Keyboard hint */
+  .kbd-hint{font-size:11px;color:var(--text-muted);margin-top:4px;}
+  kbd{background:var(--grey-100);border:1px solid var(--grey-300);border-radius:4px;padding:1px 5px;font-size:10px;font-family:monospace;}
+
+  @media(max-width:1100px){
+    .app{grid-template-columns:1fr;}
+    .sidebar{flex-direction:row;flex-wrap:wrap;padding:12px 16px;gap:6px;}
+    .sidebar-brand{padding:0 8px 0 0;border-bottom:none;margin-bottom:0;}
+    .sidebar-footer{display:none;}
+    .grid2,.grid3,.grid4,.letter-layout{grid-template-columns:1fr;}
+    .main{max-height:unset;}
+  }
+  @media print{
+    body,html{background:white;margin:0;padding:0;font-size:10px;}
+    .sidebar,.topbar,.nonprint,.toast-container,.reload-banner{display:none!important;}
+    .app{display:block;}
+    .main{padding:0;max-height:unset;}
+    .view{display:none!important;}
+    #view-clinic{display:block!important;}
+    #view-clinic>*:not(#printWrap){display:none!important;}
+    #printWrap{display:block!important;}
+    #printArea{display:block!important;}
+    #printArea .letter-preview{width:190mm;min-height:277mm;margin:0 auto;border:0;border-radius:0;box-shadow:none;padding:8mm 12mm;font-size:11px;line-height:1.25;}
+    #printArea .letter-header{border-bottom:2px solid black;}
+    #printArea .letter-header .big{font-size:14px;}
+    #printArea .letter-preview p,#printArea .letter-preview ul{margin:4px 0;}
+    #printArea .letter-table th,#printArea .letter-table td{font-size:10px;padding:3px 6px;border-color:#333;}
+    @page{size:A4;margin:10mm;}
+  }
+</style>
+</head>
+<body>
+
+<!-- Reload banner (shown when file is updated by another user) -->
+<div id="reloadBanner" class="reload-banner hidden">
+  📥 Data file updated by another team member.
+  <button class="btn soft sm" onclick="reloadFromFile()">Reload now</button>
+  <button class="btn sm" onclick="hideReloadBanner()">Keep working</button>
+</div>
+
+<!-- Local-only banner (shown until OneDrive folder is selected) -->
+<div id="localOnlyBanner" class="reload-banner" style="background:var(--warning-bg,#fff3cd);border-color:var(--warning,#e6a817);color:#856404;">
+  ⚠ Data is saved to <strong>this browser only</strong>. To share with colleagues, <button class="btn soft sm" onclick="switchView('settings')" style="margin:0 4px;">set up OneDrive sync in Settings</button>
+</div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <h1>MPN Virtual Clinic</h1>
+      <div class="subtitle">Myeloid Haematology Service</div>
+    </div>
+    <button class="nav-btn active" data-view="dashboard"><span class="nav-icon">📊</span> Dashboard</button>
+    <button class="nav-btn" data-view="clinic"><span class="nav-icon">🩺</span> Virtual Clinic</button>
+    <button class="nav-btn" data-view="database"><span class="nav-icon">🗂️</span> Database</button>
+    <button class="nav-btn" data-view="history"><span class="nav-icon">📁</span> Archived Sessions</button>
+    <button class="nav-btn" data-view="settings"><span class="nav-icon">⚙️</span> Settings</button>
+    <button class="nav-btn" data-view="instructions"><span class="nav-icon">📖</span> Instructions</button>
+    <div class="sidebar-footer">
+      <div class="save-indicator" id="saveIndicator"><span class="dot saved"></span> No changes</div>
+      <div class="sync-badge sync-none" id="syncStatusIndicator">☁ No folder</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar nonprint">
+      <div>
+        <h2 id="pageTitle">Dashboard</h2>
+        <div class="page-desc" id="pageDesc">Overview of your virtual clinic</div>
+      </div>
+      <div class="toolbar">
+        <button class="btn primary" id="saveDatabaseBtn" style="padding:10px 20px;font-size:14px;">💾 Save</button>
+        <button class="theme-toggle" id="themeToggleBtn" title="Toggle dark/light mode">☀️</button>
+        <button class="btn soft" id="loadDemoBtn">Load demo</button>
+        <button class="btn" id="loadDatabaseBtn">Load saved</button>
+        <div class="btn-group">
+          <button class="btn" id="exportJsonBtn">Export JSON</button>
+          <button class="btn" id="importJsonBtn">Import JSON</button>
+        </div>
+        <div class="btn-group">
+          <button class="btn" id="exportPatientsBtn">CSV patients</button>
+          <button class="btn" id="exportVisitsBtn">CSV visits</button>
+        </div>
+      </div>
+    </div>
+    <input type="file" id="importJsonFile" accept=".json" class="hidden">
+
+    <!-- ============ DASHBOARD ============ -->
+    <section id="view-dashboard" class="view active">
+      <div class="metrics">
+        <div class="metric-card"><div class="metric-label">Total patients</div><div class="metric-value" id="metricPatients">0</div></div>
+        <div class="metric-card"><div class="metric-label">In virtual clinic</div><div class="metric-value" id="metricClinic">0</div></div>
+        <div class="metric-card"><div class="metric-label">Completed</div><div class="metric-value" id="metricDone">0</div></div>
+        <div class="metric-card"><div class="metric-label">Total visits</div><div class="metric-value" id="metricVisits">0</div></div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-header"><h3>Search patients</h3></div>
+          <label>Search by name, hospital number, diagnosis, or regimen<input id="dashboardSearch" placeholder="Start typing..."></label>
+          <div id="dashboardResults"></div>
+        </div>
+        <div>
+          <div class="card">
+            <div class="card-header"><h3>Current virtual clinic</h3><button class="btn soft sm" id="openClinicBtn">Open clinic →</button></div>
+            <div id="dashboardClinicSummary" class="small"></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>Overdue reviews</h3></div>
+            <div id="dashboardOverdue" class="small">No overdue reviews.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VIRTUAL CLINIC ============ -->
+    <section id="view-clinic" class="view">
+      <div class="grid2 nonprint">
+        <div class="card">
+          <div class="card-header"><h3>Clinic session</h3></div>
+          <div class="grid2">
+            <label>Clinic title<input id="clinicTitle"></label>
+            <label>Clinic date<input id="clinicDate" type="date"></label>
+          </div>
+          <label>Optional clinic notes<textarea id="clinicNotes" style="min-height:50px;"></textarea></label>
+          <div class="toolbar">
+            <button class="btn primary" id="saveClinicBtn">Save clinic session</button>
+            <button class="btn" id="archiveClinicBtn">Archive completed patients</button>
+            <button class="btn success" id="exportClinicHtmlBtn">📄 Export for secretary (Word)</button>
+            <button class="btn" id="exportClinicTxtBtn">📝 Export (text)</button>
+            <button class="btn primary" id="exportClinicLettersBtn">📋 Export all letters (Word)</button>
+          </div>
+          <div class="field-hint" style="margin-top:6px;">Only patients marked completed will be archived. "Export for secretary" generates a summary; "Export all letters" generates a full letter for each completed patient.</div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>Add patient to clinic</h3></div>
+          <label>Choose existing patient<select id="clinicPatientSelect"></select></label>
+          <div class="toolbar">
+            <button class="btn soft" id="addSelectedClinicPatientBtn">Add selected</button>
+            <button class="btn sm" id="addDemoClinicBtn">Add first 5 demo patients</button>
+          </div>
+          <label>Or search patients<input id="clinicPatientSearch" placeholder="Search by name or hospital number"></label>
+          <div id="clinicSearchResults"></div>
+          <hr style="margin:12px 0;border:none;border-top:1px solid var(--border);">
+          <div style="font-size:13px;font-weight:600;color:var(--text-label);margin-bottom:6px;">Import clinic list from CSV</div>
+          <label>Clinic list CSV<input id="clinicImportFile" type="file" accept=".csv"></label>
+          <div class="toolbar" style="margin-top:6px;">
+            <button class="btn soft" id="importClinicListBtn">Import clinic list</button>
+            <button class="btn" id="downloadClinicTemplateBtn">⬇ Download template</button>
+          </div>
+          <div class="field-hint" style="margin-top:4px;">CSV must include: Hospital Number, Patient Name (optional). One patient per row.</div>
+        </div>
+      </div>
+
+      <div class="card nonprint">
+        <div class="card-header">
+          <h3>Clinic worklist</h3>
+          <div style="display:flex;align-items:center;gap:10px;flex:1;margin-left:12px;">
+            <div class="progress-bar-wrap"><div class="progress-bar" id="clinicProgressBar" style="width:0%"></div></div>
+            <span class="small" id="clinicProgressText"></span>
+          </div>
+          <span class="small" id="clinicWorklist_count"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Name</th><th>Hospital No.</th><th>Diagnosis</th><th>Current HC regimen</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="clinicTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" id="printWrap">
+        <div class="card-header nonprint">
+          <h3>Patient review workspace</h3>
+          <div class="toolbar">
+            <button class="btn sm" id="clearVisitBtn">Clear form</button>
+            <button class="btn sm" id="copyVisitBtn">Copy visit summary</button>
+            <button class="btn sm" id="copyLetterBtn">Copy letter text</button>
+            <button class="btn primary sm" id="saveVisitBtn">Save visit</button>
+            <button class="btn success sm" id="markCompleteBtn">Save &amp; mark complete</button>
+          </div>
+        </div>
+        <div class="kbd-hint nonprint" style="margin-bottom:10px;">
+          <kbd>Ctrl+S</kbd> Save visit &nbsp; <kbd>Ctrl+Enter</kbd> Save &amp; complete &nbsp; <kbd>Ctrl+P</kbd> Print
+        </div>
+
+        <div class="letter-layout">
+          <div class="nonprint">
+            <!-- Visit history panel -->
+            <details class="visit-history-wrap" id="visitHistoryDetails">
+              <summary>Previous visits (last 5) <span class="small" id="visitHistoryCount"></span></summary>
+              <div id="visitHistoryPanel" class="table-wrap" style="margin-top:8px;"></div>
+            </details>
+
+            <!-- Sparklines -->
+            <div id="sparklineRow" class="sparkline-row"></div>
+
+            <div class="card" style="margin:0;">
+              <div class="card-header"><h3>Visit entry</h3><span class="small" id="visitPatientIndicator">Select a patient from the worklist above</span></div>
+              <!-- Missed bloods warning -->
+              <div id="missedBloodsWarning" class="hidden" style="background:#fee2e2;border:1px solid #ef4444;border-radius:6px;padding:10px;margin:0 0 10px;font-size:13px;color:#7f1d1d;">⚠ <strong>Missed blood tests on 2+ consecutive reviews.</strong> Consider returning this patient to the consultant-led clinic.</div>
+              <div class="grid2">
+                <label>Selected patient<input id="visitSelectedPatient" readonly></label>
+                <label>Hospital number<input id="visitHospitalNumber" readonly></label>
+              </div>
+              <div class="grid2">
+                <label>Review date<input id="visitReviewDate" type="date"></label>
+                <label>Dose decision
+                  <select id="visitDoseDecision">
+                    <option value="">Select decision...</option>
+                    <option value="continue">Continue current regimen</option>
+                    <option value="increase">Increase dose</option>
+                    <option value="reduce">Reduce dose</option>
+                    <option value="stop">Stop hydroxycarbamide</option>
+                    <option value="no_bloods">No bloods — rebook</option>
+                  </select>
+                </label>
+              </div>
+              <!-- Rebook notice -->
+              <div id="rebookNotice" class="hidden" style="background:var(--warning-bg,#fff3cd);border:1px solid var(--warning,#e6a817);border-radius:6px;padding:10px;margin:0 0 10px;font-size:13px;">ℹ Patient will be <strong>rebooked</strong> — this visit will <strong>not</strong> be marked as completed. A rebook letter will be generated.</div>
+              <div id="bloodFieldsWrap">
+                <div class="grid2">
+                  <label>Date of blood test<input id="visitBloodDate" type="date"></label>
+                  <div></div>
+                </div>
+                <div class="grid3">
+                  <label>Haemoglobin (g/L)<input id="visitHaemoglobin" type="number" step="1" placeholder="e.g. 140"><div class="field-hint" id="hbFlag"></div></label>
+                  <label>Haematocrit (L/L)<input id="visitHaematocrit" type="number" step="0.01" placeholder="e.g. 0.45"><div class="field-hint" id="hctFlag"></div><div class="field-hint" id="hctTargetHint" style="color:var(--blue);font-weight:600;"></div></label>
+                  <label>White cell count (×10⁹/L)<input id="visitWcc" type="number" step="0.1" placeholder="e.g. 7.5"><div class="field-hint" id="wccFlag"></div></label>
+                </div>
+                <div class="grid2">
+                  <label>Neutrophil count (×10⁹/L)<input id="visitNeutrophils" type="number" step="0.1" placeholder="e.g. 4.2"><div class="field-hint" id="neutFlag"></div></label>
+                  <label>Platelet count (×10⁹/L)<input id="visitPlatelets" type="number" step="1" placeholder="e.g. 350"><div class="field-hint" id="pltFlag"></div></label>
+                </div>
+                <!-- Clinical alerts panel -->
+                <div id="alertsPanel" class="hidden"></div>
+                <!-- Venesection (shown for PV patients) -->
+                <div id="venesectionWrap" class="hidden" style="margin-top:10px;padding:10px;background:var(--bg-input);border-radius:6px;">
+                  <label style="display:flex;align-items:center;gap:8px;margin:0;"><input type="checkbox" id="visitVenesection"> <strong>Venesection performed this visit</strong></label>
+                  <div id="venesectionVolumeWrap" class="hidden" style="margin-top:6px;">
+                    <label>Volume (ml)<input id="visitVenesectionVolume" type="number" placeholder="e.g. 450" style="width:140px;"></label>
+                  </div>
+                </div>
+              </div>
+              <div id="regimenFieldsWrap">
+                <div style="margin-bottom:12px;">
+                  <div style="font-size:13px;font-weight:600;color:var(--text-label);margin-bottom:5px;">Current hydroxycarbamide regimen (from database)</div>
+                  <textarea id="visitCurrentHydroxy" readonly style="min-height:50px;"></textarea>
+                </div>
+                <div id="visitRegimenWrap" style="margin-bottom:12px;">
+                  <div style="font-size:13px;font-weight:600;color:var(--text-label);margin-bottom:5px;">Hydroxycarbamide regimen after this review</div>
+                  <textarea id="visitRegimenAfterReview" style="min-height:50px;" placeholder="e.g. Hydroxycarbamide 500mg (1 capsule) once daily"></textarea>
+                  <div class="field-hint" id="regimenHint"></div>
+                </div>
+              </div>
+              <label>Next virtual review
+                <input id="visitNextReview" type="date">
+                <div class="field-hint" id="nextReviewHint"></div>
+              </label>
+              <div id="questionnaireFieldsWrap">
+                <label>Questionnaire
+                  <select id="visitQuestionnaireMode">
+                    <option>None</option>
+                    <option>MPN-10</option>
+                    <option>Free text</option>
+                  </select>
+                </label>
+                <div id="visitMpn10Wrap" class="hidden"></div>
+                <label id="visitQuestionnaireWrap" class="hidden">Questionnaire / further information<textarea id="visitQuestionnaireText"></textarea></label>
+              </div>
+              <label>Reviewer signature
+                <select id="visitReviewerSignature">
+                  <option value="">Select reviewer...</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div id="printArea">
+            <div class="card-header nonprint">
+              <h3>Letter preview</h3>
+              <div class="toolbar">
+                <button class="btn sm" id="copyLetterInlineBtn">Copy text</button>
+                <button class="btn primary sm" id="printPdfBtn">Print / PDF</button>
+              </div>
+            </div>
+            <div class="letter-preview" id="letterPreview">
+              <div class="letter-header">
+                <div class="big" id="head1">Aneurin Bevan University Health Board - Haematology Myeloid Service</div>
+                <div id="head2">Consultant Haematologists: Dr Ali Mahdi, Dr Chris Jenkins, Dr Eamon Mahdi</div>
+                <div id="head3">Clinical Nurse Specialist: Joedy Davies</div>
+                <div id="head4">Secretary: Sarah Wilson</div>
+                <div id="head5">Telephone number: 01633 234331</div>
+                <div id="head6">Email: ABB.Myeloid@wales.nhs.uk</div>
+              </div>
+              <p>Dear <span id="letterName">«Name»</span>,</p>
+              <div id="letterBodyNormal">
+                <p>
+                  <strong>Diagnosis:</strong> <span id="letterDiagnosis">«Diagnosis»</span><br>
+                  <strong>Driver Mutation:</strong> <span id="letterMutation">«Driver_mutation»</span><br>
+                  <strong>Year of Diagnosis:</strong> <span id="letterYear">«Year»</span><br>
+                  <strong>Current treatment:</strong> <span id="letterCurrentTreatment">«Treatment»</span><br>
+                  <strong>Thrombosis prophylaxis:</strong> <span id="letterThrombosis">«Prophylaxis»</span>
+                </p>
+                <p>We hope you're keeping well. As part of your ongoing virtual haematology review while you're being treated with hydroxycarbamide for your blood condition, we've looked at your most recent blood test results from <strong id="letterBloodDate">«Date»</strong>.</p>
+                <p>These are summarised below:</p>
+                <table class="letter-table">
+                  <tr><th>Test</th><th>Result</th></tr>
+                  <tr><td>Haemoglobin</td><td><span id="letterHb">–</span> g/L</td></tr>
+                  <tr><td>White Cell Count</td><td><span id="letterWcc">–</span> × 10⁹/L</td></tr>
+                  <tr><td>Neutrophils</td><td><span id="letterNeutrophils">–</span> × 10⁹/L</td></tr>
+                  <tr><td>Platelets</td><td><span id="letterPlatelets">–</span> × 10⁹/L</td></tr>
+                  <tr><td>Haematocrit</td><td><span id="letterHct">–</span> L/L</td></tr>
+                </table>
+                <p><strong>Questionnaire (MPN-10 score and further information):</strong><br><span id="letterQuestionnaire">None</span></p>
+                <p id="letterVenesectionLine" class="hidden">A venesection of <span id="letterVenesectionVolume"></span> ml was performed at this appointment.</p>
+                <p><strong>Based on these results, you are advised to:</strong><br><span id="letterDose">«Advice»</span></p>
+                <p>With this letter, you will find:</p>
+                <ul>
+                  <li>A prescription to take to your local pharmacy.</li>
+                  <li>A new blood test form. Please use this to have your blood taken before your next virtual appointment, which is due by <strong id="letterNextReview">«Date»</strong>. Try to have your blood test done at your local hospital or GP surgery 3 to 5 working days before this date.</li>
+                  <li>Symptom check: We recommend completing our short symptom check on the same day you have your blood test. While it's not essential, it helps us keep track of how you're feeling. You can fill it in online or by scanning the QR code provided.</li>
+                </ul>
+              </div>
+              <div id="letterBodyRebook" class="hidden">
+                <p>We had scheduled a virtual review of your condition this month as part of your ongoing care for <strong><span id="letterRebookDiagnosis">«Diagnosis»</span></strong>, which is being managed with hydroxycarbamide.</p>
+                <p>Unfortunately, we were unable to complete your review because we did not receive your blood test results as no sample appears to have been processed. Because of this, we have not been able to safely assess your condition or advise on your current treatment.</p>
+                <p><strong>What Happens Next</strong></p>
+                <p>A new appointment has been scheduled on <strong><span id="letterRebookNextReview">«Date»</span></strong>.</p>
+                <p>You will receive a new blood form by post, and we kindly ask you to have your blood test done at least 3–5 days before your next review date. If there are ongoing reasons you are unable to attend for blood tests, please let us know so that we can make alternative arrangements.</p>
+                <p>If blood tests are not received on two consecutive occasions, we will need to return you to the consultant clinic list for in-person review.</p>
+              </div>
+              <div id="letterRemindersNormal">
+                <p><strong>Important Reminders</strong></p>
+                <p>If you have any concerns about your condition, treatment, or this new review system, do not hesitate to get in touch on the above contact number. Please contact us if you experience:</p>
+                <ul>
+                  <li>New or worsening tiredness, dizziness, or breathlessness</li>
+                  <li>Unexplained weight loss or loss of appetite</li>
+                  <li>Skin ulcers, slow-healing wounds, or suspicious skin lesions</li>
+                  <li>Increased bruising, bleeding, or signs of infection</li>
+                </ul>
+                <p>For future reviews, if you don't receive a letter from us within 3 weeks after having your blood test, please get in touch by phone or email.</p>
+              </div>
+              <p>Yours sincerely,</p>
+              <div id="letterSignature" style="font-weight:600;">Reviewer signature</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card nonprint">
+        <div class="card-header"><h3>Clinic completion</h3></div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <button class="btn primary" id="clinicCompleteBtn">Complete clinic and archive</button>
+          <span class="small">Archives all completed patients and resets the clinic if all are done.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ DATABASE ============ -->
+    <section id="view-database" class="view">
+      <div class="grid2">
+        <div class="card">
+          <div class="card-header"><h3 id="dbFormTitle">Add patient</h3><button class="btn sm" id="clearPatientBtn">Clear form</button></div>
+          <div class="grid3">
+            <label>Hospital number *<input id="dbHospitalNumber" required></label>
+            <label>First name *<input id="dbFirstName" required></label>
+            <label>Last name *<input id="dbLastName" required></label>
+          </div>
+          <div class="grid3">
+            <label>NHS number<input id="dbNhsNumber" placeholder="Optional"></label>
+            <label>Date of birth<input id="dbDob" type="date"></label>
+            <label>Year of diagnosis<input id="dbYearDiagnosis" type="number" placeholder="e.g. 2020"></label>
+          </div>
+          <div class="grid3">
+            <label>Diagnosis
+              <select id="dbDiagnosis">
+                <option>Essential thrombocythaemia</option>
+                <option>Polycythaemia vera</option>
+                <option>Other</option>
+              </select>
+            </label>
+            <label id="dbDiagnosisOtherWrap" class="hidden">Other diagnosis<input id="dbDiagnosisOther"></label>
+            <label>Molecular variant
+              <select id="dbVariant">
+                <option>JAK2</option><option>CALR</option><option>MPL</option>
+                <option>Triple negative</option><option>Other</option>
+              </select>
+            </label>
+            <label id="dbVariantOtherWrap" class="hidden">Other variant<input id="dbVariantOther"></label>
+          </div>
+          <div class="grid3">
+            <label>Antiplatelet / anticoagulant
+              <select id="dbThrombosisType">
+                <option>Aspirin</option><option>Clopidogrel</option><option>Apixaban</option>
+                <option>Warfarin</option><option>Rivaroxaban</option><option>Edoxaban</option>
+                <option>None</option><option>Other</option>
+              </select>
+            </label>
+            <label id="dbThrombosisOtherWrap" class="hidden">Other antiplatelet/anticoagulant<input id="dbThrombosisOther"></label>
+            <label>Dose<input id="dbThrombosisDose" placeholder="e.g. 75mg once daily"></label>
+            <label>Supply route
+              <select id="dbSupplyRoute">
+                <option>Repeat prescription</option><option>WP10 from haematology</option>
+                <option>Purchased over the counter</option><option>Other</option>
+              </select>
+            </label>
+          </div>
+          <label id="dbSupplyOtherWrap" class="hidden">Other supply route<input id="dbSupplyOther"></label>
+          <label>Current hydroxycarbamide regimen<textarea id="dbCurrentHydroxy" placeholder="e.g. Hydroxycarbamide 500mg (1 capsule) once daily" style="min-height:50px;"></textarea></label>
+          <!-- Regimen history collapsible -->
+          <details class="regimen-history-wrap" id="regimenHistoryDetails" style="display:none;">
+            <summary>Regimen history <span id="regimenHistoryCount" class="small"></span></summary>
+            <div id="regimenHistoryPanel" class="table-wrap" style="margin-top:8px;"></div>
+          </details>
+          <div class="toolbar" style="margin-top:12px;">
+            <button class="btn primary" id="savePatientDatabaseBtn">Save patient</button>
+            <button type="button" class="btn soft" id="cancelPatientBtn">Cancel</button>
+          </div>
+        </div>
+        <div>
+          <div class="card">
+            <div class="card-header"><h3>Import patients</h3></div>
+            <label>Import CSV file<input id="importFile" type="file" accept=".csv"></label>
+            <div class="toolbar" style="margin-top:6px;">
+              <button class="btn soft" id="importPatientsBtn">Import CSV</button>
+              <button class="btn" id="downloadPatientTemplateBtn">⬇ Download template</button>
+            </div>
+            <div class="field-hint" style="margin-top:6px;">Required columns: Name, Hospital Number, Diagnosis, Year of Diagnosis, Driver mutation, Current Hydroxycarbamide Dosing Regime, Antiplatelet/anticoagulant, Antiplatelet/anticoagulant dose, Supply route. Optional: NHS Number, Date of Birth (DD/MM/YYYY). Download the template for exact column names.</div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>Patient list</h3><span class="small" id="dbCount"></span></div>
+            <label>Search<input id="databaseSearch" placeholder="Search patients..."></label>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Name</th><th>Hospital No.</th><th>Diagnosis</th><th>Current HC regimen</th><th>Actions</th></tr></thead>
+                <tbody id="databaseTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ ARCHIVED SESSIONS ============ -->
+    <section id="view-history" class="view">
+      <div class="card">
+        <div class="card-header"><h3>Archived virtual clinic sessions</h3><span class="small" id="archiveCount"></span></div>
+        <div id="historyAccordion"></div>
+      </div>
+    </section>
+
+    <!-- ============ SETTINGS ============ -->
+    <section id="view-settings" class="view">
+      <div class="grid2">
+        <div>
+          <div class="card">
+            <div class="card-header"><h3>OneDrive sync</h3></div>
+            <p class="field-hint" style="margin-bottom:10px;">
+              Select the OneDrive folder on this computer (e.g. <em>OneDrive – NHS Wales\MPN Clinic</em>).
+              The app will auto-save <code>mpn_clinic_data.json</code> there on every change.
+              No admin rights required — the browser writes to a folder you already own.
+            </p>
+            <div style="margin-bottom:10px;">
+              <strong style="font-size:13px;">Folder:</strong>
+              <span id="syncFolderName" style="font-size:13px;color:var(--text-muted);margin-left:6px;">No folder selected</span>
+            </div>
+            <div class="toolbar">
+              <button class="btn soft" id="selectFolderBtn">📁 Select OneDrive folder</button>
+              <button class="btn" id="syncNowBtn">☁ Save to file now</button>
+            </div>
+            <div id="fsSupportWarning" class="hidden field-warning" style="margin-top:8px;">
+              ⚠ File System Access is not supported in this browser. Use Microsoft Edge or Chrome for OneDrive sync.
+              You can still use Export/Import JSON as a manual backup.
+            </div>
+            <div class="field-hint" style="margin-top:8px;">
+              Once selected, all saves automatically write to the file. The OneDrive sync client distributes updates to all team members who share the folder.
+              A banner will appear if the file is updated by another user.
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>Letter header</h3></div>
+            <label>Line 1 – Service name<input id="setting1" value="Aneurin Bevan University Health Board - Haematology Myeloid Service"></label>
+            <label>Line 2 – Consultants<input id="setting2" value="Consultant Haematologists: Dr Ali Mahdi, Dr Chris Jenkins, Dr Eamon Mahdi"></label>
+            <label>Line 3 – CNS<input id="setting3" value="Clinical Nurse Specialist: Joedy Davies"></label>
+            <label>Line 4 – Secretary<input id="setting4" value="Secretary: Sarah Wilson"></label>
+            <label>Line 5 – Telephone<input id="setting5" value="Telephone number: 01633 234331"></label>
+            <label>Line 6 – Email<input id="setting6" value="Email: ABB.Myeloid@wales.nhs.uk"></label>
+            <button class="btn primary" id="applySettingsBtn">Apply header</button>
+          </div>
+        </div>
+        <div>
+          <div class="card">
+            <div class="card-header"><h3>Reviewer signatures</h3></div>
+            <div class="field-hint" style="margin-bottom:8px;">Manage the list of reviewer names available for signing letters.</div>
+            <div id="signatureList"></div>
+            <div class="grid2" style="margin-top:10px;">
+              <label>New signature<input id="newSignatureName" placeholder="e.g. Dr Jane Smith"></label>
+              <div style="display:flex;align-items:flex-end;"><button class="btn soft" id="addSignatureBtn">Add</button></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>CSV templates</h3></div>
+            <label>Patient CSV<textarea readonly style="font-size:11px;min-height:40px;">Name,Hospital Number,Diagnosis,Year of Diagnosis,Driver mutation,Current Hydroxycarbamide Dosing Regime,Antiplatelet/anticoagulant,Antiplatelet/anticoagulant dose,Supply route</textarea></label>
+            <label>Visit CSV<textarea readonly style="font-size:11px;min-height:40px;">hospital_number,review_date,blood_test_date,haemoglobin,haematocrit,white_cell_count,neutrophil_count,platelet_count,questionnaire_mode,questionnaire_text,current_hydroxycarbamide_regimen,dose_decision,regimen_after_review,dose_alteration_wording,next_virtual_appointment_date,reviewer_signature,pdf_filename</textarea></label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ INSTRUCTIONS ============ -->
+    <section id="view-instructions" class="view">
+      <div style="max-width:820px;">
+
+        <div class="card">
+          <div class="card-header"><h3>📖 How to use MPN Virtual Clinic</h3></div>
+          <p style="margin:0 0 8px;">This app runs entirely in your browser — no internet connection required once the file is open. All patient data stays on your computer (and your OneDrive if sync is configured). Nothing is sent to any server.</p>
+        </div>
+
+        <!-- Step 1 -->
+        <div class="card">
+          <div class="card-header"><h3>Step 1 — Opening the app</h3></div>
+          <ol style="margin:0;padding-left:20px;line-height:1.9;">
+            <li><strong>Do not open the file in a text editor</strong> (Koder, VS Code, Notepad). Those show source code, not the app.</li>
+            <li>On <strong>Windows</strong>: right-click <code>index.html</code> → <em>Open with</em> → <strong>Microsoft Edge</strong> or <strong>Google Chrome</strong>.</li>
+            <li>On <strong>Mac</strong>: double-click <code>index.html</code> — it opens in Safari. For OneDrive sync, use Chrome instead (Safari does not support the File System Access API).</li>
+            <li>Bookmark the file in your browser for quick access.</li>
+          </ol>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="card">
+          <div class="card-header"><h3>Step 2 — Setting up OneDrive sync (recommended)</h3></div>
+          <p style="margin:0 0 8px;">OneDrive sync lets every team member share the same patient database. It requires <strong>Edge or Chrome on Windows</strong>.</p>
+          <ol style="margin:0;padding-left:20px;line-height:1.9;">
+            <li>Place <code>index.html</code> inside your OneDrive folder (e.g. <code>OneDrive – NHS Wales\MPN Clinic\</code>).</li>
+            <li>Open the file in Edge or Chrome from that location.</li>
+            <li>Go to <strong>⚙ Settings → OneDrive sync</strong> and click <strong>📁 Select OneDrive folder</strong>.</li>
+            <li>Navigate to the same <code>MPN Clinic</code> folder and click <em>Select Folder</em>. The browser asks for permission — click <strong>Allow</strong>.</li>
+            <li>The app will now auto-save a file called <code>mpn_clinic_data.json</code> into that folder every time you make a change.</li>
+            <li>Every colleague who opens <code>index.html</code> from the same OneDrive folder and selects it will share the same data.</li>
+            <li>If a colleague updates the data, you will see a yellow <em>"Data file updated — reload?"</em> banner. Click <strong>Reload</strong> to get their changes.</li>
+          </ol>
+          <div class="field-hint" style="margin-top:8px;">⚠ The browser asks "Allow this site to edit files?" once per session. This is normal and expected — it only applies to the one folder you chose. No other files on your computer are affected.</div>
+          <div class="field-hint" style="margin-top:4px;">If no folder is selected, the app saves to browser storage only (visible in the amber banner at the top). Data will be lost if you clear browser data.</div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="card">
+          <div class="card-header"><h3>Step 3 — Adding patients to the database</h3></div>
+          <h4 style="margin:0 0 6px;font-size:13px;">Option A — Add one patient manually</h4>
+          <ol style="margin:0 0 12px;padding-left:20px;line-height:1.9;">
+            <li>Go to <strong>🗂 Database</strong> and fill in the patient form on the left.</li>
+            <li>Required fields: Hospital number, First name, Last name, Diagnosis.</li>
+            <li>Click <strong>Save patient</strong>. The patient appears in the patient list on the right.</li>
+          </ol>
+          <h4 style="margin:0 0 6px;font-size:13px;">Option B — Import from a CSV spreadsheet</h4>
+          <ol style="margin:0 0 12px;padding-left:20px;line-height:1.9;">
+            <li>Go to <strong>🗂 Database</strong> → <em>Import patients</em> panel on the right.</li>
+            <li>Click <strong>⬇ Download template</strong> to get a pre-formatted Excel-compatible CSV file.</li>
+            <li>Open it in Excel, fill in one row per patient, and <strong>save as CSV</strong> (File → Save As → CSV UTF-8).</li>
+            <li>Back in the app, click <strong>Import CSV</strong>, select your file, and click Open.</li>
+            <li>A confirmation toast will tell you how many patients were imported and how many were skipped.</li>
+            <li>Re-importing the same hospital number updates the existing record rather than creating a duplicate.</li>
+          </ol>
+          <div class="card" style="background:var(--bg-input);border:none;margin:0;">
+            <strong style="font-size:12px;">CSV column reference</strong>
+            <table style="width:100%;font-size:12px;margin-top:6px;border-collapse:collapse;">
+              <thead><tr style="background:var(--border);"><th style="padding:4px 8px;text-align:left;">Column</th><th style="padding:4px 8px;text-align:left;">Required?</th><th style="padding:4px 8px;text-align:left;">Notes / accepted values</th></tr></thead>
+              <tbody>
+                <tr><td style="padding:4px 8px;">Name</td><td style="padding:4px 8px;">✅ Required</td><td style="padding:4px 8px;">Full name, e.g. "Jane Smith". First word = first name, rest = last name.</td></tr>
+                <tr style="background:var(--bg-input-hover,var(--bg-input));"><td style="padding:4px 8px;">Hospital Number</td><td style="padding:4px 8px;">✅ Required</td><td style="padding:4px 8px;">Unique identifier. Used to match and update existing records.</td></tr>
+                <tr><td style="padding:4px 8px;">NHS Number</td><td style="padding:4px 8px;">Optional</td><td style="padding:4px 8px;">10-digit NHS number. Leave blank if unknown.</td></tr>
+                <tr style="background:var(--bg-input-hover,var(--bg-input));"><td style="padding:4px 8px;">Date of Birth</td><td style="padding:4px 8px;">Optional</td><td style="padding:4px 8px;">DD/MM/YYYY or YYYY-MM-DD format both accepted.</td></tr>
+                <tr><td style="padding:4px 8px;">Diagnosis</td><td style="padding:4px 8px;">✅ Required</td><td style="padding:4px 8px;">Polycythaemia vera · Essential thrombocythaemia · Other</td></tr>
+                <tr style="background:var(--bg-input-hover,var(--bg-input));"><td style="padding:4px 8px;">Year of Diagnosis</td><td style="padding:4px 8px;">✅ Required</td><td style="padding:4px 8px;">4-digit year, e.g. 2018</td></tr>
+                <tr><td style="padding:4px 8px;">Driver mutation</td><td style="padding:4px 8px;">✅ Required</td><td style="padding:4px 8px;">JAK2 · CALR · MPL · Triple negative · Other</td></tr>
+                <tr style="background:var(--bg-input-hover,var(--bg-input));"><td style="padding:4px 8px;">Current Hydroxycarbamide Dosing Regime</td><td style="padding:4px 8px;">✅ Required</td><td style="padding:4px 8px;">Full regimen text, e.g. "Hydroxycarbamide 500mg (1 capsule) once daily"</td></tr>
+                <tr><td style="padding:4px 8px;">Antiplatelet/anticoagulant</td><td style="padding:4px 8px;">✅ Required</td><td style="padding:4px 8px;">Aspirin · Clopidogrel · Apixaban · Warfarin · Rivaroxaban · Edoxaban · None · Other</td></tr>
+                <tr style="background:var(--bg-input-hover,var(--bg-input));"><td style="padding:4px 8px;">Antiplatelet/anticoagulant dose</td><td style="padding:4px 8px;">✅ Required</td><td style="padding:4px 8px;">e.g. "75mg once daily". Leave blank if None.</td></tr>
+                <tr><td style="padding:4px 8px;">Supply route</td><td style="padding:4px 8px;">✅ Required</td><td style="padding:4px 8px;">Repeat prescription · WP10 from haematology · Purchased over the counter · Other</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Step 4 -->
+        <div class="card">
+          <div class="card-header"><h3>Step 4 — Setting up a clinic session</h3></div>
+          <ol style="margin:0;padding-left:20px;line-height:1.9;">
+            <li>Go to <strong>🩺 Virtual Clinic</strong>.</li>
+            <li>Enter the <strong>Clinic title</strong> (e.g. "MPN Virtual Clinic — June 2026") and <strong>Clinic date</strong>, then click <strong>Save clinic session</strong>.</li>
+            <li>Add patients using one of these methods:
+              <ul style="margin-top:4px;">
+                <li>Use the <em>Choose existing patient</em> dropdown → click <strong>Add selected</strong>.</li>
+                <li>Type a name or hospital number in the <em>Search patients</em> box and click <strong>Add</strong> next to the result.</li>
+                <li>Upload a <strong>clinic list CSV</strong>: click <strong>⬇ Download template</strong> in the Import clinic list section, fill it in (Hospital Number column is required), save as CSV, then click <strong>Import clinic list</strong>. The app adds all matching patients in one step.</li>
+              </ul>
+            </li>
+            <li>Patients appear in the <strong>Clinic worklist</strong> below.</li>
+          </ol>
+        </div>
+
+        <!-- Step 5 -->
+        <div class="card">
+          <div class="card-header"><h3>Step 5 — Running a virtual review</h3></div>
+          <ol style="margin:0;padding-left:20px;line-height:1.9;">
+            <li>In the <strong>Clinic worklist</strong>, click <strong>Review</strong> next to a patient. The workspace scrolls into view below.</li>
+            <li>Enter the <strong>Review date</strong> and <strong>Blood test date</strong>.</li>
+            <li>Fill in blood results: Hb, HCT, WCC, Neutrophils, Platelets. Flags appear automatically if values are outside normal range. Red urgent alerts appear for critical values.</li>
+            <li>Select a <strong>Dose decision</strong>:
+              <ul style="margin-top:4px;">
+                <li><em>Continue</em> — HC regimen auto-populates from patient record.</li>
+                <li><em>Increase / Reduce</em> — enter the new regimen in the text box that appears.</li>
+                <li><em>Stop HC</em> — records cessation; next review in 14 days.</li>
+                <li><em>No bloods received</em> — generates a rebook letter; patient is not marked completed.</li>
+              </ul>
+            </li>
+            <li>For <strong>PV patients</strong>, a Venesection section appears automatically if HCT is elevated.</li>
+            <li>Complete the <strong>Questionnaire</strong> section (None / MPN-10 / Free text).</li>
+            <li>Set the <strong>Next virtual review date</strong> (auto-suggested based on decision).</li>
+            <li>Select a <strong>Reviewer signature</strong>.</li>
+            <li>The <strong>letter preview</strong> on the right updates live as you type.</li>
+            <li>Click <strong>Save visit</strong> to save without completing, or <strong>Save &amp; mark complete</strong> to mark the patient as done in the worklist.</li>
+          </ol>
+          <div class="field-hint" style="margin-top:8px;">Keyboard shortcuts: <strong>Ctrl+S</strong> = save visit · <strong>Ctrl+Enter</strong> = save &amp; mark complete · <strong>Ctrl+P</strong> = print letter · <strong>Escape</strong> = clear form</div>
+        </div>
+
+        <!-- Step 6 -->
+        <div class="card">
+          <div class="card-header"><h3>Step 6 — Printing and exporting letters</h3></div>
+          <h4 style="margin:0 0 6px;font-size:13px;">Single letter</h4>
+          <ol style="margin:0 0 12px;padding-left:20px;line-height:1.9;">
+            <li>With a patient loaded in the workspace, the letter preview is visible on the right.</li>
+            <li>Click <strong>Print / PDF</strong> to open your browser's print dialog. Choose "Save as PDF" to create a PDF.</li>
+            <li>Click <strong>Copy text</strong> to copy the formatted letter to your clipboard and paste into Word.</li>
+          </ol>
+          <h4 style="margin:0 0 6px;font-size:13px;">View a completed patient's letter</h4>
+          <ol style="margin:0 0 12px;padding-left:20px;line-height:1.9;">
+            <li>In the Clinic worklist, completed patients show a <strong>View letter</strong> button instead of Review. Click it to reload their letter in the workspace.</li>
+          </ol>
+          <h4 style="margin:0 0 6px;font-size:13px;">Export all letters for the whole clinic (one file)</h4>
+          <ol style="margin:0 0 12px;padding-left:20px;line-height:1.9;">
+            <li>Once all patients are completed, click <strong>📋 Export all letters (Word)</strong> in the clinic session toolbar.</li>
+            <li>A single <code>.html</code> file is downloaded containing every patient's letter, one per page.</li>
+            <li>Open it in <strong>Microsoft Word</strong> (File → Open → select the .html file). Each letter starts on a new page — ready to print the whole clinic in one go.</li>
+          </ol>
+          <h4 style="margin:0 0 6px;font-size:13px;">Export letters from an archived session</h4>
+          <ol style="margin:0 0 12px;padding-left:20px;line-height:1.9;">
+            <li>Go to <strong>📁 Archived Sessions</strong>.</li>
+            <li>Find the session and click <strong>📋 Export letters (Word)</strong> — same process as above.</li>
+          </ol>
+          <h4 style="margin:0 0 6px;font-size:13px;">Secretary summary report</h4>
+          <ol style="margin:0;padding-left:20px;line-height:1.9;">
+            <li>Click <strong>📄 Export for secretary (Word)</strong> to export a compact one-page summary of all completed patients (name, diagnosis, bloods, decision, next review).</li>
+          </ol>
+        </div>
+
+        <!-- Step 7 -->
+        <div class="card">
+          <div class="card-header"><h3>Step 7 — Archiving the clinic</h3></div>
+          <ol style="margin:0;padding-left:20px;line-height:1.9;">
+            <li>When all patients are marked complete, click <strong>Archive completed patients</strong>.</li>
+            <li>A confirmation dialog shows how many patients will be archived. Click <strong>OK</strong> to confirm.</li>
+            <li>Archived sessions move to <strong>📁 Archived Sessions</strong> where each entry can be expanded to see individual patients, reopen a visit, export letters, or delete the session.</li>
+            <li>The clinic session resets automatically once all patients are archived.</li>
+          </ol>
+        </div>
+
+        <!-- Step 8 -->
+        <div class="card">
+          <div class="card-header"><h3>Step 8 — Understanding how data is saved</h3></div>
+          <table style="width:100%;font-size:13px;border-collapse:collapse;">
+            <thead><tr style="background:var(--border);"><th style="padding:6px 10px;text-align:left;">What gets saved</th><th style="padding:6px 10px;text-align:left;">When</th><th style="padding:6px 10px;text-align:left;">Where</th></tr></thead>
+            <tbody>
+              <tr><td style="padding:6px 10px;">Every field change</td><td style="padding:6px 10px;">Automatically, 2 seconds after you stop typing</td><td style="padding:6px 10px;">OneDrive JSON file (if folder selected) + browser storage</td></tr>
+              <tr style="background:var(--bg-input);"><td style="padding:6px 10px;">Save visit / Save patient</td><td style="padding:6px 10px;">When you click the save button</td><td style="padding:6px 10px;">Immediately to both</td></tr>
+              <tr><td style="padding:6px 10px;">☁ Save to file now</td><td style="padding:6px 10px;">Settings → manual trigger</td><td style="padding:6px 10px;">OneDrive JSON file only</td></tr>
+            </tbody>
+          </table>
+          <div class="field-hint" style="margin-top:8px;">The save indicator in the sidebar shows: <strong>Saved ✓</strong> (all changes written) · <strong>Saving…</strong> (in progress) · <strong>Unsaved changes</strong> (pending). If you see Unsaved changes after a while, click <strong>☁ Save to file now</strong> in Settings.</div>
+          <div class="field-hint" style="margin-top:4px;">To back up all data: go to <strong>⚙ Settings → Export JSON backup</strong>. Keep this file somewhere safe. You can restore it with <em>Import JSON backup</em> on any computer.</div>
+        </div>
+
+        <!-- Step 9 -->
+        <div class="card">
+          <div class="card-header"><h3>Step 9 — Sharing with the team</h3></div>
+          <ol style="margin:0;padding-left:20px;line-height:1.9;">
+            <li>Copy <code>index.html</code> into a shared OneDrive folder that all team members can access (e.g. <em>OneDrive – NHS Wales\MPN Clinic</em>).</li>
+            <li>Each team member opens their own copy of the file in Edge and selects the <strong>same OneDrive folder</strong> in Settings.</li>
+            <li>The app reads and writes to the same <code>mpn_clinic_data.json</code> file in that folder. OneDrive syncs changes across all devices.</li>
+            <li>If two people save changes at the same time, the last save wins — a <em>"Data file updated"</em> banner appears when the file is modified externally. Click <strong>Reload</strong> to get the latest version.</li>
+          </ol>
+          <div class="field-hint" style="margin-top:8px;">Tip: only one person should actively enter a clinic review at a time to avoid conflicts. The app is designed for one clinic session running across multiple reviewers taking turns on different patients.</div>
+        </div>
+
+        <!-- Troubleshooting -->
+        <div class="card">
+          <div class="card-header"><h3>Troubleshooting</h3></div>
+          <table style="width:100%;font-size:13px;border-collapse:collapse;">
+            <thead><tr style="background:var(--border);"><th style="padding:6px 10px;text-align:left;">Problem</th><th style="padding:6px 10px;text-align:left;">Solution</th></tr></thead>
+            <tbody>
+              <tr><td style="padding:6px 10px;">App shows source code when opened</td><td style="padding:6px 10px;">Open the file in a browser, not a text editor. Right-click → Open with → Edge or Chrome.</td></tr>
+              <tr style="background:var(--bg-input);"><td style="padding:6px 10px;">OneDrive sync not available</td><td style="padding:6px 10px;">Use Microsoft Edge or Google Chrome on Windows. Safari and Firefox do not support this feature.</td></tr>
+              <tr><td style="padding:6px 10px;">Browser asks "Allow to edit files?" every session</td><td style="padding:6px 10px;">This is normal — browsers require one permission click per session for security. Click Allow.</td></tr>
+              <tr style="background:var(--bg-input);"><td style="padding:6px 10px;">Patient data disappeared</td><td style="padding:6px 10px;">If no OneDrive folder was selected, data is in browser storage. Clearing browser data deletes it. Always export a JSON backup regularly.</td></tr>
+              <tr><td style="padding:6px 10px;">CSV import fails with "Missing columns"</td><td style="padding:6px 10px;">Download the template from the import panel and check your column headings match exactly. Column names are case-insensitive.</td></tr>
+              <tr style="background:var(--bg-input);"><td style="padding:6px 10px;">Letters open as HTML code in browser</td><td style="padding:6px 10px;">Exported letters are .html files — open them in Microsoft Word (File → Open), not a browser, to see formatted output.</td></tr>
+              <tr><td style="padding:6px 10px;">"Select a patient from the worklist above" — form won't save</td><td style="padding:6px 10px;">Click Review (or View letter for completed patients) in the Clinic worklist first. The form requires a patient to be loaded.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+<script>
+(function(){
+'use strict';
+
+/* ===== STATE ===== */
+const state={
+  patients:[],visits:[],
+  clinic:{title:'MPN Virtual Clinic',date:'',notes:'',patients:[]},
+  archivedClinics:[],
+  selectedPatientId:null,editingPatientId:null,
+  signatures:['Dr Ali Mahdi','Dr Eamon Mahdi','Dr Chris Jenkins','CNS Joedy Davies'],
+  dirty:false,lastSaved:null,visitFormDirty:false,
+  dirHandle:null,folderName:null,lastSavedToFile:null,lastFileModified:null,
+  _saveDebounce:null,_changeWatcher:null
+};
+
+/* ===== HELPERS ===== */
+function el(id){return document.getElementById(id);}
+function safeBind(id,ev,fn){const n=el(id);if(n)n.addEventListener(ev,fn);}
+function uid(p){return(p||'id')+'_'+Math.random().toString(36).slice(2,10);}
+function todayISO(){return new Date().toISOString().slice(0,10);}
+function nextThursdayISO(){const d=new Date();const day=d.getDay();const diff=(4-day+7)%7||7;d.setDate(d.getDate()+diff);return d.toISOString().slice(0,10);}
+function formatDate(iso){if(!iso)return'';const d=new Date(iso+'T00:00:00');return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});}
+function addDays(iso,n){const d=new Date(iso+'T00:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
+function diagnosisDisplay(p){return p.diagnosisType==='Other'?(p.diagnosisOther||'Other'):p.diagnosisType;}
+function variantDisplay(p){return p.variantType==='Other'?(p.variantOther||'Other'):p.variantType;}
+function thrombosisMedDisplay(p){const med=p.thrombosisType==='Other'?(p.thrombosisOther||'Other'):p.thrombosisType;if(med==='None')return'None';return[med,p.thrombosisDose].filter(Boolean).join(' ');}
+function supplyRouteDisplay(p){return p.supplyRoute==='Other'?(p.supplyOther||'Other'):p.supplyRoute;}
+function thrombosisSentence(p){const med=thrombosisMedDisplay(p);if(!med||med==='None')return'None';return med+', obtained via '+supplyRouteDisplay(p).toLowerCase()+'.';}
+function fullName(p){return((p.firstName||'')+' '+(p.lastName||'')).trim();}
+function currentPatient(){return state.patients.find(p=>p.id===state.selectedPatientId)||null;}
+function csvEscape(v){const s=String(v==null?'':v);return/[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function fileNameForVisit(p){return fullName(p)+'_'+(p.hospitalNumber||'NoNumber')+'.pdf';}
+function downloadText(text,filename,mime){const blob=new Blob([text],{type:mime});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);}
+
+/* ===== TOAST ===== */
+function toast(msg,type){type=type||'info';const c=el('toastContainer');const d=document.createElement('div');d.className='toast '+type;d.textContent=msg;c.appendChild(d);setTimeout(()=>{if(d.parentNode)d.parentNode.removeChild(d);},3200);}
+
+/* ===== FILE SYSTEM ACCESS API ===== */
+const FS_DB='mpn_clinic_fs';const FS_FILE='mpn_clinic_data.json';
+
+function isFSSupported(){return typeof window.showDirectoryPicker==='function';}
+
+function openFSDB(){return new Promise((res,rej)=>{const req=indexedDB.open(FS_DB,1);req.onupgradeneeded=e=>e.target.result.createObjectStore('handles');req.onsuccess=e=>res(e.target.result);req.onerror=()=>rej(req.error);});}
+
+async function storeDirHandle(h){const db=await openFSDB();return new Promise((res,rej)=>{const tx=db.transaction('handles','readwrite');tx.objectStore('handles').put(h,'dir');tx.oncomplete=()=>{db.close();res();};tx.onerror=()=>{db.close();rej(tx.error);};});}
+
+async function getDirHandle(){const db=await openFSDB();return new Promise((res,rej)=>{const tx=db.transaction('handles','readonly');const r=tx.objectStore('handles').get('dir');r.onsuccess=()=>{db.close();res(r.result||null);};r.onerror=()=>{db.close();rej(r.error);};});}
+
+async function initFileSystem(){
+  if(!isFSSupported()){const w=el('fsSupportWarning');if(w)w.classList.remove('hidden');updateSyncStatusUI('none');return;}
+  try{
+    const h=await getDirHandle();
+    if(!h){updateSyncStatusUI('none');return;}
+    const perm=await h.requestPermission({mode:'readwrite'});
+    if(perm!=='granted'){updateSyncStatusUI('none');return;}
+    state.dirHandle=h;state.folderName=h.name;
+    renderSyncSettings();
+    const loaded=await loadFromFile();
+    if(loaded){renderAll();}
+    updateSyncStatusUI('saved');
+    startChangeWatcher();
+  }catch(e){console.warn('FS init:',e);updateSyncStatusUI('none');}
+}
+
+async function selectOneDriveFolder(){
+  if(!isFSSupported()){toast('Use Microsoft Edge or Chrome for OneDrive sync.','warning');return;}
+  try{
+    const h=await window.showDirectoryPicker({mode:'readwrite',startIn:'documents'});
+    state.dirHandle=h;state.folderName=h.name;
+    await storeDirHandle(h);
+    renderSyncSettings();
+    await saveToFile(true);
+    updateSyncStatusUI('saved');
+    startChangeWatcher();
+    toast('OneDrive folder selected: '+h.name,'success');
+  }catch(e){if(e.name!=='AbortError')toast('Could not select folder: '+e.message,'error');}
+}
+
+async function saveToFile(immediate){
+  if(!state.dirHandle){saveDatabaseSilently();return;}
+  if(!immediate){
+    clearTimeout(state._saveDebounce);
+    state._saveDebounce=setTimeout(()=>saveToFile(true),2000);
+    return;
+  }
+  clearTimeout(state._saveDebounce);
+  try{
+    updateSyncStatusUI('saving');
+    const data=serialiseState();
+    const fh=await state.dirHandle.getFileHandle(FS_FILE,{create:true});
+    const w=await fh.createWritable();
+    await w.write(data);await w.close();
+    // Also save to localStorage as backup
+    try{localStorage.setItem('mpn_virtual_clinic_database_v3',data);}catch(e){}
+    state.dirty=false;state.lastSaved=Date.now();state.lastSavedToFile=Date.now();
+    const f=await fh.getFile();state.lastFileModified=f.lastModified;
+    renderSaveIndicator();updateSyncStatusUI('saved');
+  }catch(e){
+    console.error('File save error:',e);
+    updateSyncStatusUI('error',e.message);
+    saveDatabaseSilently();
+  }
+}
+
+async function loadFromFile(){
+  if(!state.dirHandle)return false;
+  try{
+    let fh;
+    try{fh=await state.dirHandle.getFileHandle(FS_FILE,{create:false});}catch(e){return false;}
+    const f=await fh.getFile();
+    state.lastFileModified=f.lastModified;
+    const text=await f.text();
+    const parsed=JSON.parse(text);
+    applyLoadedData(parsed);
+    return true;
+  }catch(e){console.warn('Load from file:',e);return false;}
+}
+
+function applyLoadedData(parsed){
+  if(!parsed)return;
+  state.patients=Array.isArray(parsed.patients)?parsed.patients.map(migratePatient):[];
+  state.visits=Array.isArray(parsed.visits)?parsed.visits.map(migrateVisit):[];
+  state.clinic=parsed.clinic||{title:'MPN Virtual Clinic',date:nextThursdayISO(),notes:'',patients:[]};
+  state.archivedClinics=Array.isArray(parsed.archivedClinics)?parsed.archivedClinics:[];
+  if(Array.isArray(parsed.signatures))state.signatures=parsed.signatures;
+  if(parsed.settings){
+    ['head1','head2','head3','head4','head5','head6'].forEach((_,i)=>{
+      const v=parsed.settings['head'+(i+1)];if(v)el('setting'+(i+1)).value=v;
+    });
+  }
+}
+
+function migratePatient(p){
+  return Object.assign({regimenHistory:[],hcActive:true,missedBloods:0,missedBloodsConsecutive:0},p);
+}
+function migrateVisit(v){return Object.assign({alertsTriggered:[],doseAtVisit:'',mpn10:null,venesectionPerformed:false,venesectionVolume:''},v);}
+
+function startChangeWatcher(){
+  if(state._changeWatcher)clearInterval(state._changeWatcher);
+  state._changeWatcher=setInterval(checkForExternalChanges,30000);
+}
+
+async function checkForExternalChanges(){
+  if(!state.dirHandle)return;
+  try{
+    const perm=await state.dirHandle.queryPermission({mode:'readwrite'});
+    if(perm!=='granted')return;
+    let fh;try{fh=await state.dirHandle.getFileHandle(FS_FILE,{create:false});}catch(e){return;}
+    const f=await fh.getFile();
+    if(state.lastFileModified&&f.lastModified>state.lastFileModified+3000){
+      state.lastFileModified=f.lastModified;
+      showReloadBanner();
+    }
+  }catch(e){}
+}
+
+function showReloadBanner(){const b=el('reloadBanner');if(b)b.classList.remove('hidden');}
+function hideReloadBanner(){const b=el('reloadBanner');if(b)b.classList.add('hidden');}
+window.hideReloadBanner=hideReloadBanner;
+
+async function reloadFromFile(){
+  const loaded=await loadFromFile();
+  if(loaded){hideReloadBanner();renderAll();toast('Data reloaded from shared file.','success');}
+  else{toast('Could not reload — file not found or permission denied.','error');}
+}
+window.reloadFromFile=reloadFromFile;
+
+function updateSyncStatusUI(s,errMsg){
+  const ind=el('syncStatusIndicator');if(!ind)return;
+  const m={saved:{cls:'sync-badge sync-saved',txt:'☁ Saved'},saving:{cls:'sync-badge sync-saving',txt:'☁ Saving…'},error:{cls:'sync-badge sync-error',txt:'☁ Error'+(errMsg?' – '+errMsg.slice(0,20):'')},none:{cls:'sync-badge sync-none',txt:'☁ No folder'}};
+  const cfg=m[s]||m.none;ind.className=cfg.cls;ind.textContent=cfg.txt;
+}
+
+function renderSyncSettings(){
+  const n=el('syncFolderName');if(n)n.textContent=state.folderName||'No folder selected';
+  const b=el('localOnlyBanner');if(b)b.classList.toggle('hidden',!!state.folderName);
+}
+
+/* ===== MARK DIRTY & SAVE ===== */
+function markDirty(){
+  state.dirty=true;renderSaveIndicator();
+  saveToFile(false); // debounced 2s
+}
+function markVisitFormDirty(){state.visitFormDirty=true;}
+
+/* ===== SAVE INDICATOR ===== */
+function renderSaveIndicator(){
+  const ind=el('saveIndicator');if(!ind)return;
+  if(state.dirty){ind.innerHTML='<span class="dot unsaved"></span> Unsaved changes';ind.className='save-indicator unsaved';}
+  else{const t=state.lastSaved?new Date(state.lastSaved).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):'';ind.innerHTML='<span class="dot saved"></span> Saved'+(t?' at '+t:'');ind.className='save-indicator';}
+}
+
+/* ===== CLINICAL ALERT RULES ===== */
+const ALERT_RULES=[
+  {id:'hb_urgent',field:'hb',dx:null,cond:v=>v<100,sev:'urgent',msg:'Hb <100 g/L — consider urgent haematology review'},
+  {id:'hb_low',field:'hb',dx:null,cond:v=>v>=100&&v<120,sev:'warning',msg:'Hb 100–119 g/L — below normal, monitor closely'},
+  {id:'hct_urgent',field:'hct',dx:null,cond:v=>v>0.52,sev:'urgent',msg:'HCT >0.52 — urgent venesection / dose review'},
+  {id:'hct_pv',field:'hct',dx:'Polycythaemia vera',cond:v=>v>0.45&&v<=0.52,sev:'action',msg:'HCT >0.45 in PV — target not met, consider dose increase'},
+  {id:'neut_urgent',field:'neut',dx:null,cond:v=>v<1.0,sev:'urgent',msg:'Neutropenia (Neut <1.0 ×10⁹/L) — consider dose reduction or hold'},
+  {id:'neut_low',field:'neut',dx:null,cond:v=>v>=1.0&&v<1.5,sev:'warning',msg:'Neut 1.0–1.49 ×10⁹/L — borderline neutropenia, monitor'},
+  {id:'plt_urgent',field:'plt',dx:null,cond:v=>v<100,sev:'urgent',msg:'Platelets <100 ×10⁹/L — consider dose reduction or hold'},
+  {id:'plt_high',field:'plt',dx:null,cond:v=>v>1000,sev:'action',msg:'Platelets >1000 ×10⁹/L — marked thrombocytosis, consider dose review'},
+  {id:'plt_warn',field:'plt',dx:null,cond:v=>v>600&&v<=1000,sev:'warning',msg:'Platelets 600–1000 ×10⁹/L — elevated, review if sustained'},
+  {id:'wcc_low',field:'wcc',dx:null,cond:v=>v<3.0,sev:'warning',msg:'WCC <3.0 ×10⁹/L — leukopenia, monitor closely'}
+];
+
+function evaluateClinicalAlerts(bloodValues,diagnosis){
+  return ALERT_RULES.filter(rule=>{
+    const val=parseFloat(bloodValues[rule.field]);
+    if(isNaN(val))return false;
+    if(rule.dx&&rule.dx!==diagnosis)return false;
+    return rule.cond(val);
+  });
+}
+
+function renderAlerts(){
+  const panel=el('alertsPanel');if(!panel)return;
+  if(el('visitDoseDecision').value==='no_bloods'){panel.innerHTML='';panel.classList.add('hidden');return;}
+  const p=currentPatient();const dx=p?diagnosisDisplay(p):'';
+  const vals={hb:parseFloat(el('visitHaemoglobin').value),hct:parseFloat(el('visitHaematocrit').value),wcc:parseFloat(el('visitWcc').value),neut:parseFloat(el('visitNeutrophils').value),plt:parseFloat(el('visitPlatelets').value)};
+  const triggered=evaluateClinicalAlerts(vals,dx);
+  if(!triggered.length){panel.innerHTML='';panel.classList.add('hidden');return;}
+  panel.classList.remove('hidden');
+  panel.innerHTML='<div class="alert-panel-hdr">Clinical Alerts</div>'+triggered.map(a=>'<div class="alert-pill alert-'+a.sev+'">'+(a.sev==='urgent'?'🔴':a.sev==='action'?'🟠':'🟡')+' '+a.msg+'</div>').join('');
+}
+
+/* ===== BLOOD COUNT FLAGS ===== */
+function flagBloodCounts(){
+  const hb=parseFloat(el('visitHaemoglobin').value);const hct=parseFloat(el('visitHaematocrit').value);
+  const wcc=parseFloat(el('visitWcc').value);const neut=parseFloat(el('visitNeutrophils').value);const plt=parseFloat(el('visitPlatelets').value);
+  setFlag('hbFlag',el('visitHaemoglobin'),hb,120,170,'Low Hb','High Hb');
+  setFlag('hctFlag',el('visitHaematocrit'),hct,0.36,0.52,'Low HCT','High HCT');
+  setFlag('wccFlag',el('visitWcc'),wcc,4.0,11.0,'Low WCC','High WCC');
+  setFlag('neutFlag',el('visitNeutrophils'),neut,1.5,7.5,'Low neutrophils','High neutrophils');
+  setFlag('pltFlag',el('visitPlatelets'),plt,150,400,'Low platelets','High platelets');
+  renderAlerts();
+}
+
+function setFlag(flagId,inputEl,val,low,high,lowMsg,highMsg){
+  const f=el(flagId);if(!f)return;
+  if(!inputEl)return;
+  inputEl.classList.remove('warn','alert');
+  if(isNaN(val)||val===''){f.textContent='';return;}
+  if(val<low){f.textContent='⚠ '+lowMsg+' (<'+low+')';f.className=val<low*0.8?'field-alert':'field-warning';inputEl.classList.add(val<low*0.8?'alert':'warn');}
+  else if(val>high){f.textContent='⚠ '+highMsg+' (>'+high+')';f.className=val>high*1.2?'field-alert':'field-warning';inputEl.classList.add(val>high*1.2?'alert':'warn');}
+  else{f.textContent='✓ Within range';f.className='field-hint';}
+}
+
+/* ===== SPARKLINES ===== */
+function buildSparklineData(patient,field){
+  return state.visits.filter(v=>v.patientId===patient.id).sort((a,b)=>new Date(a.reviewDate)-new Date(b.reviewDate)).slice(-6).map(v=>parseFloat(v[field])).filter(v=>!isNaN(v));
+}
+
+function renderSparklineSvg(values,lo,hi,col,w,h){
+  if(!values||values.length<2)return'<span class="sparkline-no-data">No data</span>';
+  const pad=3;const all=values.concat([lo,hi]);const mn=Math.min(...all)*0.9;const mx=Math.max(...all)*1.1;const rng=mx-mn||1;
+  const W=w-pad*2;const H=h-pad*2;
+  const tx=(i,tot)=>pad+(i/Math.max(tot-1,1))*W;const ty=v=>pad+H-((v-mn)/rng)*H;
+  const bandY1=ty(hi);const bandH=ty(lo)-bandY1;
+  const pts=values.map((v,i)=>tx(i,values.length)+','+ty(v)).join(' ');
+  const lx=tx(values.length-1,values.length);const ly=ty(values[values.length-1]);
+  return'<svg width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'" style="overflow:visible;vertical-align:middle">'+
+    '<rect x="'+pad+'" y="'+bandY1+'" width="'+W+'" height="'+Math.max(bandH,1)+'" fill="'+col+'" opacity="0.1" rx="1"/>'+
+    '<polyline points="'+pts+'" fill="none" stroke="'+col+'" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>'+
+    '<circle cx="'+lx+'" cy="'+ly+'" r="2.5" fill="'+col+'"/>'+
+    '</svg>';
+}
+
+function renderSparklines(patient){
+  const row=el('sparklineRow');if(!row)return;
+  if(!patient){row.innerHTML='';return;}
+  const specs=[
+    {field:'haemoglobin',label:'Hb',unit:'g/L',lo:120,hi:170,col:'#3b82f6'},
+    {field:'haematocrit',label:'HCT',unit:'L/L',lo:0.36,hi:0.52,col:'#0d9488'},
+    {field:'whiteCellCount',label:'WCC',unit:'×10⁹',lo:4,hi:11,col:'#f97316'},
+    {field:'plateletCount',label:'Plt',unit:'×10⁹',lo:150,hi:400,col:'#a855f7'}
+  ];
+  const hasData=specs.some(s=>buildSparklineData(patient,s.field).length>=2);
+  if(!hasData){row.innerHTML='<span class="sparkline-no-data">No trend data yet — available after 2+ visits</span>';return;}
+  row.innerHTML=specs.map(s=>{
+    const vals=buildSparklineData(patient,s.field);
+    const last=vals.length?vals[vals.length-1].toFixed(s.field==='haematocrit'?2:0):'–';
+    return'<div class="sparkline-item"><span class="sparkline-label">'+s.label+'</span>'+renderSparklineSvg(vals,s.lo,s.hi,s.col,80,32)+'<span class="sparkline-val" style="color:'+s.col+'">'+last+'</span></div>';
+  }).join('');
+}
+
+/* ===== MPN-10 QUESTIONNAIRE ===== */
+const MPN10_ITEMS=[
+  {key:'fatigue',label:'Fatigue'},{key:'earlySatiety',label:'Early satiety'},
+  {key:'abdominalDiscomfort',label:'Abdominal discomfort'},{key:'inactivity',label:'Inactivity'},
+  {key:'concentration',label:'Concentration problems'},{key:'nightSweats',label:'Night sweats'},
+  {key:'itching',label:'Itching (pruritis)'},{key:'boneMuscleAches',label:'Bone/muscle aches'},
+  {key:'fever',label:'Fever'},{key:'weightLoss',label:'Unintentional weight loss'}
+];
+
+function renderMpn10Form(d){
+  d=d||{};
+  const items=MPN10_ITEMS.map(item=>{
+    const val=d[item.key]!=null?d[item.key]:0;
+    return'<div class="mpn10-item"><span class="mpn10-item-label">'+item.label+'</span>'+
+      '<div class="mpn10-slider-wrap"><span class="mpn10-num">0</span>'+
+      '<input type="range" min="0" max="10" value="'+val+'" class="mpn10-slider" data-key="'+item.key+'" oninput="updateMpn10Total()">'+
+      '<span class="mpn10-num">10</span></div>'+
+      '<span class="mpn10-val" id="mpn10_'+item.key+'">'+val+'</span></div>';
+  }).join('');
+  return'<div class="mpn10-grid" style="margin-top:8px;">'+items+'</div>'+
+    '<div class="mpn10-total-row">Total MPN-10 score: <strong id="mpn10Total">0</strong> / 100 — <span id="mpn10Label">Low symptom burden</span></div>'+
+    '<label style="margin-top:8px;">Additional notes<textarea id="mpn10FreeText" style="min-height:40px;">'+(d.freeTextOverride||'')+'</textarea></label>';
+}
+
+window.updateMpn10Total=function(){
+  let total=0;
+  document.querySelectorAll('.mpn10-slider').forEach(s=>{const v=parseInt(s.value)||0;total+=v;const k=s.getAttribute('data-key');const e=el('mpn10_'+k);if(e)e.textContent=v;});
+  const te=el('mpn10Total');const le=el('mpn10Label');
+  if(te)te.textContent=total;
+  if(le)le.textContent=total<10?'Low symptom burden':total<20?'Moderate symptom burden':'High symptom burden — consider treatment review';
+  renderLetter();
+};
+
+function getMpn10Values(){
+  const r={};let total=0;
+  MPN10_ITEMS.forEach(item=>{const s=document.querySelector('.mpn10-slider[data-key="'+item.key+'"]');const v=s?parseInt(s.value)||0:0;r[item.key]=v;total+=v;});
+  r.total=total;r.freeTextOverride=(el('mpn10FreeText')?el('mpn10FreeText').value.trim():'');
+  return r;
+}
+
+function getMpn10ScoreForLetter(){
+  let total=0;
+  document.querySelectorAll('.mpn10-slider').forEach(s=>total+=parseInt(s.value)||0);
+  const label=total<10?'Low':total<20?'Moderate':'High';
+  const ft=el('mpn10FreeText')?el('mpn10FreeText').value.trim():'';
+  return'MPN-10 Total Score: '+total+'/100 ('+label+' symptom burden)'+(ft?' — '+ft:'');
+}
+
+/* ===== NAVIGATION ===== */
+const pageDescs={dashboard:'Overview of your virtual clinic',clinic:'Run your virtual clinic session',database:'Manage patient records',history:'View past clinic sessions',settings:'Configure headers, signatures, and OneDrive sync',instructions:'How to use every feature of this app'};
+
+function switchView(view){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  const t=el('view-'+view);if(t)t.classList.add('active');
+  const b=document.querySelector('.nav-btn[data-view="'+view+'"]');if(b)b.classList.add('active');
+  const titles={dashboard:'Dashboard',clinic:'Virtual Clinic',database:'Database',history:'Archived Sessions',settings:'Settings',instructions:'Instructions'};
+  el('pageTitle').textContent=titles[view]||'MPN Virtual Clinic';
+  el('pageDesc').textContent=pageDescs[view]||'';
+}
+
+document.querySelectorAll('.nav-btn').forEach(btn=>btn.addEventListener('click',()=>switchView(btn.getAttribute('data-view'))));
+
+/* ===== CONDITIONAL FIELDS ===== */
+function updateConditionalFields(){
+  const dbDx=el('dbDiagnosis');const dbDxW=el('dbDiagnosisOtherWrap');if(dbDx&&dbDxW)dbDxW.classList.toggle('hidden',dbDx.value!=='Other');
+  const dbVar=el('dbVariant');const dbVarW=el('dbVariantOtherWrap');if(dbVar&&dbVarW)dbVarW.classList.toggle('hidden',dbVar.value!=='Other');
+  const dbThr=el('dbThrombosisType');const dbThrW=el('dbThrombosisOtherWrap');if(dbThr&&dbThrW)dbThrW.classList.toggle('hidden',dbThr.value!=='Other');
+  const dbSup=el('dbSupplyRoute');const dbSupW=el('dbSupplyOtherWrap');if(dbSup&&dbSupW)dbSupW.classList.toggle('hidden',dbSup.value!=='Other');
+  const qModeEl=el('visitQuestionnaireMode');const qMode=qModeEl?qModeEl.value:'';
+  const qWrap=el('visitQuestionnaireWrap');if(qWrap)qWrap.classList.toggle('hidden',qMode!=='Free text');
+  const mpnWrap=el('visitMpn10Wrap');
+  if(mpnWrap){
+    mpnWrap.classList.toggle('hidden',qMode!=='MPN-10');
+    if(qMode==='MPN-10'&&!mpnWrap.querySelector('.mpn10-grid')){mpnWrap.innerHTML=renderMpn10Form();updateMpn10Total();}
+  }
+}
+
+/* ===== SETTINGS ===== */
+function applySettings(){
+  ['head1','head2','head3','head4','head5','head6'].forEach((_,i)=>{const e=el('setting'+(i+1));if(e){const t=el('head'+(i+1));if(t)t.textContent=e.value;}});
+}
+
+/* ===== SIGNATURES ===== */
+function renderSignatures(){
+  const sl=el('signatureList');if(sl)sl.innerHTML=state.signatures.map((s,i)=>'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;"><span style="flex:1;font-size:14px;">'+s+'</span><button class="btn sm danger" onclick="removeSignature('+i+')">Remove</button></div>').join('');
+  const sel=el('visitReviewerSignature');if(!sel)return;const cur=sel.value;
+  sel.innerHTML='<option value="">Select reviewer...</option>'+state.signatures.map(s=>'<option'+(s===cur?' selected':'')+'>'+s+'</option>').join('');
+}
+window.removeSignature=function(i){state.signatures.splice(i,1);markDirty();saveToFile(true);renderSignatures();};
+
+/* ===== AUTO-NEXT REVIEW DATE ===== */
+function autoNextReview(decision,fromDate){
+  const intervals={continue:90,increase:42,reduce:42,stop:14,no_bloods:28};
+  return addDays(fromDate||todayISO(),intervals[decision]||90);
+}
+
+/* ===== PROCESS VISIT SAVE (core logic) ===== */
+function processVisitSave(patient,visitData){
+  const decision=visitData.doseDecision;
+  const regimen=visitData.regimenAfterReview;
+  const visit=Object.assign({id:uid('visit'),patientId:patient.id,hospitalNumber:patient.hospitalNumber,doseAtVisit:patient.currentHydroxy||''},visitData);
+
+  // Store triggered alerts for audit
+  visit.alertsTriggered=evaluateClinicalAlerts({hb:visit.haemoglobin,hct:visit.haematocrit,wcc:visit.whiteCellCount,neut:visit.neutrophilCount,plt:visit.plateletCount},diagnosisDisplay(patient)).map(a=>a.id);
+
+  state.visits.unshift(visit);
+
+  const prevHydroxy=patient.currentHydroxy||'';
+  if(decision==='no_bloods'){
+    patient.missedBloodsConsecutive=(patient.missedBloodsConsecutive||0)+1;
+    patient.missedBloods=(patient.missedBloods||0)+1;
+  } else {
+    patient.missedBloodsConsecutive=0;
+    const prev=patient.currentHydroxy;
+    if(decision==='stop'){patient.hcActive=false;patient.currentHydroxy='';}
+    else if(regimen)patient.currentHydroxy=regimen;
+    if(!Array.isArray(patient.regimenHistory))patient.regimenHistory=[];
+    patient.regimenHistory.push({date:visit.reviewDate,previousDose:prevHydroxy,newDose:decision==='stop'?'STOPPED':(patient.currentHydroxy||''),decision,reviewer:visit.reviewerSignature||'',notes:''});
+  }
+  return visit;
+}
+
+/* ===== REGIMEN HISTORY ===== */
+function renderRegimenHistory(patient){
+  if(!patient||!Array.isArray(patient.regimenHistory)||!patient.regimenHistory.length){return'<div class="small" style="padding:8px;">No regimen changes recorded.</div>';}
+  const clsMap={continue:'completed',increase:'in-progress',reduce:'not-started',stop:'not-started',no_bloods:'not-started'};
+  const rows=[...patient.regimenHistory].reverse().map(h=>'<tr><td>'+formatDate(h.date)+'</td><td style="font-size:12px;">'+(h.previousDose||'–')+'</td><td style="font-size:12px;"><strong>'+(h.newDose||'–')+'</strong></td><td><span class="status '+(clsMap[h.decision]||'not-started')+'">'+h.decision+'</span></td><td>'+(h.reviewer||'–')+'</td></tr>').join('');
+  return'<table><thead><tr><th>Date</th><th>Prev dose</th><th>New dose</th><th>Decision</th><th>Reviewer</th></tr></thead><tbody>'+rows+'</tbody></table>';
+}
+
+function renderRegimenHistoryPanel(patient){
+  const det=el('regimenHistoryDetails');const panel=el('regimenHistoryPanel');const count=el('regimenHistoryCount');
+  if(!det||!panel)return;
+  const hist=patient&&Array.isArray(patient.regimenHistory)?patient.regimenHistory:[];
+  det.style.display=hist.length?'':'none';
+  if(count)count.textContent='('+hist.length+' change'+(hist.length!==1?'s':'')+')';
+  panel.innerHTML=renderRegimenHistory(patient);
+}
+
+/* ===== VISIT HISTORY PANEL ===== */
+function renderVisitHistoryPanel(patient){
+  const panel=el('visitHistoryPanel');const countEl=el('visitHistoryCount');
+  if(!panel){return;}
+  if(!patient){panel.innerHTML='';if(countEl)countEl.textContent='';return;}
+  const visits=state.visits.filter(v=>v.patientId===patient.id).sort((a,b)=>new Date(b.reviewDate)-new Date(a.reviewDate)).slice(0,5);
+  if(countEl)countEl.textContent='('+visits.length+')';
+  if(!visits.length){panel.innerHTML='<div class="small" style="padding:8px;">No previous visits.</div>';return;}
+  const decMap={continue:'✓ Continue',increase:'↑ Increase',reduce:'↓ Reduce',stop:'■ Stop',no_bloods:'✗ No bloods'};
+  const rows=visits.map((v,i)=>'<tr'+(i===0?' style="font-weight:600;"':'')+'>'+
+    '<td>'+formatDate(v.reviewDate)+'</td>'+
+    '<td>'+(v.haemoglobin||'–')+'</td><td>'+(v.haematocrit||'–')+'</td>'+
+    '<td>'+(v.whiteCellCount||'–')+'</td><td>'+(v.plateletCount||'–')+'</td>'+
+    '<td>'+(decMap[v.doseDecision]||v.doseDecision||'–')+'</td></tr>').join('');
+  panel.innerHTML='<table><thead><tr><th>Date</th><th>Hb</th><th>HCT</th><th>WCC</th><th>Plt</th><th>Decision</th></tr></thead><tbody>'+rows+'</tbody></table>';
+}
+
+/* ===== CLINIC PROGRESS ===== */
+function updateClinicProgress(){
+  const total=state.clinic.patients.length;
+  const done=state.clinic.patients.filter(x=>x.status==='completed').length;
+  const pct=total?Math.round((done/total)*100):0;
+  const bar=el('clinicProgressBar');const txt=el('clinicProgressText');
+  if(bar)bar.style.width=pct+'%';
+  if(txt)txt.textContent=done+' / '+total+' complete — '+pct+'%';
+  const cw=el('clinicWorklist_count');if(cw)cw.textContent=total+' patient'+(total!==1?'s':'');
+}
+
+/* ===== PATIENT CRUD ===== */
+function clearPatientForm(){
+  state.editingPatientId=null;el('dbFormTitle').textContent='Add patient';
+  ['dbHospitalNumber','dbFirstName','dbLastName','dbNhsNumber','dbDiagnosisOther','dbVariantOther','dbThrombosisOther','dbThrombosisDose','dbSupplyOther','dbCurrentHydroxy'].forEach(id=>{const e=el(id);if(e)e.value='';});
+  el('dbDob').value='';el('dbYearDiagnosis').value='';
+  el('dbDiagnosis').value='Essential thrombocythaemia';el('dbVariant').value='JAK2';
+  el('dbThrombosisType').value='Aspirin';el('dbSupplyRoute').value='Repeat prescription';
+  renderRegimenHistoryPanel(null);updateConditionalFields();
+}
+
+function savePatient(){
+  const hospNum=el('dbHospitalNumber').value.trim();const first=el('dbFirstName').value.trim();const last=el('dbLastName').value.trim();
+  if(!hospNum||!first||!last){toast('Please enter hospital number, first name, and last name.','warning');return;}
+  const patient={
+    id:state.editingPatientId||uid('pt'),
+    hospitalNumber:hospNum,nhsNumber:el('dbNhsNumber').value.trim(),firstName:first,lastName:last,
+    dob:el('dbDob').value||'',diagnosisType:el('dbDiagnosis').value,diagnosisOther:el('dbDiagnosisOther').value.trim(),
+    yearDiagnosis:el('dbYearDiagnosis').value.trim(),variantType:el('dbVariant').value,variantOther:el('dbVariantOther').value.trim(),
+    thrombosisType:el('dbThrombosisType').value,thrombosisOther:el('dbThrombosisOther').value.trim(),
+    thrombosisDose:el('dbThrombosisDose').value.trim(),supplyRoute:el('dbSupplyRoute').value,supplyOther:el('dbSupplyOther').value.trim(),
+    currentHydroxy:el('dbCurrentHydroxy').value.trim(),
+    regimenHistory:[],hcActive:true,missedBloods:0,missedBloodsConsecutive:0
+  };
+  // Preserve regimenHistory and counters if editing existing
+  const existing=state.patients.find(p=>p.id===patient.id||p.hospitalNumber===patient.hospitalNumber);
+  if(existing){patient.regimenHistory=existing.regimenHistory||[];patient.missedBloods=existing.missedBloods||0;patient.missedBloodsConsecutive=existing.missedBloodsConsecutive||0;patient.hcActive=existing.hcActive!==false;}
+  let found=false;
+  for(let i=0;i<state.patients.length;i++){if(state.patients[i].id===patient.id||state.patients[i].hospitalNumber===patient.hospitalNumber){state.patients[i]=patient;found=true;break;}}
+  if(!found)state.patients.push(patient);
+  state.editingPatientId=patient.id;el('dbFormTitle').textContent='Edit patient';
+  markDirty();saveToFile(true);renderAll();toast('Patient saved.','success');
+}
+
+function editPatient(id){
+  const p=state.patients.find(x=>x.id===id);if(!p)return;
+  state.editingPatientId=p.id;el('dbFormTitle').textContent='Edit patient';
+  el('dbHospitalNumber').value=p.hospitalNumber||'';el('dbNhsNumber').value=p.nhsNumber||'';
+  el('dbFirstName').value=p.firstName||'';el('dbLastName').value=p.lastName||'';
+  el('dbDob').value=p.dob||'';el('dbDiagnosis').value=p.diagnosisType||'Essential thrombocythaemia';
+  el('dbDiagnosisOther').value=p.diagnosisOther||'';el('dbYearDiagnosis').value=p.yearDiagnosis||'';
+  el('dbVariant').value=p.variantType||'JAK2';el('dbVariantOther').value=p.variantOther||'';
+  el('dbThrombosisType').value=p.thrombosisType||'Aspirin';el('dbThrombosisOther').value=p.thrombosisOther||'';
+  el('dbThrombosisDose').value=p.thrombosisDose||'';el('dbSupplyRoute').value=p.supplyRoute||'Repeat prescription';
+  el('dbSupplyOther').value=p.supplyOther||'';el('dbCurrentHydroxy').value=p.currentHydroxy||'';
+  renderRegimenHistoryPanel(p);updateConditionalFields();switchView('database');
+}
+
+function deletePatient(id){
+  const p=state.patients.find(x=>x.id===id);if(!p)return;
+  if(!confirm('Delete '+fullName(p)+' from the database? This cannot be undone.'))return;
+  state.patients=state.patients.filter(x=>x.id!==id);
+  state.clinic.patients=state.clinic.patients.filter(x=>x.patientId!==id);
+  state.archivedClinics=state.archivedClinics.map(c=>({...c,patients:c.patients.filter(x=>x.patientId!==id)}));
+  if(state.selectedPatientId===id)clearVisitFields();
+  markDirty();saveToFile(true);renderAll();toast('Patient deleted.','info');
+}
+window.editPatient=editPatient;window.deletePatient=deletePatient;
+
+/* ===== CLINIC PATIENT MANAGEMENT ===== */
+function renderClinicPatientSelect(){
+  const sel=el('clinicPatientSelect');
+  const pts=state.patients.slice().sort((a,b)=>fullName(a).localeCompare(fullName(b)));
+  sel.innerHTML='<option value="">Select patient...</option>'+pts.map(p=>'<option value="'+p.id+'">'+fullName(p)+' ('+p.hospitalNumber+')</option>').join('');
+}
+
+function addPatientToClinic(id){
+  if(!id)return;
+  if(state.clinic.patients.some(x=>x.patientId===id)){toast('Patient already in clinic.','warning');return;}
+  state.clinic.patients.push({patientId:id,status:'not started',visitId:''});
+  markDirty();saveToFile(true);renderAll();toast('Patient added to clinic.','success');
+}
+window.addPatientToClinic=addPatientToClinic;
+
+function removePatientFromClinic(patientId){
+  const p=state.patients.find(x=>x.id===patientId);
+  if(!confirm('Remove '+(p?fullName(p):'this patient')+' from the clinic list?'))return;
+  state.clinic.patients=state.clinic.patients.filter(x=>x.patientId!==patientId);
+  if(state.selectedPatientId===patientId)clearVisitFields();
+  markDirty();saveToFile(true);renderAll();
+}
+window.removePatientFromClinic=removePatientFromClinic;
+
+function renderClinicSearch(){
+  const term=el('clinicPatientSearch').value.trim().toLowerCase();const container=el('clinicSearchResults');
+  if(!term){container.innerHTML='';return;}
+  const rows=state.patients.filter(p=>(fullName(p)+' '+p.hospitalNumber).toLowerCase().includes(term));
+  container.innerHTML=rows.slice(0,6).map(p=>{
+    const inClinic=state.clinic.patients.some(x=>x.patientId===p.id);
+    return'<div class="card" style="padding:10px;margin:4px 0;"><strong>'+fullName(p)+'</strong> ('+p.hospitalNumber+') · <span class="small">'+diagnosisDisplay(p)+'</span>'+(inClinic?' <span class="status completed" style="font-size:10px;">In clinic</span>':' <button class="btn soft sm" onclick="addPatientToClinic(\''+p.id+'\')">Add</button>')+'</div>';
+  }).join('')||(term?'<div class="small">No matches.</div>':'');
+}
+
+function renderClinicTable(){
+  const body=el('clinicTableBody');
+  body.innerHTML=state.clinic.patients.map((entry,i)=>{
+    const p=state.patients.find(x=>x.id===entry.patientId);if(!p)return'';
+    const cls=entry.status==='completed'?'completed':entry.status==='in progress'?'in-progress':'not-started';
+    const isSelected=state.selectedPatientId===p.id;
+    const missedBadge=(p.missedBloodsConsecutive||0)>=2?'<span class="missed-bloods-badge">⚠ Missed ×'+p.missedBloodsConsecutive+'</span>':'';
+    return'<tr'+(isSelected?' style="background:var(--blue-light);"':'')+'>'+
+      '<td>'+(i+1)+'</td>'+
+      '<td><strong>'+fullName(p)+'</strong>'+missedBadge+'</td>'+
+      '<td>'+p.hospitalNumber+'</td>'+
+      '<td>'+diagnosisDisplay(p)+'</td>'+
+      '<td style="font-size:12px;">'+((p.currentHydroxy||'').substring(0,60)||(entry.status==='completed'?'See visit':''))+'</td>'+
+      '<td><span class="status '+cls+'">'+entry.status+'</span></td>'+
+      '<td>'+(entry.status==='completed'&&entry.visitId
+        ?'<button class="btn soft sm" onclick="viewCompletedVisit(\''+entry.visitId+'\')">View letter</button>'
+        :'<button class="btn soft sm" onclick="startClinicReview(\''+p.id+'\')">Review</button>')+' '+
+      '<button class="btn sm" onclick="removePatientFromClinic(\''+p.id+'\')">Remove</button></td></tr>';
+  }).join('')||'<tr><td colspan="7" class="small" style="text-align:center;padding:20px;">No patients in this clinic session. Add patients using the panel above.</td></tr>';
+  updateClinicProgress();
+}
+
+/* ===== VISIT FORM ===== */
+function resetVisitFormFields(){
+  ['visitBloodDate','visitHaemoglobin','visitHaematocrit','visitWcc','visitNeutrophils','visitPlatelets','visitRegimenAfterReview','visitNextReview','visitQuestionnaireText'].forEach(id=>{const e=el(id);if(e)e.value='';});
+  el('visitDoseDecision').value='';el('visitQuestionnaireMode').value='None';el('visitReviewerSignature').value='';
+  el('visitSelectedPatient').value='';el('visitHospitalNumber').value='';el('visitCurrentHydroxy').value='';
+  ['hbFlag','hctFlag','wccFlag','neutFlag','pltFlag'].forEach(id=>{const f=el(id);if(f){f.textContent='';f.className='field-hint';}});
+  ['visitHaemoglobin','visitHaematocrit','visitWcc','visitNeutrophils','visitPlatelets'].forEach(id=>{const e=el(id);if(e)e.classList.remove('warn','alert');});
+  const rh=el('regimenHint');if(rh){rh.textContent='';rh.className='field-hint';}
+  const nh=el('nextReviewHint');if(nh)nh.textContent='';
+  const mpnWrap=el('visitMpn10Wrap');if(mpnWrap)mpnWrap.innerHTML='';
+  const alertsPanel=el('alertsPanel');if(alertsPanel){alertsPanel.innerHTML='';alertsPanel.classList.add('hidden');}
+  const vc=el('visitVenesection');if(vc)vc.checked=false;const vvw=el('venesectionVolumeWrap');if(vvw)vvw.classList.add('hidden');const vvol=el('visitVenesectionVolume');if(vvol)vvol.value='';
+  const vw=el('venesectionWrap');if(vw)vw.classList.add('hidden');const hctHint=el('hctTargetHint');if(hctHint)hctHint.textContent='';
+  const mbw=el('missedBloodsWarning');if(mbw)mbw.classList.add('hidden');
+  const rb=el('rebookNotice');if(rb)rb.classList.add('hidden');
+  updateConditionalFields();
+}
+
+function selectPatientForVisit(id){
+  const p=state.patients.find(x=>x.id===id);if(!p)return;
+  resetVisitFormFields();
+  state.selectedPatientId=p.id;
+  el('visitSelectedPatient').value=fullName(p);el('visitHospitalNumber').value=p.hospitalNumber;
+  el('visitCurrentHydroxy').value=p.currentHydroxy||'';
+  el('visitPatientIndicator').textContent='Reviewing: '+fullName(p);
+  el('visitReviewDate').value=todayISO();
+  el('bloodFieldsWrap').classList.remove('hidden');el('regimenFieldsWrap').classList.remove('hidden');el('questionnaireFieldsWrap').classList.remove('hidden');
+  el('letterBodyNormal').classList.remove('hidden');el('letterBodyRebook').classList.add('hidden');el('letterRemindersNormal').classList.remove('hidden');
+  state.visitFormDirty=false;
+  // PV-specific: show venesection section
+  const isPV=diagnosisDisplay(p).toLowerCase().includes('polycythaemia');
+  const vw=el('venesectionWrap');if(vw)vw.classList.toggle('hidden',!isPV);
+  // HCT target hint
+  const hctHint=el('hctTargetHint');if(hctHint)hctHint.textContent=isPV?'PV target: ≤0.45':'';
+  // Missed bloods warning
+  const mbw=el('missedBloodsWarning');if(mbw)mbw.classList.toggle('hidden',(p.missedBloodsConsecutive||0)<2);
+  renderSparklines(p);renderVisitHistoryPanel(p);renderLetter();
+}
+
+function startClinicReview(id){
+  if(state.visitFormDirty&&state.selectedPatientId&&state.selectedPatientId!==id){
+    const cp=state.patients.find(x=>x.id===state.selectedPatientId);
+    if(!confirm('You have unsaved changes for '+(cp?fullName(cp):'the current patient')+'. Switch anyway?'))return;
+  }
+  const row=state.clinic.patients.find(x=>x.patientId===id);
+  if(row&&row.status==='not started'){row.status='in progress';markDirty();}
+  selectPatientForVisit(id);renderClinicTable();
+  el('printWrap').scrollIntoView({behavior:'smooth',block:'start'});
+}
+window.startClinicReview=startClinicReview;
+
+function clearVisitFields(){
+  state.selectedPatientId=null;state.visitFormDirty=false;
+  resetVisitFormFields();
+  el('visitReviewDate').value=todayISO();
+  el('visitPatientIndicator').textContent='Select a patient from the worklist above';
+  el('bloodFieldsWrap').classList.remove('hidden');el('regimenFieldsWrap').classList.remove('hidden');el('questionnaireFieldsWrap').classList.remove('hidden');
+  el('letterBodyNormal').classList.remove('hidden');el('letterBodyRebook').classList.add('hidden');el('letterRemindersNormal').classList.remove('hidden');
+  document.title='MPN Virtual Clinic';
+  renderSparklines(null);renderVisitHistoryPanel(null);renderLetter();
+}
+
+function readVisit(){
+  const p=currentPatient();if(!p)return null;
+  const decision=el('visitDoseDecision').value;const regimen=el('visitRegimenAfterReview').value.trim();
+  const qMode=el('visitQuestionnaireMode').value;
+  return{
+    patientId:p.id,hospitalNumber:p.hospitalNumber,
+    reviewDate:el('visitReviewDate').value||todayISO(),
+    bloodTestDate:el('visitBloodDate').value||'',
+    haemoglobin:el('visitHaemoglobin').value||'',haematocrit:el('visitHaematocrit').value||'',
+    whiteCellCount:el('visitWcc').value||'',neutrophilCount:el('visitNeutrophils').value||'',
+    plateletCount:el('visitPlatelets').value||'',
+    questionnaireMode:qMode,
+    questionnaireText:qMode==='Free text'?el('visitQuestionnaireText').value.trim():'',
+    mpn10:qMode==='MPN-10'?getMpn10Values():null,
+    currentHydroxy:p.currentHydroxy||'',doseDecision:decision,regimenAfterReview:regimen,
+    doseAlterationWording:composeDoseWording(decision,regimen),
+    nextVirtualAppointmentDate:el('visitNextReview').value||'',
+    reviewerSignature:el('visitReviewerSignature').value||'',pdfFilename:fileNameForVisit(p),
+    venesectionPerformed:!!(el('visitVenesection')&&el('visitVenesection').checked),
+    venesectionVolume:(el('visitVenesectionVolume')?el('visitVenesectionVolume').value.trim():'')
+  };
+}
+
+function saveVisit(markComplete){
+  const p=currentPatient();
+  if(!p){toast('Select a patient from the worklist first.','warning');return;}
+  const decision=el('visitDoseDecision').value;const regimen=el('visitRegimenAfterReview').value.trim();
+  if(!el('visitReviewDate').value){toast('Please enter a review date.','warning');return;}
+  if(!decision){toast('Please select a dose decision.','warning');return;}
+  if(decision!=='no_bloods'){
+    if(!el('visitBloodDate').value){toast('Please enter the date of the blood test.','warning');return;}
+    if(decision!=='stop'&&!regimen){toast('Please enter the hydroxycarbamide regimen.','warning');return;}
+  }
+  if(!el('visitNextReview').value){toast('Please enter the next virtual review date.','warning');return;}
+  if(!el('visitReviewerSignature').value){toast('Please select a reviewer signature.','warning');return;}
+  const visitData=readVisit();
+  const visit=processVisitSave(p,visitData);
+  const row=state.clinic.patients.find(x=>x.patientId===p.id);
+  if(row){row.visitId=visit.id;if(markComplete)row.status='completed';}
+  state.visitFormDirty=false;
+  markDirty();saveToFile(true);renderAll();
+  toast('Visit saved. PDF filename: '+visit.pdfFilename,'success');
+}
+
+/* ===== ARCHIVE ===== */
+function formatDecisionSummary(decision,regimen){
+  const m={continue:'Continue',increase:'Increase',reduce:'Reduce',stop:'Stop HC',no_bloods:'No bloods — rebooked'};
+  return(m[decision]||decision)+(regimen&&decision!=='stop'?' – '+regimen:'');
+}
+
+function archiveClinic(){
+  const completeRows=state.clinic.patients.filter(x=>x.status==='completed');
+  if(!completeRows.length){toast('No completed patients to archive.','warning');return;}
+  const total=state.clinic.patients.length;
+  if(!confirm('Archive this clinic session?\n\n'+completeRows.length+' of '+total+' patient'+(total!==1?'s':'')+' completed.\n\nCompleted patients will be moved to Archived Sessions. This cannot be undone.'))return;
+  state.archivedClinics.unshift({
+    id:uid('clinic'),title:state.clinic.title||'MPN Virtual Clinic',
+    date:state.clinic.date||todayISO(),notes:state.clinic.notes||'',
+    patients:completeRows.map(entry=>{
+      const p=state.patients.find(x=>x.id===entry.patientId);const v=state.visits.find(x=>x.id===entry.visitId);
+      return{patientId:entry.patientId,visitId:entry.visitId,name:p?fullName(p):'',hospitalNumber:p?p.hospitalNumber:'',doseDecision:v?(v.doseDecision||''):'',regimenAfterReview:v?(v.regimenAfterReview||''):'',doseDecisionSummary:v?formatDecisionSummary(v.doseDecision,v.regimenAfterReview):''};
+    })
+  });
+  state.clinic.patients=state.clinic.patients.filter(x=>x.status!=='completed');
+  if(!state.clinic.patients.length)state.clinic={title:'MPN Virtual Clinic',date:nextThursdayISO(),notes:'',patients:[]};
+  clearVisitFields();markDirty();saveToFile(true);renderAll();toast('Completed patients archived.','success');
+}
+
+function openArchivedVisit(id){
+  const visit=state.visits.find(v=>v.id===id);if(!visit){toast('Visit not found.','error');return;}
+  const p=state.patients.find(x=>x.id===visit.patientId);if(!p){toast('Patient not found.','error');return;}
+  resetVisitFormFields();
+  state.selectedPatientId=p.id;
+  el('visitSelectedPatient').value=fullName(p);el('visitHospitalNumber').value=p.hospitalNumber;
+  el('visitReviewDate').value=visit.reviewDate||'';el('visitBloodDate').value=visit.bloodTestDate||'';
+  el('visitHaemoglobin').value=visit.haemoglobin||'';el('visitHaematocrit').value=visit.haematocrit||'';
+  el('visitWcc').value=visit.whiteCellCount||'';el('visitNeutrophils').value=visit.neutrophilCount||'';
+  el('visitPlatelets').value=visit.plateletCount||'';el('visitCurrentHydroxy').value=visit.currentHydroxy||'';
+  el('visitDoseDecision').value=visit.doseDecision||'';el('visitRegimenAfterReview').value=visit.regimenAfterReview||'';
+  el('visitNextReview').value=visit.nextVirtualAppointmentDate||'';
+  el('visitQuestionnaireMode').value=visit.questionnaireMode||'None';
+  el('visitQuestionnaireText').value=visit.questionnaireText||'';
+  el('visitReviewerSignature').value=visit.reviewerSignature||'';
+  el('visitPatientIndicator').textContent='Viewing archived visit: '+fullName(p);
+  if(visit.mpn10&&visit.questionnaireMode==='MPN-10'){const w=el('visitMpn10Wrap');if(w){w.innerHTML=renderMpn10Form(visit.mpn10);updateMpn10Total();}}
+  updateConditionalFields();updateDoseDecisionUI();flagBloodCounts();
+  renderSparklines(p);renderVisitHistoryPanel(p);renderLetter();
+  switchView('clinic');
+}
+window.openArchivedVisit=openArchivedVisit;
+
+function viewCompletedVisit(visitId){
+  openArchivedVisit(visitId);
+  setTimeout(()=>{const pw=el('printWrap');if(pw)pw.scrollIntoView({behavior:'smooth',block:'start'});},100);
+}
+window.viewCompletedVisit=viewCompletedVisit;
+
+function deleteArchivedClinic(id){
+  const c=state.archivedClinics.find(x=>x.id===id);if(!c)return;
+  if(!confirm('Delete archived session from '+(c.date||'unknown date')+'?'))return;
+  state.archivedClinics=state.archivedClinics.filter(x=>x.id!==id);
+  markDirty();saveToFile(true);renderAll();toast('Archived session deleted.','info');
+}
+window.deleteArchivedClinic=deleteArchivedClinic;
+
+/* ===== CLINIC EXPORT FOR SECRETARY ===== */
+function buildClinicReport(){
+  const completed=state.clinic.patients.filter(x=>x.status==='completed');
+  if(!completed.length)return null;
+  const rows=completed.map((entry,i)=>{
+    const p=state.patients.find(x=>x.id===entry.patientId);const v=state.visits.find(x=>x.id===entry.visitId);
+    if(!p||!v)return null;return{index:i+1,patient:p,visit:v};
+  }).filter(Boolean);
+  const reviewers=[...new Set(rows.map(r=>r.visit.reviewerSignature).filter(Boolean))];
+  return{title:state.clinic.title||'MPN Virtual Clinic',date:formatDate(state.clinic.date||todayISO()),reviewers,rows};
+}
+
+function clinicReportHTML(report){
+  const rows=report.rows.map(r=>{
+    const p=r.patient;const v=r.visit;
+    return'<div style="page-break-inside:avoid;margin-bottom:18pt;">'+
+      '<h3 style="font-size:12pt;margin:12pt 0 4pt;border-bottom:1px solid #999;padding-bottom:3pt;">'+
+      r.index+'. '+fullName(p)+'&nbsp;&nbsp;<span style="font-weight:normal;font-size:10pt;color:#555;">Hospital No: '+p.hospitalNumber+'</span></h3>'+
+      '<table style="border-collapse:collapse;width:100%;font-size:10pt;">'+
+      '<tr><td style="border:1px solid #ccc;padding:3pt 6pt;background:#f5f5f5;font-weight:600;width:35%;">Diagnosis</td><td style="border:1px solid #ccc;padding:3pt 6pt;">'+diagnosisDisplay(p)+' | '+variantDisplay(p)+(p.yearDiagnosis?' | Dx '+p.yearDiagnosis:'')+'</td></tr>'+
+      '<tr><td style="border:1px solid #ccc;padding:3pt 6pt;background:#f5f5f5;font-weight:600;">Blood test date</td><td style="border:1px solid #ccc;padding:3pt 6pt;">'+formatDate(v.bloodTestDate)+'</td></tr>'+
+      '<tr><td style="border:1px solid #ccc;padding:3pt 6pt;background:#f5f5f5;font-weight:600;">Blood results</td><td style="border:1px solid #ccc;padding:3pt 6pt;">Hb '+(v.haemoglobin||'–')+' g/L | HCT '+(v.haematocrit||'–')+' | WCC '+(v.whiteCellCount||'–')+' ×10⁹/L | Neut '+(v.neutrophilCount||'–')+' | Plt '+(v.plateletCount||'–')+' ×10⁹/L</td></tr>'+
+      '<tr><td style="border:1px solid #ccc;padding:3pt 6pt;background:#f5f5f5;font-weight:600;">Decision</td><td style="border:1px solid #ccc;padding:3pt 6pt;"><strong>'+(v.doseDecision||'–')+'</strong></td></tr>'+
+      '<tr><td style="border:1px solid #ccc;padding:3pt 6pt;background:#f5f5f5;font-weight:600;">New regimen</td><td style="border:1px solid #ccc;padding:3pt 6pt;">'+(v.regimenAfterReview||v.currentHydroxy||'–')+'</td></tr>'+
+      '<tr><td style="border:1px solid #ccc;padding:3pt 6pt;background:#f5f5f5;font-weight:600;">Next review</td><td style="border:1px solid #ccc;padding:3pt 6pt;">'+formatDate(v.nextVirtualAppointmentDate)+'</td></tr>'+
+      '<tr><td style="border:1px solid #ccc;padding:3pt 6pt;background:#f5f5f5;font-weight:600;">Reviewer</td><td style="border:1px solid #ccc;padding:3pt 6pt;">'+(v.reviewerSignature||'–')+'</td></tr>'+
+      '</table></div>';
+  }).join('');
+  return'<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:Calibri,Arial,sans-serif;font-size:11pt;margin:20mm 25mm;color:#111;}h1{font-size:15pt;}h2{font-size:12pt;color:#333;margin-bottom:2pt;}hr{border-top:2px solid #333;margin:10pt 0;}</style></head><body>'+
+    '<h1>'+report.title+'</h1><h2>Date: '+report.date+'</h2><p style="font-size:10pt;">Reviewers: '+report.reviewers.join(', ')+'&nbsp;|&nbsp;Patients reviewed: '+report.rows.length+'</p><hr>'+rows+'</body></html>';
+}
+
+function clinicReportText(report){
+  const lines=[report.title,'Date: '+report.date,'Reviewers: '+report.reviewers.join(', '),'Patients reviewed: '+report.rows.length,'='.repeat(60),''];
+  report.rows.forEach(r=>{
+    const p=r.patient;const v=r.visit;
+    lines.push(r.index+'. '+fullName(p)+'  (Hospital: '+p.hospitalNumber+')','   Diagnosis: '+diagnosisDisplay(p)+' | '+variantDisplay(p)+(p.yearDiagnosis?' | Dx '+p.yearDiagnosis:''),'   Bloods taken: '+formatDate(v.bloodTestDate),'   Hb '+(v.haemoglobin||'–')+' g/L | HCT '+(v.haematocrit||'–')+' | WCC '+(v.whiteCellCount||'–')+' ×10⁹/L | Neut '+(v.neutrophilCount||'–')+' | Plt '+(v.plateletCount||'–')+' ×10⁹/L','   Decision: '+(v.doseDecision||'–')+' — '+(v.regimenAfterReview||v.currentHydroxy||''),'   Next review: '+formatDate(v.nextVirtualAppointmentDate),'   Reviewer: '+(v.reviewerSignature||'–'),'');
+  });
+  return lines.join('\n');
+}
+
+function downloadClinicReport(format){
+  const report=buildClinicReport();
+  if(!report){toast('No completed patients to export.','warning');return;}
+  if(format==='html')downloadText(clinicReportHTML(report),'mpn_clinic_report_'+todayISO()+'.html','text/html');
+  else downloadText(clinicReportText(report),'mpn_clinic_report_'+todayISO()+'.txt','text/plain');
+  toast('Clinic report exported.','success');
+}
+
+/* ===== RENDER FUNCTIONS ===== */
+function renderHistory(){
+  const container=el('historyAccordion');
+  el('archiveCount').textContent=state.archivedClinics.length+' session'+(state.archivedClinics.length!==1?'s':'');
+  if(!state.archivedClinics.length){container.innerHTML='<div class="small" style="padding:20px;text-align:center;">No archived sessions yet.</div>';return;}
+  container.innerHTML=state.archivedClinics.map(c=>{
+    const patientRows=c.patients.map(p=>{
+      const summary=p.doseDecisionSummary||p.doseDecision||'';const reviewBtn=p.visitId?'<button class="btn sm soft" onclick="openArchivedVisit(\''+p.visitId+'\')">Open visit</button>':'';
+      return'<div class="session-patient"><div><strong>'+p.name+'</strong> <span class="small">('+p.hospitalNumber+')</span>'+(summary?'<br><span class="small">'+summary+'</span>':'')+'</div><div>'+reviewBtn+'</div></div>';
+    }).join('');
+    return'<details class="archive-session"><summary><div class="session-meta"><span>'+formatDate(c.date)+' — '+c.title+'</span><span class="session-count">'+c.patients.length+' patient'+(c.patients.length!==1?'s':'')+'</span></div><button class="btn sm soft" onclick="event.stopPropagation();downloadArchivedClinicLetters(\''+c.id+'\')">📋 Export letters (Word)</button> <button class="btn sm danger" onclick="event.stopPropagation();deleteArchivedClinic(\''+c.id+'\')">Delete</button></summary><div class="session-body">'+patientRows+'</div></details>';
+  }).join('');
+}
+
+function renderDatabaseTable(){
+  const term=el('databaseSearch').value.trim().toLowerCase();
+  const rows=state.patients.filter(p=>!term||(fullName(p)+' '+p.hospitalNumber+' '+diagnosisDisplay(p)+' '+(p.currentHydroxy||'')+' '+(p.nhsNumber||'')).toLowerCase().includes(term));
+  el('dbCount').textContent=rows.length+' of '+state.patients.length+' patients';
+  el('databaseTableBody').innerHTML=rows.map(p=>{
+    const missed=(p.missedBloodsConsecutive||0)>=2?'<span class="missed-bloods-badge">⚠ Missed ×'+p.missedBloodsConsecutive+'</span>':'';
+    const stopped=p.hcActive===false?'<span class="status not-started" style="font-size:10px;">HC stopped</span>':'';
+    return'<tr>'+
+      '<td><strong>'+fullName(p)+'</strong>'+(p.nhsNumber?'<br><span class="small">NHS: '+p.nhsNumber+'</span>':'')+missed+stopped+'</td>'+
+      '<td>'+p.hospitalNumber+'</td>'+
+      '<td>'+diagnosisDisplay(p)+(p.yearDiagnosis?' <span class="small">('+p.yearDiagnosis+')</span>':'')+'</td>'+
+      '<td style="font-size:12px;">'+(p.currentHydroxy||'—')+'</td>'+
+      '<td><button class="btn sm soft" onclick="editPatient(\''+p.id+'\')">Edit</button> <button class="btn sm danger" onclick="deletePatient(\''+p.id+'\')">Delete</button></td></tr>';
+  }).join('')||'<tr><td colspan="5" class="small" style="text-align:center;padding:20px;">No patients found.</td></tr>';
+}
+
+function renderDashboard(){
+  el('metricPatients').textContent=state.patients.length;el('metricClinic').textContent=state.clinic.patients.length;
+  el('metricDone').textContent=state.clinic.patients.filter(x=>x.status==='completed').length;el('metricVisits').textContent=state.visits.length;
+  const term=el('dashboardSearch').value.trim().toLowerCase();
+  const rows=state.patients.filter(p=>!term||(fullName(p)+' '+p.hospitalNumber+' '+diagnosisDisplay(p)+' '+(p.currentHydroxy||'')).toLowerCase().includes(term));
+  el('dashboardResults').innerHTML=rows.slice(0,6).map(p=>'<div class="card" style="padding:10px;margin:4px 0;"><strong>'+fullName(p)+'</strong> ('+p.hospitalNumber+') · <span class="small">'+diagnosisDisplay(p)+'</span><div style="margin-top:4px;"><button class="btn soft sm" onclick="editPatient(\''+p.id+'\')">Edit</button></div></div>').join('')||'<div class="small">'+(term?'No matches.':'Type to search.')+'</div>';
+  const clinicPts=state.clinic.patients.map(entry=>{const p=state.patients.find(x=>x.id===entry.patientId);return p?'<div style="margin:3px 0;">'+fullName(p)+' <span class="status '+(entry.status==='completed'?'completed':entry.status==='in progress'?'in-progress':'not-started')+'">'+entry.status+'</span></div>':'';}).filter(Boolean).join('');
+  el('dashboardClinicSummary').innerHTML='<div style="font-weight:600;margin-bottom:6px;">'+(state.clinic.title||'MPN Virtual Clinic')+' – '+formatDate(state.clinic.date)+'</div>'+(clinicPts||'<div>No patients in the current clinic.</div>');
+  renderOverdue();
+}
+
+function renderOverdue(){
+  const today=new Date();today.setHours(0,0,0,0);const overdueList=[];
+  state.visits.forEach(v=>{
+    if(!v.nextVirtualAppointmentDate)return;const nextDate=new Date(v.nextVirtualAppointmentDate+'T00:00:00');
+    if(nextDate<=today){
+      const p=state.patients.find(x=>x.id===v.patientId);if(!p)return;
+      const hasNewer=state.visits.some(o=>o.patientId===v.patientId&&o.id!==v.id&&new Date(o.reviewDate)>new Date(v.reviewDate));
+      if(!hasNewer){const daysOverdue=Math.floor((today-nextDate)/(1000*60*60*24));overdueList.push({patient:p,daysOverdue,nextDate:v.nextVirtualAppointmentDate});}
+    }
+  });
+  el('dashboardOverdue').innerHTML=overdueList.length?overdueList.map(o=>'<div class="card" style="padding:10px;margin:4px 0;"><strong>'+fullName(o.patient)+'</strong> ('+o.patient.hospitalNumber+') <span class="overdue-flag">'+o.daysOverdue+' day'+(o.daysOverdue!==1?'s':'')+' overdue</span><br><span class="small">Review was due '+formatDate(o.nextDate)+'</span></div>').join(''):'<div class="small">No overdue reviews detected.</div>';
+}
+
+function renderLetter(){
+  applySettings();const p=currentPatient();
+  if(!p){
+    ['letterName','letterDiagnosis','letterMutation','letterYear','letterCurrentTreatment','letterThrombosis','letterBloodDate','letterQuestionnaire','letterDose','letterNextReview'].forEach(id=>{const e=el(id);if(e)e.textContent='«'+id.replace('letter','')+'»';});
+    ['letterHb','letterWcc','letterNeutrophils','letterPlatelets','letterHct'].forEach(id=>{const e=el(id);if(e)e.textContent='–';});
+    const ls=el('letterSignature');if(ls)ls.textContent='Reviewer signature';
+    document.title='MPN Virtual Clinic';return;
+  }
+  const decision=el('visitDoseDecision').value;const regimen=el('visitRegimenAfterReview').value.trim();
+  const isNoBloods=(decision==='no_bloods');
+  el('letterName').textContent=fullName(p);
+  el('letterBodyNormal').classList.toggle('hidden',isNoBloods);el('letterBodyRebook').classList.toggle('hidden',!isNoBloods);el('letterRemindersNormal').classList.toggle('hidden',isNoBloods);
+  if(isNoBloods){
+    el('letterRebookDiagnosis').textContent=diagnosisDisplay(p);el('letterRebookNextReview').textContent=formatDate(el('visitNextReview').value);
+  } else {
+    el('letterDiagnosis').textContent=diagnosisDisplay(p);el('letterMutation').textContent=variantDisplay(p);el('letterYear').textContent=p.yearDiagnosis||'';
+    el('letterCurrentTreatment').textContent=decision==='stop'?p.currentHydroxy||'':(regimen||p.currentHydroxy||'');
+    el('letterThrombosis').textContent=thrombosisSentence(p);el('letterBloodDate').textContent=formatDate(el('visitBloodDate').value);
+    el('letterHb').textContent=el('visitHaemoglobin').value||'–';el('letterWcc').textContent=el('visitWcc').value||'–';
+    el('letterNeutrophils').textContent=el('visitNeutrophils').value||'–';el('letterPlatelets').textContent=el('visitPlatelets').value||'–';
+    el('letterHct').textContent=el('visitHaematocrit').value||'–';
+    const qMode=el('visitQuestionnaireMode').value;
+    let qText='None';
+    if(qMode==='MPN-10')qText=getMpn10ScoreForLetter()||'None';
+    else if(qMode==='Free text')qText=el('visitQuestionnaireText').value.trim()||'None';
+    el('letterQuestionnaire').textContent=qText;
+    el('letterDose').textContent=composeDoseWording(decision,regimen);el('letterNextReview').textContent=formatDate(el('visitNextReview').value);
+    // Venesection line
+    const vCheck=el('visitVenesection');const lvl=el('letterVenesectionLine');
+    if(lvl){const performed=vCheck&&vCheck.checked;lvl.classList.toggle('hidden',!performed);if(performed){const vol=el('visitVenesectionVolume');const lv=el('letterVenesectionVolume');if(lv)lv.textContent=vol?(vol.value||'–'):'–';}}
+  }
+  el('letterSignature').textContent=el('visitReviewerSignature').value||'Reviewer signature';
+  // Print title
+  document.title='MPN Review — '+fullName(p)+' — '+formatDate(el('visitReviewDate').value||todayISO());
+}
+
+/* ===== COPY ===== */
+function copyVisitSummary(){
+  const p=currentPatient();if(!p){toast('Select a patient first.','warning');return;}
+  const decision=el('visitDoseDecision').value;
+  const lines=['Name: '+fullName(p),'Hospital number: '+p.hospitalNumber,'Diagnosis: '+diagnosisDisplay(p),'Review date: '+(el('visitReviewDate').value||''),'Dose decision: '+(decision||'')];
+  if(decision==='no_bloods'){lines.push('Outcome: No bloods — rebooked');}
+  else{lines.push('Date of blood test: '+(el('visitBloodDate').value||''),'Hb: '+(el('visitHaemoglobin').value||'')+' g/L','HCT: '+(el('visitHaematocrit').value||'')+' L/L','WCC: '+(el('visitWcc').value||'')+' ×10⁹/L','Neut: '+(el('visitNeutrophils').value||'')+' ×10⁹/L','Plt: '+(el('visitPlatelets').value||'')+' ×10⁹/L','Regimen: '+(el('visitRegimenAfterReview').value||''));}
+  lines.push('Next review: '+(el('visitNextReview').value||''),'Reviewer: '+(el('visitReviewerSignature').value||''));
+  navigator.clipboard.writeText(lines.join('\n')).then(()=>toast('Visit summary copied.','success')).catch(()=>toast('Copy failed.','error'));
+}
+
+function copyLetterText(){
+  const p=currentPatient();if(!p){toast('Select a patient first.','warning');return;}
+  const letterEl=el('letterPreview');const clone=letterEl.cloneNode(true);
+  clone.querySelectorAll('.hidden').forEach(h=>h.remove());
+  const plain=clone.innerText;
+  try{
+    const htmlBlob=new Blob([clone.innerHTML],{type:'text/html'});const textBlob=new Blob([plain],{type:'text/plain'});
+    navigator.clipboard.write([new ClipboardItem({'text/html':htmlBlob,'text/plain':textBlob})]).then(()=>toast('Letter copied with formatting.','success')).catch(()=>navigator.clipboard.writeText(plain).then(()=>toast('Letter copied as plain text.','success')).catch(()=>toast('Copy failed.','error')));
+  }catch(e){navigator.clipboard.writeText(plain).then(()=>toast('Letter copied as plain text.','success')).catch(()=>toast('Copy failed.','error'));}
+}
+
+/* ===== LETTER BATCH EXPORT ===== */
+function mpn10ScoreLabel(total){return(total||0)<10?'Low symptom burden':(total||0)<20?'Moderate symptom burden':'High symptom burden';}
+
+function generateLetterHTML(patient,visit){
+  const h=i=>{const e=el('setting'+i);return e?e.value:'';};
+  const name=fullName(patient);
+  const diag=diagnosisDisplay(patient);
+  const mut=variantDisplay(patient);
+  const treat=patient.currentHydroxy||'–';
+  const thromb=thrombosisSentence(patient);
+  const isNoBloods=visit.doseDecision==='no_bloods';
+  let qText='None';
+  if(visit.questionnaireMode==='Free text')qText=visit.questionnaireText||'None';
+  else if(visit.questionnaireMode==='MPN-10'&&visit.mpn10){const t=visit.mpn10.total||0;qText='MPN-10 score: '+t+'/100 ('+mpn10ScoreLabel(t)+')';if(visit.mpn10.freeTextOverride)qText+='. '+visit.mpn10.freeTextOverride;}
+  const venLine=visit.venesectionPerformed?'<p>A venesection of '+(visit.venesectionVolume||'–')+' ml was performed at this appointment.</p>':'';
+  const doseText=visit.doseAlterationWording||composeDoseWording(visit.doseDecision,visit.regimenAfterReview);
+  const td='padding:3px 8px;border:1px solid #888;';
+  const normalBody=`
+    <p><strong>Diagnosis:</strong> ${diag}<br><strong>Driver Mutation:</strong> ${mut}<br><strong>Year of Diagnosis:</strong> ${patient.yearDiagnosis||'–'}<br><strong>Current treatment:</strong> ${treat}<br><strong>Thrombosis prophylaxis:</strong> ${thromb}</p>
+    <p>We hope you're keeping well. As part of your ongoing virtual haematology review while you're being treated with hydroxycarbamide for your blood condition, we've looked at your most recent blood test results from <strong>${formatDate(visit.bloodTestDate)}</strong>.</p>
+    <p>These are summarised below:</p>
+    <table style="border-collapse:collapse;width:100%;margin-bottom:8px;">
+      <tr><th style="${td}text-align:left;">Test</th><th style="${td}text-align:left;">Result</th></tr>
+      <tr><td style="${td}">Haemoglobin</td><td style="${td}">${visit.haemoglobin||'–'} g/L</td></tr>
+      <tr><td style="${td}">White Cell Count</td><td style="${td}">${visit.whiteCellCount||'–'} × 10⁹/L</td></tr>
+      <tr><td style="${td}">Neutrophils</td><td style="${td}">${visit.neutrophilCount||'–'} × 10⁹/L</td></tr>
+      <tr><td style="${td}">Platelets</td><td style="${td}">${visit.plateletCount||'–'} × 10⁹/L</td></tr>
+      <tr><td style="${td}">Haematocrit</td><td style="${td}">${visit.haematocrit||'–'} L/L</td></tr>
+    </table>
+    <p><strong>Questionnaire (MPN-10 score and further information):</strong><br>${qText}</p>
+    ${venLine}
+    <p><strong>Based on these results, you are advised to:</strong><br>${doseText}</p>
+    <p>With this letter, you will find:</p>
+    <ul>
+      <li>A prescription to take to your local pharmacy.</li>
+      <li>A new blood test form. Please use this to have your blood taken before your next virtual appointment, which is due by <strong>${formatDate(visit.nextVirtualAppointmentDate)}</strong>. Try to have your blood test done at your local hospital or GP surgery 3 to 5 working days before this date.</li>
+      <li>Symptom check: We recommend completing our short symptom check on the same day you have your blood test.</li>
+    </ul>
+    <p><strong>Important Reminders</strong></p>
+    <p>If you have any concerns about your condition, treatment, or this new review system, do not hesitate to get in touch on the above contact number. Please contact us if you experience:</p>
+    <ul>
+      <li>New or worsening tiredness, dizziness, or breathlessness</li>
+      <li>Unexplained weight loss or loss of appetite</li>
+      <li>Skin ulcers, slow-healing wounds, or suspicious skin lesions</li>
+      <li>Increased bruising, bleeding, or signs of infection</li>
+    </ul>
+    <p>For future reviews, if you don't receive a letter from us within 3 weeks after having your blood test, please get in touch by phone or email.</p>`;
+  const rebookBody=`
+    <p>We had scheduled a virtual review of your condition this month as part of your ongoing care for <strong>${diag}</strong>, which is being managed with hydroxycarbamide.</p>
+    <p>Unfortunately, we were unable to complete your review because we did not receive your blood test results as no sample appears to have been processed. Because of this, we have not been able to safely assess your condition or advise on your current treatment.</p>
+    <p><strong>What Happens Next</strong></p>
+    <p>A new appointment has been scheduled on <strong>${formatDate(visit.nextVirtualAppointmentDate)}</strong>.</p>
+    <p>You will receive a new blood form by post, and we kindly ask you to have your blood test done at least 3–5 days before your next review date. If there are ongoing reasons you are unable to attend for blood tests, please let us know so that we can make alternative arrangements.</p>
+    <p>If blood tests are not received on two consecutive occasions, we will need to return you to the consultant clinic list for in-person review.</p>`;
+  const hdrItems=[h(1),h(2),h(3),h(4),h(5),h(6)].filter(Boolean).map((v,i)=>i===0?`<div style="font-size:14pt;font-weight:bold;">${v}</div>`:`<div>${v}</div>`).join('');
+  return`<div style="font-family:'Times New Roman',serif;font-size:11pt;line-height:1.5;padding:15mm 20mm;">
+    <div style="border-bottom:2px solid black;padding-bottom:6px;margin-bottom:14px;">${hdrItems}</div>
+    <p>Dear ${name},</p>
+    ${isNoBloods?rebookBody:normalBody}
+    <p>Yours sincerely,</p>
+    <div style="font-weight:600;">${visit.reviewerSignature||'Reviewer signature'}</div>
+  </div>`;
+}
+
+function buildAllLettersHTML(pairs,title){
+  const letterCSS='body{margin:0;font-family:"Times New Roman",serif;}@media print{.pb{page-break-after:always;}}';
+  const body=pairs.map((pair,i)=>generateLetterHTML(pair.patient,pair.visit)+(i<pairs.length-1?'<div class="pb" style="page-break-after:always;border-top:1px dashed #aaa;margin:0;"></div>':'')).join('');
+  return`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title||'MPN Letters'}</title><style>${letterCSS}</style></head><body>${body}</body></html>`;
+}
+
+function downloadCurrentClinicLetters(){
+  const completed=state.clinic.patients.filter(x=>x.status==='completed'&&x.visitId);
+  if(!completed.length){toast('No completed patients to export.','warning');return;}
+  const pairs=completed.map(entry=>{const p=state.patients.find(x=>x.id===entry.patientId);const v=state.visits.find(x=>x.id===entry.visitId);return p&&v?{patient:p,visit:v}:null;}).filter(Boolean);
+  if(!pairs.length){toast('No visit data found.','warning');return;}
+  downloadText(buildAllLettersHTML(pairs,state.clinic.title||'MPN Virtual Clinic'),'mpn_letters_'+todayISO()+'.html','text/html');
+  toast(pairs.length+' letter'+(pairs.length!==1?'s':'')+' exported — open in Word to print.','success');
+}
+
+function downloadArchivedClinicLetters(clinicId){
+  const c=state.archivedClinics.find(x=>x.id===clinicId);if(!c)return;
+  const pairs=c.patients.map(entry=>{const p=state.patients.find(x=>x.id===entry.patientId);const v=state.visits.find(x=>x.id===entry.visitId);return p&&v?{patient:p,visit:v}:null;}).filter(Boolean);
+  if(!pairs.length){toast('No letters found for this session.','warning');return;}
+  downloadText(buildAllLettersHTML(pairs,c.title||'MPN Virtual Clinic'),'mpn_letters_'+c.date+'.html','text/html');
+  toast(pairs.length+' letter'+(pairs.length!==1?'s':'')+' exported — open in Word to print.','success');
+}
+window.downloadArchivedClinicLetters=downloadArchivedClinicLetters;
+
+/* ===== CSV EXPORT ===== */
+function exportPatients(){
+  const headers=['hospital_number','nhs_number','first_name','last_name','date_of_birth','diagnosis_type','diagnosis_other','year_of_diagnosis','molecular_variant_type','molecular_variant_other','antiplatelet_anticoagulant_type','antiplatelet_anticoagulant_other','antiplatelet_anticoagulant_dose','supply_route','supply_route_other','current_hydroxycarbamide_regimen'];
+  const rows=state.patients.map(p=>[p.hospitalNumber,p.nhsNumber||'',p.firstName,p.lastName,p.dob||'',p.diagnosisType,p.diagnosisOther,p.yearDiagnosis,p.variantType,p.variantOther,p.thrombosisType,p.thrombosisOther||'',p.thrombosisDose,p.supplyRoute,p.supplyOther,p.currentHydroxy]);
+  const csv=[headers].concat(rows).map(r=>r.map(csvEscape).join(',')).join('\n');
+  downloadText(csv,'mpn_patients_export_'+todayISO()+'.csv','text/csv');toast('Patients exported.','success');
+}
+
+function exportVisits(){
+  const headers=['hospital_number','review_date','blood_test_date','haemoglobin','haematocrit','white_cell_count','neutrophil_count','platelet_count','questionnaire_mode','questionnaire_text','mpn10_total','current_hydroxycarbamide_regimen','dose_decision','regimen_after_review','dose_alteration_wording','next_virtual_appointment_date','reviewer_signature','pdf_filename'];
+  const rows=state.visits.map(v=>[v.hospitalNumber,v.reviewDate,v.bloodTestDate,v.haemoglobin,v.haematocrit,v.whiteCellCount,v.neutrophilCount,v.plateletCount,v.questionnaireMode,v.questionnaireText,v.mpn10?v.mpn10.total:'',v.currentHydroxy,v.doseDecision||'',v.regimenAfterReview||'',v.doseAlterationWording,v.nextVirtualAppointmentDate,v.reviewerSignature,v.pdfFilename]);
+  const csv=[headers].concat(rows).map(r=>r.map(csvEscape).join(',')).join('\n');
+  downloadText(csv,'mpn_visits_export_'+todayISO()+'.csv','text/csv');toast('Visits exported.','success');
+}
+
+/* ===== JSON EXPORT/IMPORT ===== */
+function serialiseState(){
+  return JSON.stringify({exportDate:new Date().toISOString(),version:'v19',patients:state.patients,visits:state.visits,clinic:state.clinic,archivedClinics:state.archivedClinics,signatures:state.signatures,settings:{head1:el('setting1').value,head2:el('setting2').value,head3:el('setting3').value,head4:el('setting4').value,head5:el('setting5').value,head6:el('setting6').value}},null,2);
+}
+
+function exportJson(){downloadText(serialiseState(),'mpn_clinic_backup_'+todayISO()+'.json','application/json');toast('Full backup exported as JSON.','success');}
+function importJson(){el('importJsonFile').click();}
+
+function handleJsonImport(evt){
+  const file=evt.target.files&&evt.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const data=JSON.parse(e.target.result);
+      if(!confirm('Import backup from '+(data.exportDate?new Date(data.exportDate).toLocaleDateString('en-GB'):'unknown date')+'? This will replace all current data.'))return;
+      applyLoadedData(data);
+      clearPatientForm();clearVisitFields();
+      markDirty();saveToFile(true);renderAll();
+      toast('Backup imported: '+state.patients.length+' patients, '+state.visits.length+' visits.','success');
+    }catch(err){toast('Failed to import. Check the JSON file is valid.','error');}
+  };
+  reader.readAsText(file);evt.target.value='';
+}
+
+/* ===== PERSISTENCE (localStorage fallback) ===== */
+function saveDatabase(){
+  try{
+    const data=serialiseState();localStorage.setItem('mpn_virtual_clinic_database_v3',data);
+    state.dirty=false;state.lastSaved=Date.now();renderSaveIndicator();
+    // Also try to write to file
+    saveToFile(true);
+    toast('Database saved.','success');
+  }catch(err){toast('Could not save to browser storage.','error');}
+}
+
+function loadDatabase(){
+  try{
+    let raw=localStorage.getItem('mpn_virtual_clinic_database_v3')||localStorage.getItem('mpn_virtual_clinic_database_v2')||localStorage.getItem('mpn_virtual_clinic_database_v1');
+    if(!raw){toast('No saved database found in this browser.','warning');return;}
+    applyLoadedData(JSON.parse(raw));
+    clearPatientForm();clearVisitFields();state.dirty=false;state.lastSaved=Date.now();renderAll();
+    toast('Database loaded: '+state.patients.length+' patients, '+state.visits.length+' visits.','success');
+  }catch(err){toast('Could not load saved database.','error');}
+}
+
+function saveDatabaseSilently(){
+  try{localStorage.setItem('mpn_virtual_clinic_database_v3',serialiseState());state.lastSaved=Date.now();}catch(e){}
+}
+
+/* ===== CSV IMPORT ===== */
+function parseCsvLine(line){const out=[];let cur='';let inQ=false;for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'&&line[i+1]==='"'){cur+='"';i++;continue;}if(ch==='"'){inQ=!inQ;continue;}if(ch===','&&!inQ){out.push(cur.trim());cur='';continue;}cur+=ch;}out.push(cur.trim());return out;}
+function normaliseDiagnosis(v){const l=(v||'').trim().toLowerCase();if(l==='polycythaemia vera')return{type:'Polycythaemia vera',other:''};if(l==='essential thrombocythaemia'||l==='essential thrombocythamia')return{type:'Essential thrombocythaemia',other:''};return{type:'Other',other:(v||'').trim()};}
+function normaliseVariant(v){const u=(v||'').trim().toUpperCase();if(['JAK2','CALR','MPL'].includes(u))return{type:u,other:''};if(u==='TRIPLE NEGATIVE')return{type:'Triple negative',other:''};return{type:'Other',other:(v||'').trim()};}
+function normaliseThrombosisType(v){const l=(v||'').trim().toLowerCase();const m={'aspirin':'Aspirin','clopidogrel':'Clopidogrel','apixaban':'Apixaban','warfarin':'Warfarin','rivaroxaban':'Rivaroxaban','edoxaban':'Edoxaban','none':'None'};return m[l]||'Other';}
+function normaliseSupplyRoute(v){const l=(v||'').trim().toLowerCase();if(l==='repeat prescription')return{type:'Repeat prescription',other:''};if(l==='wp10 from haematology')return{type:'WP10 from haematology',other:''};if(l==='purchased over the counter')return{type:'Purchased over the counter',other:''};return{type:'Other',other:(v||'').trim()};}
+
+function normaliseDob(v){
+  if(!v)return'';const s=(v||'').trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+  const m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if(m)return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+  return'';
+}
+
+function importPatients(){
+  const file=el('importFile').files&&el('importFile').files[0];if(!file){toast('Choose a CSV file first.','warning');return;}
+  const reader=new FileReader();
+  reader.onload=function(evt){
+    const text=String(evt.target.result||'');const lines=text.split(/\r?\n/).filter(l=>l.trim());if(lines.length<2){toast('File appears empty.','warning');return;}
+    const headers=parseCsvLine(lines[0]).map(h=>h.trim().toLowerCase());
+    const req={name:headers.indexOf('name'),hospital:headers.indexOf('hospital number'),diagnosis:headers.indexOf('diagnosis'),year:headers.indexOf('year of diagnosis'),driver:headers.indexOf('driver mutation'),hydroxy:headers.indexOf('current hydroxycarbamide dosing regime'),thrombosisType:headers.indexOf('antiplatelet/anticoagulant'),thrombosisDose:headers.indexOf('antiplatelet/anticoagulant dose'),supplyRoute:headers.indexOf('supply route')};
+    const missing=Object.entries(req).filter(([k,v])=>v<0).map(([k])=>k);
+    if(missing.length){toast('Missing columns: '+missing.join(', '),'error');return;}
+    const optIdx={nhs:headers.indexOf('nhs number'),dob:headers.indexOf('date of birth')};
+    let count=0,skipped=0;
+    for(let i=1;i<lines.length;i++){
+      const cols=parseCsvLine(lines[i]);
+      const name=(cols[req.name]||'').trim();const parts=name.split(/\s+/).filter(Boolean);const firstName=parts.shift()||'';const lastName=parts.join(' ');const hospitalNumber=(cols[req.hospital]||'').trim();
+      if(!hospitalNumber||!firstName){skipped++;continue;}
+      const diagnosis=normaliseDiagnosis(cols[req.diagnosis]);const variant=normaliseVariant(cols[req.driver]);const thrombosisType=normaliseThrombosisType(cols[req.thrombosisType]);const supply=normaliseSupplyRoute(cols[req.supplyRoute]);
+      const nhsNumber=optIdx.nhs>=0?(cols[optIdx.nhs]||'').trim():'';
+      const dob=optIdx.dob>=0?normaliseDob(cols[optIdx.dob]):'';
+      const patient={id:uid('pt'),hospitalNumber,nhsNumber,firstName,lastName,dob,diagnosisType:diagnosis.type,diagnosisOther:diagnosis.other,yearDiagnosis:(cols[req.year]||'').trim(),variantType:variant.type,variantOther:variant.other,thrombosisType,thrombosisOther:thrombosisType==='Other'?(cols[req.thrombosisType]||'').trim():'',thrombosisDose:(cols[req.thrombosisDose]||'').trim(),supplyRoute:supply.type,supplyOther:supply.other,currentHydroxy:(cols[req.hydroxy]||'').trim(),regimenHistory:[],hcActive:true,missedBloods:0,missedBloodsConsecutive:0};
+      const existIdx=state.patients.findIndex(p=>p.hospitalNumber===hospitalNumber);
+      if(existIdx>=0){patient.id=state.patients[existIdx].id;patient.regimenHistory=state.patients[existIdx].regimenHistory||[];state.patients[existIdx]=patient;}
+      else state.patients.push(patient);count++;
+    }
+    markDirty();saveToFile(true);renderAll();toast('Imported '+count+' patients'+(skipped?' ('+skipped+' skipped)':''),'success');
+  };
+  reader.readAsText(file);
+}
+
+function downloadPatientTemplate(){
+  const header='Name,Hospital Number,NHS Number,Date of Birth,Diagnosis,Year of Diagnosis,Driver mutation,Current Hydroxycarbamide Dosing Regime,Antiplatelet/anticoagulant,Antiplatelet/anticoagulant dose,Supply route';
+  const example='Jane Smith,123456,1234567890,14/03/1965,Polycythaemia vera,2018,JAK2,Hydroxycarbamide 500mg (1 capsule) once daily,Aspirin,75mg once daily,Repeat prescription';
+  downloadText(header+'\n'+example,'mpn_patient_import_template.csv','text/csv');
+}
+
+function downloadClinicTemplate(){
+  const header='Hospital Number,Patient Name';
+  const example='123456,Jane Smith';
+  downloadText(header+'\n'+example,'mpn_clinic_list_template.csv','text/csv');
+}
+
+function importClinicList(){
+  const file=el('clinicImportFile').files&&el('clinicImportFile').files[0];
+  if(!file){toast('Choose a CSV file first.','warning');return;}
+  const reader=new FileReader();
+  reader.onload=function(evt){
+    const text=String(evt.target.result||'');
+    const lines=text.split(/\r?\n/).filter(l=>l.trim());
+    if(lines.length<2){toast('File appears empty.','warning');return;}
+    const headers=parseCsvLine(lines[0]).map(h=>h.trim().toLowerCase());
+    const hospIdx=headers.indexOf('hospital number');
+    if(hospIdx<0){toast('Column "Hospital Number" not found in file.','error');return;}
+    let added=0,notFound=0,already=0;
+    for(let i=1;i<lines.length;i++){
+      const cols=parseCsvLine(lines[i]);
+      const hospNum=(cols[hospIdx]||'').trim();
+      if(!hospNum)continue;
+      const patient=state.patients.find(p=>p.hospitalNumber===hospNum);
+      if(!patient){notFound++;continue;}
+      if(state.clinic.patients.some(x=>x.patientId===patient.id)){already++;continue;}
+      state.clinic.patients.push({patientId:patient.id,status:'not started',visitId:''});
+      added++;
+    }
+    markDirty();saveToFile(true);renderAll();
+    let msg=added+' patient'+(added!==1?'s':'')+' added to clinic.';
+    if(notFound)msg+=' '+notFound+' hospital number'+(notFound!==1?'s':'')+' not found.';
+    if(already)msg+=' '+already+' already in clinic.';
+    toast(msg,added>0?'success':'warning');
+  };
+  reader.readAsText(file);
+}
+
+/* ===== DEMO DATA ===== */
+function seedDemo(){
+  state.patients=[
+    {id:uid('pt'),hospitalNumber:'123456',nhsNumber:'1234567890',firstName:'Jane',lastName:'Smith',dob:'1965-03-14',diagnosisType:'Polycythaemia vera',diagnosisOther:'',yearDiagnosis:'2018',variantType:'JAK2',variantOther:'',thrombosisType:'Aspirin',thrombosisOther:'',thrombosisDose:'75mg once daily',supplyRoute:'Repeat prescription',supplyOther:'',currentHydroxy:'Hydroxycarbamide 500mg (1 capsule) once daily',regimenHistory:[],hcActive:true,missedBloods:0,missedBloodsConsecutive:0},
+    {id:uid('pt'),hospitalNumber:'223344',nhsNumber:'2233445566',firstName:'David',lastName:'Morgan',dob:'1958-11-22',diagnosisType:'Essential thrombocythaemia',diagnosisOther:'',yearDiagnosis:'2021',variantType:'CALR',variantOther:'',thrombosisType:'Apixaban',thrombosisOther:'',thrombosisDose:'5mg twice daily',supplyRoute:'WP10 from haematology',supplyOther:'',currentHydroxy:'Hydroxycarbamide 500mg (2 capsules) once daily Monday to Friday',regimenHistory:[],hcActive:true,missedBloods:0,missedBloodsConsecutive:0},
+    {id:uid('pt'),hospitalNumber:'334455',nhsNumber:'',firstName:'Helen',lastName:'Thomas',dob:'1972-07-09',diagnosisType:'Other',diagnosisOther:'Myeloproliferative neoplasm, unclassifiable',yearDiagnosis:'2019',variantType:'MPL',variantOther:'',thrombosisType:'Clopidogrel',thrombosisOther:'',thrombosisDose:'75mg once daily',supplyRoute:'Repeat prescription',supplyOther:'',currentHydroxy:'Hydroxycarbamide 500mg (1 capsule) on Monday, Wednesday and Friday',regimenHistory:[],hcActive:true,missedBloods:0,missedBloodsConsecutive:0},
+    {id:uid('pt'),hospitalNumber:'445566',nhsNumber:'4455667788',firstName:'Robert',lastName:'Evans',dob:'1970-02-18',diagnosisType:'Polycythaemia vera',diagnosisOther:'',yearDiagnosis:'2022',variantType:'JAK2',variantOther:'',thrombosisType:'Aspirin',thrombosisOther:'',thrombosisDose:'75mg once daily',supplyRoute:'Repeat prescription',supplyOther:'',currentHydroxy:'Hydroxycarbamide 500mg (1 capsule) once daily Monday to Saturday',regimenHistory:[],hcActive:true,missedBloods:0,missedBloodsConsecutive:0},
+    {id:uid('pt'),hospitalNumber:'556677',nhsNumber:'',firstName:'Margaret',lastName:'Williams',dob:'1955-09-30',diagnosisType:'Essential thrombocythaemia',diagnosisOther:'',yearDiagnosis:'2017',variantType:'JAK2',variantOther:'',thrombosisType:'Rivaroxaban',thrombosisOther:'',thrombosisDose:'20mg once daily',supplyRoute:'WP10 from haematology',supplyOther:'',currentHydroxy:'Hydroxycarbamide 500mg (2 capsules) once daily',regimenHistory:[],hcActive:true,missedBloods:0,missedBloodsConsecutive:0}
+  ];
+  state.visits=[];state.clinic={title:'MPN Virtual Clinic',date:nextThursdayISO(),notes:'',patients:[]};state.archivedClinics=[];
+  clearPatientForm();clearVisitFields();markDirty();saveToFile(true);renderAll();toast('Demo data loaded: 5 patients.','success');
+}
+
+/* ===== RENDER ALL ===== */
+function renderAll(){
+  el('clinicTitle').value=state.clinic.title||'MPN Virtual Clinic';
+  el('clinicDate').value=state.clinic.date||nextThursdayISO();
+  el('clinicNotes').value=state.clinic.notes||'';
+  renderClinicPatientSelect();renderClinicSearch();renderClinicTable();
+  renderDatabaseTable();renderHistory();renderDashboard();renderSignatures();renderLetter();renderSaveIndicator();renderSyncSettings();
+}
+
+/* ===== DOSE DECISION HANDLER ===== */
+function composeDoseWording(decision,regimen){
+  switch(decision){
+    case'continue':return regimen?'Please continue your current hydroxycarbamide regimen: '+regimen+'.':'Please continue your current hydroxycarbamide regimen.';
+    case'increase':return regimen?'Please increase your hydroxycarbamide. Your new regimen is: '+regimen+'.':'Please increase your hydroxycarbamide dose.';
+    case'reduce':return regimen?'Please reduce your hydroxycarbamide. Your new regimen is: '+regimen+'.':'Please reduce your hydroxycarbamide dose.';
+    case'stop':return'Please stop hydroxycarbamide and contact the haematology team for further advice.';
+    case'no_bloods':return'No blood test results received. Patient rebooked for next virtual review.';
+    default:return'';
+  }
+}
+
+function updateDoseDecisionUI(){
+  const decision=el('visitDoseDecision').value;const p=currentPatient();const current=p?(p.currentHydroxy||''):'';
+  const bw=el('bloodFieldsWrap');const rfw=el('regimenFieldsWrap');const rlw=el('visitRegimenWrap');const ri=el('visitRegimenAfterReview');const hint=el('regimenHint');const qw=el('questionnaireFieldsWrap');const isNoBloods=(decision==='no_bloods');
+  bw.classList.toggle('hidden',isNoBloods);rfw.classList.toggle('hidden',isNoBloods);qw.classList.toggle('hidden',isNoBloods);
+  const rb=el('rebookNotice');if(rb)rb.classList.toggle('hidden',!isNoBloods);
+  if(isNoBloods){renderLetter();return;}
+  switch(decision){
+    case'continue':rlw.classList.remove('hidden');ri.value=current;hint.textContent='Auto-populated with current regimen. Edit if needed.';hint.className='field-hint';break;
+    case'increase':rlw.classList.remove('hidden');ri.value='';ri.placeholder='Enter the new increased regimen, e.g. Hydroxycarbamide 500mg (2 capsules) once daily';hint.textContent='Enter the new regimen the patient should follow.';hint.className='field-warning';ri.focus();break;
+    case'reduce':rlw.classList.remove('hidden');ri.value='';ri.placeholder='Enter the new reduced regimen, e.g. Hydroxycarbamide 500mg (1 capsule) Mon, Wed, Fri';hint.textContent='Enter the new regimen the patient should follow.';hint.className='field-warning';ri.focus();break;
+    case'stop':rlw.classList.remove('hidden');ri.value='Stop hydroxycarbamide';hint.textContent='Patient will be advised to stop and contact the team.';hint.className='field-alert';break;
+    default:rlw.classList.remove('hidden');ri.value='';ri.placeholder='e.g. Hydroxycarbamide 500mg (1 capsule) once daily';hint.textContent='';break;
+  }
+  // Auto-suggest next review date if field is empty
+  const nr=el('visitNextReview');const nh=el('nextReviewHint');
+  if(!nr.value&&decision){
+    nr.value=autoNextReview(decision,el('visitReviewDate').value||todayISO());
+    if(nh)nh.textContent='Auto-suggested based on decision. You can override this.';
+  }
+  renderLetter();
+}
+
+/* ===== EVENT BINDINGS ===== */
+safeBind('openClinicBtn','click',()=>switchView('clinic'));
+safeBind('loadDemoBtn','click',seedDemo);
+safeBind('saveDatabaseBtn','click',saveDatabase);
+safeBind('loadDatabaseBtn','click',loadDatabase);
+safeBind('exportPatientsBtn','click',exportPatients);
+safeBind('exportVisitsBtn','click',exportVisits);
+safeBind('exportJsonBtn','click',exportJson);
+safeBind('importJsonBtn','click',importJson);
+safeBind('importJsonFile','change',handleJsonImport);
+safeBind('savePatientDatabaseBtn','click',savePatient);
+safeBind('clearPatientBtn','click',clearPatientForm);
+safeBind('clearVisitBtn','click',function(){if(state.visitFormDirty){if(!confirm('Clear the visit form? Unsaved changes will be lost.'))return;}clearVisitFields();toast('Visit form cleared.','info');});
+safeBind('saveClinicBtn','click',function(){state.clinic.title=el('clinicTitle').value.trim();state.clinic.date=el('clinicDate').value;state.clinic.notes=el('clinicNotes').value.trim();markDirty();saveToFile(true);renderAll();toast('Clinic session saved.','success');});
+safeBind('archiveClinicBtn','click',archiveClinic);
+safeBind('clinicCompleteBtn','click',archiveClinic);
+safeBind('addSelectedClinicPatientBtn','click',()=>addPatientToClinic(el('clinicPatientSelect').value));
+safeBind('addDemoClinicBtn','click',()=>state.patients.slice(0,5).forEach(p=>addPatientToClinic(p.id)));
+safeBind('saveVisitBtn','click',()=>saveVisit(false));
+safeBind('markCompleteBtn','click',()=>saveVisit(true));
+safeBind('copyVisitBtn','click',copyVisitSummary);
+safeBind('copyLetterBtn','click',copyLetterText);
+safeBind('copyLetterInlineBtn','click',copyLetterText);
+safeBind('printPdfBtn','click',()=>window.print());
+safeBind('applySettingsBtn','click',()=>{applySettings();renderLetter();toast('Header updated.','success');});
+safeBind('importPatientsBtn','click',importPatients);
+safeBind('downloadPatientTemplateBtn','click',downloadPatientTemplate);
+safeBind('downloadClinicTemplateBtn','click',downloadClinicTemplate);
+safeBind('importClinicListBtn','click',importClinicList);
+safeBind('addSignatureBtn','click',function(){const name=el('newSignatureName').value.trim();if(!name){toast('Enter a name.','warning');return;}if(state.signatures.includes(name)){toast('Signature already exists.','warning');return;}state.signatures.push(name);el('newSignatureName').value='';markDirty();saveToFile(true);renderSignatures();toast('Signature added.','success');});
+safeBind('selectFolderBtn','click',selectOneDriveFolder);
+safeBind('syncNowBtn','click',()=>saveToFile(true).then(()=>toast('Saved to file.','success')));
+safeBind('exportClinicHtmlBtn','click',()=>downloadClinicReport('html'));
+safeBind('exportClinicTxtBtn','click',()=>downloadClinicReport('txt'));
+safeBind('exportClinicLettersBtn','click',downloadCurrentClinicLetters);
+
+['dbDiagnosis','dbVariant','dbThrombosisType','dbSupplyRoute','visitQuestionnaireMode'].forEach(id=>safeBind(id,'change',updateConditionalFields));
+['dashboardSearch','databaseSearch','clinicPatientSearch'].forEach(id=>safeBind(id,'input',renderAll));
+safeBind('cancelPatientBtn','click',clearPatientForm);
+safeBind('visitVenesection','change',function(){const vvw=el('venesectionVolumeWrap');if(vvw)vvw.classList.toggle('hidden',!this.checked);renderLetter();});
+safeBind('visitVenesectionVolume','input',renderLetter);
+
+const visitFields=['visitReviewDate','visitBloodDate','visitHaemoglobin','visitHaematocrit','visitWcc','visitNeutrophils','visitPlatelets','visitRegimenAfterReview','visitNextReview','visitQuestionnaireMode','visitQuestionnaireText','visitReviewerSignature','visitDoseDecision'];
+visitFields.forEach(id=>{safeBind(id,'input',()=>{markVisitFormDirty();renderLetter();flagBloodCounts();});safeBind(id,'change',()=>{markVisitFormDirty();renderLetter();flagBloodCounts();});});
+safeBind('visitDoseDecision','change',updateDoseDecisionUI);
+
+/* ===== DARK MODE ===== */
+function applyTheme(dark){
+  document.documentElement.classList.toggle('dark',dark);const btn=el('themeToggleBtn');if(btn)btn.textContent=dark?'☀️':'🌙';
+  try{localStorage.setItem('mpn_theme',dark?'dark':'light');}catch(e){}
+}
+safeBind('themeToggleBtn','click',function(){applyTheme(!document.documentElement.classList.contains('dark'));});
+try{const saved=localStorage.getItem('mpn_theme');applyTheme(saved!=='light');}catch(e){applyTheme(true);}
+
+/* ===== KEYBOARD SHORTCUTS ===== */
+document.addEventListener('keydown',function(e){
+  if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();const av=document.querySelector('.view.active');if(av&&av.id==='view-clinic'&&state.selectedPatientId)saveVisit(false);else saveDatabase();}
+  if((e.ctrlKey||e.metaKey)&&e.key==='p'){e.preventDefault();window.print();}
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();if(state.selectedPatientId)saveVisit(true);}
+  if(e.key==='Escape')hideReloadBanner();
+});
+
+/* ===== INIT ===== */
+el('visitReviewDate').value=todayISO();
+el('clinicDate').value=nextThursdayISO();
+updateConditionalFields();applySettings();
+
+// Load from localStorage first (sync, immediate)
+try{
+  let raw=localStorage.getItem('mpn_virtual_clinic_database_v3')||localStorage.getItem('mpn_virtual_clinic_database_v2')||localStorage.getItem('mpn_virtual_clinic_database_v1');
+  if(raw){applyLoadedData(JSON.parse(raw));}
+}catch(e){}
+renderAll();
+
+// Then try to init file system (async, may override localStorage data)
+initFileSystem();
+
+// Auto-save to localStorage every 60s
+setInterval(function(){if(state.dirty){saveDatabaseSilently();}},60000);
+
+// Warn on close if unsaved
+window.addEventListener('beforeunload',function(e){if(state.dirty||state.visitFormDirty){e.preventDefault();e.returnValue='You have unsaved changes.';}});
+
+})();
+</script>
+</body>
+</html>
