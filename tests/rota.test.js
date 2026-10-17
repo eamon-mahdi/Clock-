@@ -304,7 +304,11 @@ test('annual leave needs 6 weeks notice unless there are extenuating circumstanc
   assert.throws(() => S.submitLeave(st, Object.assign({ extenuating: true, extenuatingReason: 'short' }, base), { today: TODAY }), /explain/);
   const r = S.submitLeave(st, Object.assign({ extenuating: true, extenuatingReason: 'Close family member unwell abroad' }, base), { today: TODAY }).request;
   assert.equal(r.shortNotice, true);
+  assert.equal(S.publicView(st).requests.find((x) => x.id === r.id), undefined, 'a waiting request is not public');
+  r.status = 'authorised';
   assert.equal(S.publicView(st).requests.find((x) => x.id === r.id).extenuatingReason, undefined);
+  r.status = 'pending';
+  assert.ok(S.myRequests(st, 'r5', 's.malik@example.nhs.uk').requests.some((x) => x.id === r.id), 'the doctor still sees it under My leave');
   // sickness and study leave are not held to the annual leave notice period
   assert.equal(S.submitLeave(st, { doctorId: 'r7', email: 'l.osei@example.nhs.uk', type: 'SL', intrepid: true, start: '2026-10-20', end: '2026-10-20' }, { today: TODAY }).request.status, 'pending');
   assert.throws(() => S.submitLeave(st, { doctorId: 'r9', email: '', type: 'SICK', start: '2026-10-14', end: '2026-10-14' }, { today: TODAY }), /Choose your name/, 'placeholders cannot request leave');

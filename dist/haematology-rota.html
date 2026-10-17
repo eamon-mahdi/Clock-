@@ -1842,7 +1842,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     return lines.filter(Boolean).map(fold).join('\r\n') + '\r\n';
   }
 
-  // What anyone with the link can see (no emails, notes, reasons, sickness or audit).
+  // What anyone with the link can see (no emails, notes, reasons, sickness, pending requests or audit).
   // Sets rota cells from a file and records what each was before, so the whole upload can be undone.
   function applyCells(state, by, changes, fileName, reason) {
     const rec = { id: uid('u'), at: nowIso(), by, fileName: fileName || '', cells: [] };
@@ -1869,7 +1869,9 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
   function publicView(state) {
     const s = clone(state);
     s.doctors.forEach((d) => { delete d.calToken; delete d.email; delete d.alEntitlement; delete d.slEntitlement; delete d.alExtra; delete d.slExtra; delete d.note; });
-    s.requests = s.requests.filter((r) => ['pending', 'hold', 'authorised'].includes(r.status)).map((r) => ({
+    // Only approved leave is public. Requests still waiting are seen only by the authorisers and, under
+    // My leave, by the doctor who sent them (name + NHS email).
+    s.requests = s.requests.filter((r) => r.status === 'authorised').map((r) => ({
       id: r.id, doctorId: r.doctorId, type: r.type === 'SICK' ? 'UNAVAIL' : (['AL', 'SL'].includes(r.type) ? r.type : 'OTHER'),
       start: r.start, end: r.end, part: r.part, status: r.status, excludedDates: r.excludedDates || [], days: r.days, cover: (r.cover || []).map((c) => ({ date: c.date, doctorId: c.doctorId, to: c.to }))
     }));
@@ -3028,7 +3030,13 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
   // ---------- helpers ----------
   const esc = (s) => String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const $ = (sel) => document.querySelector(sel);
-  const st = () => store.state;
+  // Viewers who are not signed in see the public rota only (as the server sends it), also in the demo copy.
+  let pubCache = null; // rebuilt on every render
+  const st = () => {
+    if (!store.state || store.isAuth() || store.state.public) return store.state;
+    if (!pubCache || pubCache.src !== store.state) pubCache = { src: store.state, view: S.publicView(store.state) };
+    return pubCache.view;
+  };
   const isAuth = () => !!store.me;
   const docName = (id) => (R.doctorById(st(), id) || { name: '?' }).name;
   const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -3400,7 +3408,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
       <span><span class="sw k-site s-GUH"></span>GUH</span><span><span class="sw k-site s-RGH"></span>RGH (incl. day unit, MDCU)</span><span><span class="sw k-site s-NHH"></span>NHH (incl. day unit)</span>
       <span><span class="sw k-lab"></span>GUH lab (not ward cover)</span><span><span class="sw k-oncall"></span>Leave, unavailable, ⇣ on call and anything not at GUH, RGH or NHH</span><span><span class="emb">EDT PM</span> EDT/SDT session</span>
       <span><span class="sw pending"></span>Leave requested, not approved</span><span><span class="sw k-gone"></span>Not in post</span>
-      <span><span class="cv ok">✓</span>covered <span class="cv exception">res</span>resident only <span class="cv risk">!</span>at risk <span class="cv gap">✕</span>not covered</span>
+      <span><span class="cv ok">✓</span>covered <span class="cv exception">res</span>resident only ${isAuth() ? '<span class="cv risk">!</span>at risk ' : ''}<span class="cv gap">✕</span>not covered</span>
     </div>`;
   }
 
@@ -4256,6 +4264,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
 
   // ---------- render ----------
   function render() {
+    pubCache = null;
     if (!st()) return;
     const active = document.activeElement;
     const focusId = active && active.id;
