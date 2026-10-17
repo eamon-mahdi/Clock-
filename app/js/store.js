@@ -270,40 +270,6 @@
     notify(state, 'auth', `${doc ? doc.name : 'A doctor'} withdrew their request for ${rangeText(r.start, r.end)}.`);
     return r;
   }
-  // A doctor books their own EDT/SDT session (no password). Allowed only when every rule is met.
-  function bookEdtSelf(state, p, opts) {
-    const today = (opts && opts.today) || R.toIso(new Date());
-    const doc = R.doctorById(state, p.doctorId);
-    if (!doc || doc.placeholder) throw new Error('Choose your name from the list.');
-    if (!emailMatches(doc, p.email)) throw new Error(doc.email ? 'That NHS email does not match the staff list for your name.' : 'Enter your NHS email address.');
-    if (!R.isIso(p.date) || p.date < today) throw new Error('Choose a date from today onwards.');
-    if (R.daysBetween(today, p.date) > 183) throw new Error('Sessions can be booked up to 6 months ahead.');
-    const session = p.session === 'PM' ? 'PM' : 'AM';
-    const chk = R.edtCheck(state, doc.id, p.date, session);
-    if (!chk.ok) throw new Error('This session can\'t be booked: ' + chk.checks.filter((c) => !c.ok).map((c) => c.rule + (c.detail ? ' (' + c.detail + ')' : '')).join('; ') + '. Ask a rota authoriser if it is needed anyway.');
-    const e = { id: uid('e'), doctorId: doc.id, date: p.date, session, type: chk.type, bookedBy: doc.name + ' (self)', at: nowIso() };
-    state.edt.push(e);
-    log(state, doc.name, 'EDT/SDT booked by doctor', `${chk.type} ${R.fmtUk(p.date)} ${session}`);
-    notify(state, 'auth', `${doc.name} booked ${chk.type}: ${R.fmtShort(p.date)} ${session === 'AM' ? 'morning' : 'afternoon'}.`);
-    return { booking: e, emails: authorEmails(state).map((to) => ({ to, subject: `${chk.type} booked: ${doc.name}, ${R.fmtShort(p.date)} ${session}`, text: `${doc.name} (${doc.grade}) booked ${chk.type} for ${R.fmtLong(p.date)} (${session === 'AM' ? 'morning' : 'afternoon'}). All rota rules were met.` })) };
-  }
-  function cancelEdtSelf(state, id, doctorId, email, opts) {
-    const doc = R.doctorById(state, doctorId);
-    if (!doc || !emailMatches(doc, email)) throw new Error('Name and NHS email do not match the staff list.');
-    const e = (state.edt || []).find((x) => x.id === id && x.doctorId === doc.id);
-    if (!e) throw new Error('Booking not found.');
-    if (e.date < ((opts && opts.today) || R.toIso(new Date()))) throw new Error('Past sessions cannot be cancelled.');
-    state.edt = state.edt.filter((x) => x.id !== id);
-    log(state, doc.name, 'EDT/SDT cancelled by doctor', `${e.type} ${R.fmtUk(e.date)} ${e.session}`);
-    notify(state, 'auth', `${doc.name} cancelled ${e.type} on ${R.fmtShort(e.date)} ${e.session}.`);
-    return e;
-  }
-  function myEdt(state, doctorId, email, today) {
-    const doc = R.doctorById(state, doctorId);
-    if (!doc || !emailMatches(doc, email)) throw new Error('Name and NHS email do not match the staff list.');
-    return { entitlement: R.edtEntitlement(state, doc, today || R.toIso(new Date())), bookings: (state.edt || []).filter((e) => e.doctorId === doc.id).sort((a, b) => (a.date < b.date ? -1 : 1)) };
-  }
-
   function myRequests(state, doctorId, email) {
     const doc = R.doctorById(state, doctorId);
     if (!doc || !emailMatches(doc, email)) throw new Error('Name and NHS email do not match the staff list.');
@@ -495,7 +461,17 @@
         for (const [alias, id] of Object.entries(parsed.mapping || {})) { const d = R.doctorById(state, id); if (id && d && !(d.aliases || []).includes(alias)) (d.aliases = d.aliases || []).push(alias); }
         shifts = entries.length;
       }
-      log(state, by, 'Rota data file imported', `${fileName || 'file'}: ${added} doctors added, ${updated} updated, ${weeks.length} consultant weeks, ${restr} leave restrictions${oc ? `, ${shifts} on-call shifts (${R.fmtUk(oc.from)} to ${R.fmtUk(oc.to)})` : ''}${missing.length ? '. ' + missing.join('; ') : ''}`);
+      // Rota tab: only the cells that were changed. Applied last so it wins over the On-calls tab.
+      let cells = 0;
+      for (const c of (parsed.rota && parsed.rota.changes) || []) {
+        if (!R.doctorById(state, c.doctorId)) continue;
+        state.overrides[c.doctorId] = state.overrides[c.doctorId] || {};
+        state.oncall[c.doctorId] = state.oncall[c.doctorId] || {};
+        if (c.kind === 'oncall') { delete state.overrides[c.doctorId][c.date]; state.oncall[c.doctorId][c.date] = c.code; }
+        else { delete state.oncall[c.doctorId][c.date]; state.overrides[c.doctorId][c.date] = { code: c.code, reason: 'Rota tab of the data file', by, at: nowIso() }; }
+        cells++;
+      }
+      log(state, by, 'Rota data file imported', `${fileName || 'file'}: ${parsed.rota ? `${cells} rota cells changed, ` : ''}${added} doctors added, ${updated} updated, ${weeks.length} consultant weeks, ${restr} leave restrictions${oc ? `, ${shifts} on-call shifts (${R.fmtUk(oc.from)} to ${R.fmtUk(oc.to)})` : ''}${missing.length ? '. ' + missing.join('; ') : ''}`);
       return [];
     },
     // Put back an earlier copy of the whole rota (from a backup).
@@ -690,21 +666,6 @@
         await api('POST', `/api/requests/${encodeURIComponent(id)}/withdraw`, { email });
         await store.refresh();
       },
-      async bookEdtSelf(payload) {
-        if (store.mode === 'local') { const out = bookEdtSelf(store.state, payload); saveLocal(); emit(); return out; }
-        const out = await api('POST', '/api/edt', payload);
-        await store.refresh(true);
-        return out;
-      },
-      async cancelEdtSelf(id, doctorId, email) {
-        if (store.mode === 'local') { cancelEdtSelf(store.state, id, doctorId, email); saveLocal(); emit(); return; }
-        await api('POST', `/api/edt/${encodeURIComponent(id)}/cancel`, { doctorId, email });
-        await store.refresh(true);
-      },
-      async myEdt(doctorId, email) {
-        if (store.mode === 'local') return myEdt(store.state, doctorId, email);
-        return api('POST', '/api/my-edt', { doctorId, email });
-      },
       async listBackups() {
         if (store.mode === 'local') return { backups: [], local: true };
         return api('GET', '/api/backups');
@@ -746,7 +707,7 @@
     return ((state.settings && state.settings.restricted) || []).find((r) => iso >= r.start && iso <= (r.end || r.start)) || null;
   }
 
-  const api = { createStore, demoState, emptyState, upgrade, submitLeave, withdrawLeave, myRequests, bookEdtSelf, cancelEdtSelf, myEdt, publicView, ops, restrictionOn, DEFAULT_RULES_TEXT, LOCAL_KEY };
+  const api = { createStore, demoState, emptyState, upgrade, submitLeave, withdrawLeave, myRequests, publicView, ops, restrictionOn, DEFAULT_RULES_TEXT, LOCAL_KEY };
   root.RotaStore = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

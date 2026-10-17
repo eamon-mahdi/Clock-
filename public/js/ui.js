@@ -77,11 +77,11 @@
   };
   const icon = (k) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[k] || ''}</svg>`;
   function navItems() {
-    const items = [['rota', 'Rota'], ['request', 'Request leave', 0, 'Leave'], ['edt', 'EDT / SDT', 0, 'EDT/SDT'], ['mine', 'My leave', 0, 'My leave'], ['rules', 'Rules']];
+    const items = [['rota', 'Rota'], ['request', 'Request leave', 0, 'Leave'], ['mine', 'My leave', 0, 'My leave'], ['rules', 'Rules']];
     if (isAuth()) {
       const waiting = st().requests.filter((r) => r.status === 'pending' || r.status === 'hold').length;
       items.splice(1, 0, ['requests', 'Requests', waiting]);
-      items.push(['setup', 'Set up'], ['log', 'Change log']);
+      items.push(['edt', 'EDT / SDT', 0, 'EDT/SDT'], ['setup', 'Set up'], ['log', 'Change log']);
     }
     return items;
   }
@@ -94,7 +94,7 @@
     const primary = items.slice(0, 4), rest = items.slice(4);
     const inRest = rest.some((i) => i[0] === ui.view);
     $('#tabbar').innerHTML = primary.map(([id, label, n, short]) => `<button type="button" data-act="nav" data-view="${id}"${ui.view === id ? ' aria-current="page"' : ''}>${icon(id)}<span>${esc(short || label)}</span>${n ? `<span class="badge">${n}</span>` : ''}</button>`).join('')
-      + `<button type="button" data-act="open-more"${inRest ? ' aria-current="page"' : ''}>${icon('more')}<span>${inRest ? esc((rest.find((i) => i[0] === ui.view) || [])[3] || (rest.find((i) => i[0] === ui.view) || [])[1]) : 'More'}</span></button>`;
+      + (rest.length ? `<button type="button" data-act="open-more"${inRest ? ' aria-current="page"' : ''}>${icon('more')}<span>${inRest ? esc((rest.find((i) => i[0] === ui.view) || [])[3] || (rest.find((i) => i[0] === ui.view) || [])[1]) : 'More'}</span></button>` : '');
     const theme = document.documentElement.getAttribute('data-theme') || 'dark';
     const tName = (THEMES.find((x) => x[0] === theme) || THEMES[0])[1];
     const sw = `<button type="button" class="icon-btn" data-act="theme-cycle" title="Colour theme: ${tName}. Click to change." aria-label="Colour theme: ${tName}. Change theme"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg></button>`;
@@ -575,6 +575,7 @@
       const chk = r.status === 'pending' || r.status === 'hold' ? R.staffingCheck(s, { doctorId: r.doctorId, start: r.start, end: r.end, part: r.part, dayUnitCoverId: r.dayUnitCoverId, guhCoverId: r.guhCoverId, requestId: r.id }) : null;
       return `<button type="button" class="list-item" data-act="pick-req" data-id="${r.id}"${r.id === ui.reqSel ? ' aria-current="true"' : ''}>
         <span style="flex:1;min-width:0"><strong>${esc(docName(r.doctorId))}</strong> <span class="muted small">${esc(typeLabel(r))}</span><br><span class="small tabular">${esc(rangeText(r.start, r.end))}</span></span>
+        ${(() => { const d = R.doctorById(s, r.doctorId); if (!d || r.type === 'SICK') return ''; const b = R.balance(s, d)[r.type === 'SL' ? 'sl' : 'al']; return `<span class="ring-n" title="${esc(`${r.type === 'SL' ? 'Study' : 'Annual'} leave: ${b.left} of ${b.entitlement} days left`)}">${miniRing(b, 30)}<span class="small tabular">${b.left}</span></span>`; })()}
         ${chk && chk.bad ? `<span class="cv gap">✕ ${chk.bad}</span>` : chk && chk.warn ? `<span class="cv exception">! ${chk.warn}</span>` : ''}
         <span class="pill ${r.status}">${esc(reqStatus[r.status])}</span></button>`;
     };
@@ -672,51 +673,40 @@
   function renderEdt() {
     const s = st();
     const f = ui.edt;
-    if (f.email === undefined) { f.email = ui.mine.email || ''; if (!f.doctorId) f.doctorId = ui.mine.doctorId || ''; }
     const doc = R.doctorById(s, f.doctorId);
     const chk = doc && R.isIso(f.date) ? R.edtCheck(s, doc.id, f.date, f.session) : null;
-    const past = R.isIso(f.date) && f.date < TODAY;
     const ent = doc ? R.edtEntitlement(s, doc, TODAY) : null;
     const mine = doc ? (s.edt || []).filter((e) => e.doctorId === doc.id).sort((a, b) => (a.date < b.date ? -1 : 1)) : [];
     const checks = chk ? `<ul class="checks">${chk.checks.map((c) => `<li class="${c.ok ? 'ok' : 'bad'}"><span aria-hidden="true">${c.ok ? '✓' : '✕'}</span> <strong>${esc(c.rule)}</strong><br><span class="small">${esc(c.detail)}</span></li>`).join('')}</ul>` : '';
-    const selfCard = `<section class="main card"><h2>Book your EDT / SDT</h2>
-        <p class="small muted">Pick a morning or afternoon. It is booked straight away if the rota rules are met, shown on the rota, and the authorisers are told. No password needed.</p>
+    const bookCard = `<section class="main card"><h2>Book a session</h2>
         <div class="grid-3">
-          <label class="field" for="edt-doc">Your name<select id="edt-doc" data-edt="doctorId"><option value="">Choose your name</option>${docOptions(f.doctorId, (d) => !d.end || d.end >= TODAY)}</select></label>
-          <label class="field" for="edt-email">NHS email<input type="email" id="edt-email" data-edt="email" value="${esc(f.email || '')}" autocomplete="email"></label>
-          <label class="field" for="edt-date">Date<input type="date" id="edt-date" data-edt="date" value="${esc(f.date)}" min="${TODAY}"></label>
+          <label class="field" for="edt-doc">Doctor<select id="edt-doc" data-edt="doctorId"><option value="">Choose</option>${docOptions(f.doctorId, (d) => !d.end || d.end >= TODAY)}</select></label>
+          <label class="field" for="edt-date">Date<input type="date" id="edt-date" data-edt="date" value="${esc(f.date)}"></label>
+          <div class="field">Session<div class="seg">${['AM', 'PM'].map((x) => `<button type="button" class="chip" data-act="edt-session" data-val="${x}" aria-pressed="${f.session === x}">${x === 'AM' ? 'Morning' : 'Afternoon'}</button>`).join('')}</div></div>
         </div>
-        <div class="field">Session<div class="seg">${['AM', 'PM'].map((x) => `<button type="button" class="chip" data-act="edt-session" data-val="${x}" aria-pressed="${f.session === x}">${x === 'AM' ? 'Morning' : 'Afternoon'}</button>`).join('')}</div></div>
-        ${past ? '<p class="notice warn small">Choose a date from today onwards.</p>' : checks || '<p class="muted small">Choose your name and a date to check the rules.</p>'}
-        <div class="row">
-          <button type="button" class="btn primary" data-act="edt-self-book"${chk && chk.ok && !past ? '' : ' disabled'}>${chk ? `Book ${esc(chk.type)} ${f.session === 'AM' ? 'morning' : 'afternoon'}` : 'Book'}</button>
-          ${chk && !chk.ok && !isAuth() ? '<span class="small muted">This session breaks a rule. If it is needed anyway, ask a rota authoriser.</span>' : ''}
-          ${chk && !chk.ok && isAuth() ? `<label class="field" for="edt-reason" style="flex:1">Authoriser: book anyway, reason<input type="text" id="edt-reason" placeholder="Why the rule can be broken this time"></label><button type="button" class="btn" data-act="edt-book">Book anyway</button>` : ''}
-        </div></section>`;
-    const myCard = `<section class="side card"><h2>${doc ? esc(doc.name) + '’s sessions' : 'Your sessions'}</h2>
+        ${checks || '<p class="muted small">Choose a doctor and date to check the rules.</p>'}
+        ${chk ? (chk.ok ? `<div class="row"><button type="button" class="btn primary" data-act="edt-book">Book ${esc(chk.type)} ${f.session === 'AM' ? 'morning' : 'afternoon'}</button></div>`
+          : `<div class="row" style="align-items:flex-end"><label class="field" for="edt-reason" style="flex:1">Book anyway: reason<input type="text" id="edt-reason" placeholder="Why the rule can be broken this time"></label><button type="button" class="btn" data-act="edt-book">Book anyway</button></div>`) : ''}</section>`;
+    const docCard = `<section class="side card"><h2>${doc ? esc(doc.name) + '’s sessions' : 'Sessions'}</h2>
         ${ent ? `<div class="donut-wrap">${donut([{ v: ent.taken, label: 'Taken' }, { v: Math.max(0, ent.booked - ent.taken), label: 'Booked ahead' }], Math.max(ent.due, ent.booked), `${Math.max(0, ent.due - ent.booked)}h`, 'still to book')}
           <div class="legend-list"><span><span class="sw" style="background:var(--viz-1)"></span>${ent.taken}h taken</span><span><span class="sw" style="background:var(--viz-2)"></span>${Math.max(0, ent.booked - ent.taken)}h booked ahead</span><span><span class="sw" style="background:var(--viz-track)"></span>${Math.max(0, ent.due - ent.booked)}h still to book</span>
-          <span class="small muted">${esc(ent.type)} ${ent.hours}h a week${ent.fte < 1 ? ` × ${ent.fte} FTE` : ''}, ${esc(R.fmtUk(ent.from))} to ${esc(R.fmtUk(ent.to))}: ${ent.due}h in total (each session counts as 4h).</span></div></div>` : '<p class="muted small">Choose your name to see your sessions.</p>'}
-        ${mine.map((e) => `<div class="row small" style="justify-content:space-between"><span><span class="tabular">${esc(R.fmtShort(e.date))}</span> ${e.session === 'AM' ? 'morning' : 'afternoon'} · ${esc(e.type)}</span>${e.date >= TODAY ? `<button type="button" class="btn ghost small-btn" data-act="edt-self-cancel" data-id="${e.id}">${ui.confirm === 'edtc:' + e.id ? 'Confirm cancel' : 'Cancel'}</button>` : ''}</div>`).join('')}</section>`;
-    let auth = '';
-    if (isAuth()) {
-      const docs = docsSorted().filter((d) => !d.placeholder && (R.inPost(d, TODAY) || (d.start && d.start > TODAY)));
-      const rows = docs.map((d) => {
-        const e = R.edtEntitlement(s, d, TODAY);
-        const behind = e.booked < e.dueByToday;
-        return `<tr><td><strong>${esc(d.name)}</strong> <span class="muted small">${esc(d.grade)}</span></td><td>${esc(e.type)}</td><td class="tabular">${e.hours}h/wk${e.fte < 1 ? ` × ${e.fte}` : ''}</td>
-          <td class="tabular small">${esc(R.fmtUk(e.from))} – ${esc(R.fmtUk(e.to))}</td><td class="tabular">${e.due}h</td><td class="tabular">${e.dueByToday}h</td><td class="tabular${behind ? ' warn-text' : ''}">${e.booked}h</td>
-          <td><input type="number" min="0" max="10" step="0.5" aria-label="Hours a week for ${esc(d.name)}" data-act="doc-field" data-doc="${d.id}" data-field="edtHours" value="${esc(d.edtHours === undefined || d.edtHours === null ? '' : d.edtHours)}" placeholder="${R.edtDefault(Object.assign({}, d, { edtHours: undefined })).hours}"></td></tr>`;
-      }).join('');
-      const upcoming = (s.edt || []).filter((e) => e.date >= R.addDays(TODAY, -7)).sort((a, b) => (a.date < b.date ? -1 : 1)).slice(0, 120);
-      auth = `<h2 class="section-title">Authorisers</h2>
-        <section class="card"><h2>All booked sessions</h2>${upcoming.map((e) => `<div class="row small" style="justify-content:space-between"><span><span class="tabular">${esc(R.fmtShort(e.date))} ${e.session}</span> · <strong>${esc(docName(e.doctorId))}</strong> ${esc(e.type)}${e.reason ? ' <span class="cv exception">override</span>' : ''}${/\(self\)/.test(e.bookedBy || '') ? ' <span class="muted">booked by the doctor</span>' : ''}</span><button type="button" class="btn ghost small-btn" data-act="edt-remove" data-id="${e.id}">Remove</button></div>`).join('') || '<p class="muted small">None booked.</p>'}</section>
-        <section class="card"><h2>Entitlement by grade (Wales defaults, editable)</h2>
-          <p class="small muted">Defaults: F1 SDT 1h/week, F2 SDT 3h, IMT and JCF EDT 2h, registrars and senior clinical fellows EDT 4h, specialty and specialist doctors SPA 4h. Pro-rata for less than full time. Each session counts as 4 hours. Type a number to override for one doctor. Please check these against current Welsh contracts and local agreements.</p>
-          <div class="scroll-x"><table class="plain"><thead><tr><th>Doctor</th><th>Type</th><th>Default</th><th>Period</th><th>Due in period</th><th>Due by today</th><th>Booked</th><th>Override h/wk</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
-    }
-    return `<div class="page-head"><div><h1>EDT / SDT</h1><p class="muted">Morning or afternoon sessions, shown on the rota. Residents (F1, F2, IMT, JCF) at GUH only, with at least ${R.ruleNum(s, 'edtOthersAtGUH')} other residents there that session; senior doctors at any site as long as GUH keeps its senior doctor.</p></div></div>
-      <div class="split">${selfCard}${myCard}</div>${auth}`;
+          <span class="small muted">${esc(ent.type)} ${ent.hours}h a week${ent.fte < 1 ? ` × ${ent.fte} FTE` : ''}, ${esc(R.fmtUk(ent.from))} to ${esc(R.fmtUk(ent.to))}: ${ent.due}h in total (each session counts as 4h).</span></div></div>` : '<p class="muted small">Choose a doctor to see their sessions.</p>'}
+        ${mine.map((e) => `<div class="row small" style="justify-content:space-between"><span><span class="tabular">${esc(R.fmtShort(e.date))}</span> ${e.session === 'AM' ? 'morning' : 'afternoon'} · ${esc(e.type)}</span><button type="button" class="btn ghost small-btn" data-act="edt-remove" data-id="${e.id}">Remove</button></div>`).join('')}</section>`;
+    const docs = docsSorted().filter((d) => !d.placeholder && (R.inPost(d, TODAY) || (d.start && d.start > TODAY)));
+    const rows = docs.map((d) => {
+      const e = R.edtEntitlement(s, d, TODAY);
+      const behind = e.booked < e.dueByToday;
+      return `<tr><td><strong>${esc(d.name)}</strong> <span class="muted small">${esc(d.grade)}</span></td><td>${esc(e.type)}</td><td class="tabular">${e.hours}h/wk${e.fte < 1 ? ` × ${e.fte}` : ''}</td>
+        <td class="tabular small">${esc(R.fmtUk(e.from))} – ${esc(R.fmtUk(e.to))}</td><td class="tabular">${e.due}h</td><td class="tabular">${e.dueByToday}h</td><td class="tabular${behind ? ' warn-text' : ''}">${e.booked}h</td>
+        <td><input type="number" min="0" max="10" step="0.5" aria-label="Hours a week for ${esc(d.name)}" data-act="doc-field" data-doc="${d.id}" data-field="edtHours" value="${esc(d.edtHours === undefined || d.edtHours === null ? '' : d.edtHours)}" placeholder="${R.edtDefault(Object.assign({}, d, { edtHours: undefined })).hours}"></td></tr>`;
+    }).join('');
+    const upcoming = (s.edt || []).filter((e) => e.date >= R.addDays(TODAY, -7)).sort((a, b) => (a.date < b.date ? -1 : 1)).slice(0, 120);
+    return `<div class="page-head"><div><h1>EDT / SDT</h1><p class="muted">Morning or afternoon sessions, booked by the authorisers and shown on the rota. Residents (F1, F2, IMT, JCF) at GUH only, with at least ${R.ruleNum(s, 'edtOthersAtGUH')} other residents there that session; senior doctors at any site as long as GUH keeps its senior doctor.</p></div></div>
+      <div class="split">${bookCard}${docCard}</div>
+      <section class="card"><h2>All booked sessions</h2>${upcoming.map((e) => `<div class="row small" style="justify-content:space-between"><span><span class="tabular">${esc(R.fmtShort(e.date))} ${e.session}</span> · <strong>${esc(docName(e.doctorId))}</strong> ${esc(e.type)}${e.reason ? ' <span class="cv exception">override</span>' : ''}</span><button type="button" class="btn ghost small-btn" data-act="edt-remove" data-id="${e.id}">Remove</button></div>`).join('') || '<p class="muted small">None booked.</p>'}</section>
+      <section class="card"><h2>Entitlement by grade (Wales defaults, editable)</h2>
+        <p class="small muted">Defaults: F1 SDT 1h/week, F2 SDT 3h, IMT and JCF EDT 2h, registrars and senior clinical fellows EDT 4h, specialty and specialist doctors SPA 4h. Pro-rata for less than full time. Each session counts as 4 hours. Type a number to override for one doctor. Please check these against current Welsh contracts and local agreements.</p>
+        <div class="scroll-x"><table class="plain"><thead><tr><th>Doctor</th><th>Type</th><th>Default</th><th>Period</th><th>Due in period</th><th>Due by today</th><th>Booked</th><th>Override h/wk</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
   }
 
   // Leave used / waiting / left as a ring with the days left in the middle.
@@ -742,7 +732,7 @@
   function renderSetup() {
     const tabs = [['import', 'Data file'], ['master', 'Master sheet'], ['people', 'People & leave'], ['rotation', 'Rotations'], ['consultant', 'Consultant of the week'], ['leave', 'Leave restrictions'], ['backup', 'Backups'], ['settings', 'Settings']];
     const body = { master: renderMaster, people: renderPeople, import: renderImport, rotation: renderRotation, consultant: renderConsultant, leave: renderRestrictions, backup: renderBackups, settings: renderSettings }[ui.setupTab] || renderMaster;
-    return `<div class="page-head"><div><h1>Set up</h1><p class="muted">Doctors, their usual locations, imported on-calls, rotations and settings. The rota is built from these.</p></div></div>
+    return `<div class="page-head"><div><h1>Set up</h1><p class="muted">Doctors, the rota data file, on-calls, rotations and settings. The rota is built from these.</p></div></div>
       <div class="tabs" role="tablist">${tabs.map(([id, l]) => `<button type="button" role="tab" data-act="setup-tab" data-val="${id}" aria-selected="${ui.setupTab === id}">${l}</button>`).join('')}</div>${body()}`;
   }
   const LOCATIONS = R.SITE_CODES;
@@ -752,7 +742,7 @@
     return `<select ${attrs}>${gradeOptions(cur)}<option value="__other"${!known ? ' selected' : ''}>${known ? 'Other…' : `Other: ${esc(cur)}`}</option></select>`;
   }
   function newDocForm() {
-    const nd = ui.nd = ui.nd || { grade: 'F1', other: '', group: 'res', name: '', email: '', start: '', end: '', provisional: false, replaces: '', pattern: '', placeholder: false, suggested: false };
+    const nd = ui.nd = ui.nd || { grade: 'F1', other: '', group: 'res', name: '', email: '', start: '', end: '', provisional: false, replaces: '', placeholder: false, suggested: false };
     if (!nd.suggested) {
       const prev = nd.replaces ? R.doctorById(st(), nd.replaces) : null;
       const from = prev && prev.end ? R.addDays(prev.end, 1) : TODAY;
@@ -771,7 +761,6 @@
         <label class="field" for="nd-email">NHS email<input type="email" id="nd-email" data-nd="email" value="${esc(nd.email)}"${nd.placeholder ? ' disabled' : ''}></label>
         <label class="field" for="nd-start">Starts<input type="date" id="nd-start" data-nd="start" value="${esc(nd.start)}"></label>
         <label class="field" for="nd-end">Finishes<input type="date" id="nd-end" data-nd="end" value="${esc(nd.end)}"></label>
-        <label class="field" for="nd-pattern">Usual locations: copy from<select id="nd-pattern" data-nd="pattern"><option value="">Set them after adding</option>${docOptions(nd.pattern || nd.replaces)}</select></label>
       </div>
       <div class="row small"><label class="opt"><input type="checkbox" data-nd="placeholder"${nd.placeholder ? ' checked' : ''}> <span>Name not known yet: add as "New ${esc(isOther ? nd.other || 'doctor' : nd.grade)}"</span></label>
         <label class="opt"><input type="checkbox" data-nd="provisional"${nd.provisional ? ' checked' : ''}> <span>Finish date not confirmed</span></label></div>
@@ -781,23 +770,21 @@
   function renderMaster() {
     const cols = R.columns(st(), '1900-01-01', '2999-12-31');
     const row = (d, i) => {
-      const plan = d.plan || { A: ['', '', '', '', ''] };
       return `<tr class="${d.end && d.end < TODAY ? 'past' : ''}${i ? ' follows' : ''}">
         <td>${i ? '<span class="follow" aria-hidden="true">↳</span>' : ''}<input type="text" aria-label="Name" data-act="doc-field" data-doc="${d.id}" data-field="name" value="${esc(d.name)}" style="width:120px">${d.placeholder ? ' <span class="tbc">TBC</span>' : ''}</td>
         <td>${gradeSelect(`aria-label="Grade for ${esc(d.name)}" data-act="doc-grade" data-doc="${d.id}"`, d.grade)}</td>
         <td><select aria-label="Category for ${esc(d.name)}" data-act="doc-field" data-doc="${d.id}" data-field="group"><option value="res"${d.group === 'res' ? ' selected' : ''}>Resident</option><option value="mg"${d.group === 'mg' ? ' selected' : ''}>Senior</option></select></td>
         <td><input type="date" aria-label="Starts" data-act="doc-field" data-doc="${d.id}" data-field="start" value="${esc(d.start || '')}"></td>
         <td><input type="date" aria-label="Finishes" data-act="doc-field" data-doc="${d.id}" data-field="end" value="${esc(d.end || '')}"><br><label class="small"><input type="checkbox" data-act="doc-field" data-doc="${d.id}" data-field="endProvisional"${d.endProvisional ? ' checked' : ''}> not confirmed</label></td>
-        ${[0, 1, 2, 3, 4].map((k) => `<td><select aria-label="${esc(d.name)} ${R.DOW_LONG[k]}" data-act="plan-day" data-doc="${d.id}" data-week="A" data-i="${k}">${locOptions((plan.A || [])[k] || '')}</select></td>`).join('')}
         <td><button type="button" class="btn ghost small-btn" data-act="remove-doc" data-doc="${d.id}">${ui.confirm === 'remove:' + d.id ? 'Confirm' : 'Remove'}</button></td></tr>`;
     };
-    const section = (g, title) => cols.filter((c) => c.docs[0].group === g).map((c) => c.docs.map((d, i) => row(d, i)).join('')).join('') ? `<tr class="sec"><th colspan="11">${title}</th></tr>` + cols.filter((c) => c.docs[0].group === g).map((c) => c.docs.map((d, i) => row(d, i)).join('')).join('') : '';
+    const section = (g, title) => cols.filter((c) => c.docs[0].group === g).map((c) => c.docs.map((d, i) => row(d, i)).join('')).join('') ? `<tr class="sec"><th colspan="6">${title}</th></tr>` + cols.filter((c) => c.docs[0].group === g).map((c) => c.docs.map((d, i) => row(d, i)).join('')).join('') : '';
     const b = ui.bulk = ui.bulk || { ids: [], from: TODAY, to: R.addDays(TODAY, 4), days: [0, 1, 2, 3, 4], code: 'GUH', reason: '' };
-    return `<section class="card"><p class="muted small">Everyone on the rota, in column order. A doctor who takes over another's column is shown underneath them (↳) and continues in the same column on the rota. The Monday–Friday locations are each doctor's usual week; on-calls, leave and one-off changes sit on top. Changes save straight away.</p>
-      <div class="scroll-x"><table class="plain master"><thead><tr><th>Name</th><th>Grade</th><th>Category</th><th>Starts</th><th>Finishes</th>${R.DOW_SHORT.slice(0, 5).map((d) => `<th>${d}</th>`).join('')}<th></th></tr></thead>
+    return `<section class="card"><p class="muted small">Everyone on the rota, in column order. A doctor who takes over another's column is shown underneath them (↳) and continues in the same column on the rota. Where each doctor works changes from week to week, so it is set on the rota itself (click a cell) or in the Rota tab of the data file. Changes save straight away.</p>
+      <div class="scroll-x"><table class="plain master"><thead><tr><th>Name</th><th>Grade</th><th>Category</th><th>Starts</th><th>Finishes</th><th></th></tr></thead>
       <tbody>${section('res', 'Resident doctors')}${section('mg', 'Senior doctors')}</tbody></table></div></section>
       <div class="grid-2">${newDocForm()}
-      <section class="card"><h2>Put a group of doctors somewhere</h2><p class="small muted">For a block of dates (a week, a month or a whole rotation). This changes the rota for those days only; the usual week above stays the same.</p>
+      <section class="card"><h2>Put a group of doctors somewhere</h2><p class="small muted">For a block of dates (a week, a month or a whole rotation). This changes the rota for those days only.</p>
         <div class="pick-list">${docsSorted().filter((d) => !d.end || d.end >= TODAY).map((d) => `<label class="opt small"><input type="checkbox" data-bulk-id="${d.id}"${b.ids.includes(d.id) ? ' checked' : ''}> <span>${esc(d.name)} <span class="muted">${esc(d.grade)}</span></span></label>`).join('')}</div>
         <div class="row" style="align-items:flex-end">
           <label class="field" for="bk-from">From<input type="date" id="bk-from" data-bulk="from" value="${esc(b.from)}"></label>
@@ -807,45 +794,84 @@
         <label class="field" for="bk-reason">Reason <span class="hint">Shown in the change log</span><input type="text" id="bk-reason" data-bulk="reason" value="${esc(b.reason)}" placeholder="e.g. covering NHH day unit for the rotation"></label>
         <div class="row"><button type="button" class="btn primary" data-act="bulk-apply">Apply to the rota</button></div></section></div>`;
   }
+  // A small leave ring without text, for lists and the dashboard.
+  function miniRing(b, size) {
+    const r = 15, c = 2 * Math.PI * r, tot = b.entitlement;
+    const used = tot > 0 ? Math.min(1, b.used / tot) * c : 0, pend = tot > 0 ? Math.min(1, b.pending / tot) * c : 0;
+    const gap = used > 0 && pend > 0 ? 1.5 : 0;
+    return `<svg class="ring" width="${size || 40}" height="${size || 40}" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="${r}" fill="none" stroke="var(--viz-track)" stroke-width="6"/>${used > 0 ? `<circle cx="20" cy="20" r="${r}" fill="none" stroke="var(--viz-1)" stroke-width="6" stroke-dasharray="${Math.max(0, used - gap)} ${c}" transform="rotate(-90 20 20)"/>` : ''}${pend > 0 ? `<circle cx="20" cy="20" r="${r}" fill="none" stroke="var(--viz-2)" stroke-width="6" stroke-dasharray="${Math.max(0, pend - gap)} ${c}" stroke-dashoffset="${-used}" transform="rotate(-90 20 20)"/>` : ''}</svg>`;
+  }
   function renderPeople() {
-    const inp = (d, field, type, val, w, extra) => `<input type="${type}" aria-label="${field} for ${esc(d.name)}" data-act="doc-field" data-doc="${d.id}" data-field="${field}" value="${esc(val)}"${w ? ` style="width:${w}"` : ''}${extra || ''}>`;
-    const rows = docsSorted().filter((d) => !d.placeholder).map((d) => {
+    const s = st();
+    const docs = docsSorted().filter((d) => !d.placeholder);
+    const now = docs.filter((d) => R.inPost(d, TODAY) || (d.start && d.start > TODAY));
+    if (!ui.peopleDoc || !R.doctorById(s, ui.peopleDoc)) ui.peopleDoc = (now[0] || docs[0] || {}).id || '';
+    const tile = (d) => {
+      const b = R.balance(s, d).al;
+      const low = b.entitlement > 0 && b.left / b.entitlement < 0.2;
+      return `<button type="button" class="al-tile" data-act="people-pick" data-doc="${d.id}"${d.id === ui.peopleDoc ? ' aria-current="true"' : ''} title="${esc(`${d.name}: ${b.used} approved, ${b.pending} waiting, ${b.left} left of ${b.entitlement}`)}">
+        ${miniRing(b, 44)}<span class="al-t"><strong>${esc(d.name)}</strong><span class="small muted">${esc(d.grade)}</span><span class="small"><strong class="tabular${low ? ' warn-text' : ''}">${b.left}</strong> of ${b.entitlement} left${b.pending ? ` · ${b.pending} waiting` : ''}</span></span></button>`;
+    };
+    const sum = (list) => list.reduce((a, d) => { const b = R.balance(s, d).al; a.entitlement += b.entitlement; a.used += b.used; a.pending += b.pending; a.left += b.left; return a; }, { entitlement: 0, used: 0, pending: 0, left: 0 });
+    const group = (g, title) => {
+      const list = now.filter((d) => d.group === g);
+      if (!list.length) return '';
+      return `<div class="stack"><div class="row" style="justify-content:space-between"><h3>${title}</h3></div>${leaveDonut(`${title}: all annual leave together`, sum(list))}<div class="al-grid">${list.map(tile).join('')}</div></div>`;
+    };
+    const d = R.doctorById(s, ui.peopleDoc);
+    let editor = '<p class="muted">No doctors yet.</p>';
+    if (d) {
       const pr = R.alProRata(d);
-      const bal = R.balance(st(), d);
-      return `<tr${d.end && d.end < TODAY ? ' class="past"' : ''}>
-      <td><strong>${esc(d.name)}</strong><br><span class="small muted">${esc(d.grade)}</span></td>
-      <td>${inp(d, 'email', 'email', d.email || '', '200px')}</td>
-      <td>${inp(d, 'fte', 'number', d.fte === undefined ? 1 : d.fte, '64px', ' step="0.1" min="0.1" max="1"')}</td>
-      <td>${inp(d, 'alEntitlement', 'number', d.alEntitlement, '70px', ' step="0.5"')}<br><span class="small muted" title="${esc(pr.basis)}">Wales default ${pr.days}${Number(d.alEntitlement) !== pr.days ? ` <button type="button" class="linkish" data-act="use-al" data-doc="${d.id}">use</button>` : ''}</span></td>
-      <td>${inp(d, 'alExtra', 'number', d.alExtra || 0, '64px', ' step="0.5"')}</td>
-      <td><strong>${bal.al.left}</strong><span class="small muted"> of ${bal.al.entitlement}</span></td>
-      <td>${inp(d, 'slEntitlement', 'number', d.slEntitlement, '64px', ' step="0.5"')}<br><span class="small muted">${bal.sl.left} left</span></td>
-      <td>${inp(d, 'aliases', 'text', (d.aliases || []).join(', '), '130px')}</td></tr>`;
-    }).join('');
-    return `<section class="card"><p class="muted small">Annual leave allowance is filled in from the Wales default for the grade, dates in post and FTE (28 days a year for foundation, core and fellows; 33 for registrars ST3+; 29 for specialty doctors, 34 after 2 years in grade; 34 for specialist grade) and can be changed. Use "Carried over / extra" for accrued or carried-over days. Doctors see their remaining days under "Check my request".</p>
-      <div class="scroll-x"><table class="plain people"><thead><tr><th>Doctor</th><th>NHS email</th><th>FTE</th><th>Annual leave days</th><th>Carried over / extra</th><th>AL left</th><th>Study leave days</th><th>Other spellings (on-call sheet)</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+      const bal = R.balance(s, d);
+      const inp = (field, label, type, val, extra, hint) => `<label class="field" for="pe-${field}">${label}${hint ? ` <span class="hint">${hint}</span>` : ''}<input type="${type}" id="pe-${field}" data-act="doc-field" data-doc="${d.id}" data-field="${field}" value="${esc(val)}"${extra || ''}></label>`;
+      editor = `<div class="grid-3">
+          ${inp('name', 'Name', 'text', d.name)}
+          <label class="field" for="pe-grade">Grade${gradeSelect(`id="pe-grade" data-act="doc-grade" data-doc="${d.id}"`, d.grade)}</label>
+          ${inp('email', 'NHS email', 'email', d.email || '', '', 'Must match the email on their leave requests')}
+          ${inp('start', 'Starts', 'date', d.start || '')}
+          ${inp('end', 'Finishes', 'date', d.end || '')}
+          ${inp('fte', 'FTE', 'number', d.fte === undefined ? 1 : d.fte, ' step="0.1" min="0.1" max="1"', '1 = full time')}
+          ${inp('alEntitlement', 'Annual leave days', 'number', d.alEntitlement, ' step="0.5"', `Wales default ${pr.days}${Number(d.alEntitlement) !== pr.days ? ` <button type="button" class="linkish" data-act="use-al" data-doc="${d.id}">use</button>` : ''}`)}
+          ${inp('alExtra', 'Carried over / extra days', 'number', d.alExtra || 0, ' step="0.5"')}
+          ${inp('slEntitlement', 'Study leave days', 'number', d.slEntitlement, ' step="0.5"')}
+          ${inp('aliases', 'Other spellings', 'text', (d.aliases || []).join(', '), '', 'As written on the on-call sheet, separated by commas')}
+        </div>
+        <p class="small muted">${esc(pr.basis)}</p>
+        <div class="bal-grid">${leaveDonut('Annual leave', bal.al)}${leaveDonut('Study leave', bal.sl)}</div>`;
+    }
+    return `<section class="card"><h2>Edit a doctor</h2>
+        <label class="field" for="pe-doc" style="max-width:420px">Doctor<select id="pe-doc" data-act="people-doc">${docs.map((x) => `<option value="${x.id}"${x.id === ui.peopleDoc ? ' selected' : ''}>${esc(x.name)} (${esc(x.grade)})${x.end && x.end < TODAY ? ', left' : ''}</option>`).join('')}</select></label>
+        ${editor}</section>
+      <section class="card"><h2>Annual leave dashboard</h2>
+        <p class="small muted">Everyone in post now or starting soon. Each ring is that doctor's allowance: <span class="sw-inline" style="background:var(--viz-1)"></span> approved (taken or booked), <span class="sw-inline" style="background:var(--viz-2)"></span> waiting for a decision, <span class="sw-inline" style="background:var(--viz-track)"></span> not yet requested. Under 20% left is shown in amber. Click a doctor to edit them above.</p>
+        ${group('res', 'Resident doctors')}${group('mg', 'Senior doctors')}
+        <p class="small muted">Annual leave allowance is filled in from the Wales default for the grade, dates in post and FTE (28 days a year for foundation, core and fellows; 33 for registrars ST3+; 29 for specialty doctors, 34 after 2 years in grade; 34 for specialist grade) and can be changed above.</p></section>`;
   }
   function masterPreview(p) {
     const x = p.parsed;
     const known = x.doctors.filter((d) => st().doctors.some((e) => e.name.toLowerCase() === d.name.toLowerCase())).length;
     const oc = x.oncall;
     const ocUsable = oc ? oc.entries.filter((e) => e.doctorId || p.mapping[e.name]).length : 0;
-    p.count = x.doctors.length + Object.keys(x.consultants).length + x.restrictions.length + ocUsable;
+    const rc = x.rota ? x.rota.changes : [];
+    p.count = x.doctors.length + Object.keys(x.consultants).length + x.restrictions.length + ocUsable + rc.length;
     const unknown = oc ? Object.keys(oc.unknownNames || {}) : [];
-    const sample = x.doctors.slice(0, 40).map((d) => `<tr><td>${esc(d.name)}${d.placeholder ? ' <span class="tbc">TBC</span>' : ''}</td><td>${esc(d.grade)}</td><td>${d.group === 'mg' ? 'Senior' : 'Resident'}</td><td class="tabular">${d.start ? esc(R.fmtUk(d.start)) : ''}${d.suggested ? ' <span class="muted">(suggested)</span>' : ''}</td><td class="tabular">${d.end ? esc(R.fmtUk(d.end)) : ''}${d.endProvisional ? '?' : ''}</td><td>${esc(d.replacesName)}</td><td class="small">${esc(d.plan.map((c) => c || '–').join(' · '))}</td></tr>`).join('');
+    const sample = x.doctors.slice(0, 40).map((d) => `<tr><td>${esc(d.name)}${d.placeholder ? ' <span class="tbc">TBC</span>' : ''}</td><td>${esc(d.grade)}</td><td>${d.group === 'mg' ? 'Senior' : 'Resident'}</td><td class="tabular">${d.start ? esc(R.fmtUk(d.start)) : ''}${d.suggested ? ' <span class="muted">(suggested)</span>' : ''}</td><td class="tabular">${d.end ? esc(R.fmtUk(d.end)) : ''}${d.endProvisional ? '?' : ''}</td><td>${esc(d.replacesName)}</td></tr>`).join('');
     const bad = oc ? (oc.badCodes || []).slice(0, 8).map((b) => `Row ${b.row}: "${esc(b.code)}"`).join(', ') : '';
     return `<p>Found: ${esc(x.found.join(', ') || 'nothing')}.</p>
       <ul class="small">
-        <li><strong>${x.doctors.length}</strong> doctors (${known} updated, ${x.doctors.length - known} new)</li>
-        <li><strong>${Object.keys(x.consultants).length}</strong> consultant-of-the-week entries</li>
-        <li><strong>${x.restrictions.length}</strong> leave restrictions</li>
+        ${x.rota ? `<li><strong>${rc.length}</strong> rota cell${rc.length === 1 ? '' : 's'} changed${x.rota.from ? `, in ${esc(R.fmtUk(x.rota.from))} to ${esc(R.fmtUk(x.rota.to))}` : ''}${x.rota.ignored.length ? ` (${x.rota.ignored.length} not used, see below)` : ''}</li>` : ''}
+        ${x.doctors.length ? `<li><strong>${x.doctors.length}</strong> doctors (${known} updated, ${x.doctors.length - known} new)</li>` : ''}
+        ${Object.keys(x.consultants).length ? `<li><strong>${Object.keys(x.consultants).length}</strong> consultant-of-the-week entries</li>` : ''}
+        ${x.restrictions.length ? `<li><strong>${x.restrictions.length}</strong> leave restrictions</li>` : ''}
         ${oc ? `<li><strong>${ocUsable}</strong> on-call shifts, ${oc.from ? esc(R.fmtUk(oc.from)) : '?'} to ${oc.to ? esc(R.fmtUk(oc.to)) : '?'}. On-calls already on the rota for those dates are replaced.</li>` : ''}
       </ul>
       ${x.problems.map((m) => `<p class="small warn-text">${esc(m)}</p>`).join('')}
+      ${rc.length ? `<details><summary class="small">Rota changes (${rc.length})</summary><div class="scroll-x"><table class="plain small"><thead><tr><th>Date</th><th>Doctor</th><th>Was</th><th>Becomes</th></tr></thead><tbody>${rc.slice(0, 300).map((c) => `<tr><td class="tabular">${esc(R.fmtShort(c.date))}</td><td>${esc(c.name)}</td><td>${esc(R.resolveCell(st(), R.doctorById(st(), c.doctorId), c.date).code || '(blank)')}</td><td><strong>${esc(c.code)}</strong></td></tr>`).join('')}</tbody></table></div></details>` : ''}
+      ${x.rota && x.rota.ignored.length ? `<details><summary class="small warn-text">Rota cells not used (${x.rota.ignored.length})</summary><ul class="small">${x.rota.ignored.slice(0, 60).map((m) => `<li>${esc(m)}</li>`).join('')}</ul></details>` : ''}
       ${unknown.length ? `<p class="small"><strong>On-call names to match once.</strong> The spelling is remembered next time.</p>${unknown.map((name, i) => `<div class="row small"><span>"${esc(name)}" (${plural(oc.unknownNames[name], 'row')}) is</span><label class="sr-only" for="map-${i}">Match ${esc(name)}</label><select id="map-${i}" data-act="map-name" data-name="${esc(name)}"><option value="">Not one of ours: skip</option>${docOptions(p.mapping[name])}</select></div>`).join('')}` : ''}
       ${bad ? `<p class="small" style="color:var(--bad-text)">On-call codes not recognised (skipped): ${bad}</p>` : ''}
       ${oc && oc.badDates ? `<p class="small" style="color:var(--bad-text)">${plural(oc.badDates, 'on-call row')} skipped because the date could not be read. Use dd/mm/yyyy.</p>` : ''}
-      ${sample ? `<details><summary class="small">Doctors in the file (${x.doctors.length})</summary><div class="scroll-x"><table class="plain small"><thead><tr><th>Name</th><th>Grade</th><th>Category</th><th>Starts</th><th>Finishes</th><th>Takes over from</th><th>Mon–Fri</th></tr></thead><tbody>${sample}</tbody></table></div></details>` : ''}`;
+      ${sample ? `<details><summary class="small">Doctors in the file (${x.doctors.length})</summary><div class="scroll-x"><table class="plain small"><thead><tr><th>Name</th><th>Grade</th><th>Category</th><th>Starts</th><th>Finishes</th><th>Takes over from</th></tr></thead><tbody>${sample}</tbody></table></div></details>` : ''}`;
   }
   // Set up → Data file: one Excel file holds everything that is imported, and is also the backup.
   function renderImport() {
@@ -855,14 +881,15 @@
     return `<section class="card"><h2>Rota data file</h2>
       <p class="small muted">One Excel file holds everything the rota is built from. Download it (it comes filled in with what is on the rota now), change it in Excel, and upload it again. You can do this as often as you like.</p>
       <ul class="small">
-        <li><strong>Doctors:</strong> grade, resident or senior, start and finish dates, whose column they take over, usual Mon–Fri locations, leave allowances. Blank start dates are filled in from the rotation rules.</li>
+        <li><strong>Rota:</strong> the whole rota, laid out like the rota page (dates down, one column per doctor, changeover rows). Type over a cell to change where someone is that day, or to add an on-call shift. Only changed cells are imported; leave stays as it is.</li>
+        <li><strong>Doctors:</strong> grade, resident or senior, start and finish dates, whose column they take over, leave allowances. Blank start dates are filled in from the rotation rules.</li>
         <li><strong>Consultant of the week</strong></li>
         <li><strong>Leave restrictions</strong> (NO AL / AVOID dates)</li>
         <li><strong>On-calls:</strong> paste in the trust on-calls each week (Date, Doctor, Shift).</li>
         <li><strong>Rotation dates</strong> and <strong>Codes</strong>, for reference.</li>
       </ul>
-      <p class="small muted">Doctors are matched by name: existing ones are updated, new ones added, nobody is deleted. You see what will change before anything is saved. The same file (with extra read-only tabs) is what Backups downloads. A CSV holds one tab only, so the Excel file is the one to use; a CSV of a single tab (e.g. Doctors) is also accepted.</p>
-      <div class="drop"><div class="row"><button type="button" class="btn primary" data-act="template" data-kind="master">Download the rota data file</button><button type="button" class="btn ghost" data-act="template" data-kind="master-csv">Doctors tab as CSV</button></div>
+      <p class="small muted">Doctors are matched by name: existing ones are updated, new ones added, nobody is deleted. You see what will change before anything is saved. The same file (with extra read-only tabs) is what Backups downloads. A CSV holds one tab only, so the Excel file is the one to use; a CSV of a single tab (Rota or Doctors) is also accepted.</p>
+      <div class="drop"><div class="row"><button type="button" class="btn primary" data-act="template" data-kind="master">Download the rota data file</button><button type="button" class="btn ghost" data-act="template" data-kind="rota-csv">Rota tab as CSV</button><button type="button" class="btn ghost" data-act="template" data-kind="master-csv">Doctors tab as CSV</button></div>
         <label class="field" for="file-master">Upload the filled-in file (.xlsx, or a .csv of one tab)<input type="file" id="file-master" accept=".xlsx,.csv" data-act="import-file" data-kind="master"></label></div>
       ${preview}</section>`;
   }
@@ -1157,7 +1184,7 @@
     if (!t || t.tagName === 'SELECT' || (t.tagName === 'INPUT' && t.type !== 'button')) return;
     const act = t.dataset.act, val = t.dataset.val;
     const confirmStep = (key) => { if (ui.confirm === key) { ui.confirm = null; return true; } ui.confirm = key; render(); return false; };
-    if (!['remove-doc', 'start-fresh', 'withdraw', 'revoke', 'edt-self-cancel', 'restore-backup'].includes(act)) ui.confirm = null;
+    if (!['remove-doc', 'start-fresh', 'withdraw', 'revoke', 'restore-backup'].includes(act)) ui.confirm = null;
     switch (act) {
       case 'nav': go(t.dataset.view); return;
       case 'open-rota-at': resetRange(R.addDays(val, -3)); ui.layout = 'grid'; go('rota'); ui.scrollToToday = false; return;
@@ -1223,22 +1250,6 @@
         break;
       }
       case 'edt-session': ui.edt.session = val; break;
-      case 'edt-self-book': {
-        const f = ui.edt;
-        try {
-          await store.bookEdtSelf({ doctorId: f.doctorId, email: (f.email || '').trim(), date: f.date, session: f.session });
-          ui.mine.doctorId = f.doctorId; ui.mine.email = (f.email || '').trim();
-          try { localStorage.setItem('haem-rota-mine', JSON.stringify({ doctorId: ui.mine.doctorId, email: ui.mine.email })); } catch (e) { /* storage blocked */ }
-          toast('Booked. It is on the rota and the authorisers have been told.');
-          f.date = '';
-        } catch (e) { toast(e.message, true); }
-        break;
-      }
-      case 'edt-self-cancel': {
-        if (!confirmStep('edtc:' + t.dataset.id)) return;
-        try { await store.cancelEdtSelf(t.dataset.id, ui.edt.doctorId, (ui.edt.email || '').trim()); toast('Session cancelled.'); } catch (e) { toast(e.message, true); }
-        break;
-      }
       case 'edt-book': {
         const f = ui.edt;
         const reason = $('#edt-reason') ? $('#edt-reason').value.trim() : '';
@@ -1265,6 +1276,7 @@
         break;
       }
       case 'setup-tab': ui.setupTab = val; ui.importPreview = null; break;
+      case 'people-pick': ui.peopleDoc = t.dataset.doc; render(); document.getElementById('pe-doc')?.scrollIntoView({ block: 'center' }); return;
       case 'add-doc': {
         const nd = ui.nd;
         const grade = nd.grade === '__other' ? nd.other.trim() : nd.grade;
@@ -1274,7 +1286,7 @@
         if (!name) { toast('Type the doctor\'s name, or tick "Name not known yet".', true); return; }
         if (nd.start && nd.end && nd.end < nd.start) { toast('The finish date is before the start date.', true); return; }
         const prev = nd.replaces ? R.doctorById(st(), nd.replaces) : null;
-        const src = R.doctorById(st(), nd.pattern || nd.replaces);
+        const src = prev;
         const fields = { name, grade, group, email: nd.placeholder ? '' : nd.email.trim(), start: nd.start, end: nd.end, endProvisional: !!nd.provisional, placeholder: !!nd.placeholder,
           slot: prev ? R.slotOf(prev) : undefined, plan: src && src.plan ? JSON.parse(JSON.stringify(src.plan)) : { A: ['', '', '', '', ''], B: null } };
         if (await change(op('saveDoctor', fields), `${name} added${prev ? ` in ${prev.name}'s column` : ''}.`)) ui.nd = null;
@@ -1314,6 +1326,7 @@
       case 'remove-doc': if (!confirmStep('remove:' + t.dataset.doc)) return; await change(op('removeDoctor', t.dataset.doc), 'Doctor removed.'); break;
       case 'template': {
         const kind = t.dataset.kind;
+        if (kind === 'rota-csv') { saveFile('rota.csv', E.rotaCsv(st(), TODAY), 'text/csv;charset=utf-8'); return; }
         if (kind === 'master-csv') { saveFile('rota-doctors.csv', E.doctorsCsvTemplate(st()), 'text/csv;charset=utf-8'); return; }
         const bytes = kind === 'oncall' ? E.oncallTemplate(TODAY) : E.masterTemplate(st(), TODAY);
         saveFile(kind === 'oncall' ? 'oncall-import-template.xlsx' : 'rota-data-file.xlsx', bytes);
@@ -1382,7 +1395,7 @@
       render(); return;
     }
     if (t.dataset.mine) { ui.mine[t.dataset.mine] = t.value; ui.mine.result = null; return; }
-    if (t.dataset.edt) { ui.edt[t.dataset.edt] = t.value; if (t.type === 'email') return; render(); return; }
+    if (t.dataset.edt) { ui.edt[t.dataset.edt] = t.value; render(); return; }
     if (t.dataset.nd && ui.nd) {
       const k = t.dataset.nd;
       ui.nd[k] = t.type === 'checkbox' ? t.checked : t.value;
@@ -1420,6 +1433,7 @@
         await change(op('saveDoctor', { id: d.id, grade, group: groupForGrade(grade) || d.group }));
         return;
       }
+      case 'people-doc': ui.peopleDoc = t.value; break;
       case 'plan-day': await change(op('setPlanDay', t.dataset.doc, t.dataset.week, Number(t.dataset.i), t.value)); return;
       case 'toggle-b': await change(op('toggleWeekB', t.dataset.doc, t.checked)); return;
       case 'cons': { const w = t.dataset.week, v = t.value.trim(); await change((s, by) => S.ops.setSetting(s, by, 'consultantOfWeek.' + w, v, `Consultant w/c ${R.fmtUk(w)}: ${v || '(blank)'}`)); return; }
@@ -1442,7 +1456,7 @@
         const isCsv = /\.csv$/i.test(file.name);
         if (!/\.xlsx$/i.test(file.name) && !(isCsv && kind === 'master')) { toast('Save the file as an Excel Workbook (.xlsx)' + (kind === 'master' ? ' or CSV' : '') + ' and choose it again.', true); return; }
         try {
-          const sheets = isCsv ? [{ name: 'Doctors', rows: E.parseCsv(await file.text()) }] : await X.read(await file.arrayBuffer());
+          const sheets = isCsv ? [{ name: file.name.replace(/\.csv$/i, ''), rows: E.parseCsv(await file.text()) }] : await X.read(await file.arrayBuffer());
           const parsed = kind === 'oncall' ? E.parseOncall(st(), sheets) : E.parseMaster(st(), sheets);
           ui.importPreview = { kind, fileName: file.name, parsed, mapping: {} };
         } catch (e) { toast(`Could not read ${file.name}: ${e.message}`, true); }
@@ -1458,7 +1472,6 @@
     if (t.dataset.live) { ui[t.dataset.live] = t.value; render(); return; }
     if (t.dataset.form && ui.form && (t.tagName === 'TEXTAREA' || t.type === 'text' || t.type === 'email')) ui.form[t.dataset.form] = t.value; // keep typing without re-render
     if (t.dataset.mine) ui.mine[t.dataset.mine] = t.value;
-    if (t.dataset.edt === 'email') ui.edt.email = t.value;
     if (t.dataset.nd && ui.nd && (t.type === 'text' || t.type === 'email')) ui.nd[t.dataset.nd] = t.value;
     if (t.dataset.bulk === 'reason' && ui.bulk) ui.bulk.reason = t.value;
     if (ui.rulesDraft) {

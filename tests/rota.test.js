@@ -377,8 +377,10 @@ test('months are added safely for the 4-month view and "show more"', () => {
 test('master workbook: template round-trips, CSV works, import adds and updates by name', async () => {
   const st = S.demoState(TODAY);
   const wb = await X.read(E.masterTemplate(st, TODAY));
-  assert.deepEqual(wb.map((s) => s.name), ['How to use', 'Doctors', 'Consultant of the week', 'Leave restrictions', 'On-calls', 'Rotation dates', 'Codes']);
+  assert.deepEqual(wb.map((s) => s.name), ['How to use', 'Rota', 'Doctors', 'Consultant of the week', 'Leave restrictions', 'On-calls', 'Rotation dates', 'Codes']);
   const p = E.parseMaster(st, wb);
+  assert.ok(p.rota && p.rota.columns >= 8, 'the Rota tab is recognised');
+  assert.deepEqual(p.rota.changes, [], 'an unchanged Rota tab changes nothing');
   assert.ok(p.oncall && p.oncall.entries.length > 10 && p.oncall.entries.every((e) => e.doctorId), 'on-calls in the same file');
   // importing the file unchanged leaves the on-calls as they were
   const before = JSON.stringify(st.oncall);
@@ -390,8 +392,8 @@ test('master workbook: template round-trips, CSV works, import adds and updates 
   assert.equal(p.doctors.find((d) => d.name === 'New F1').replacesName, 'E. Ward');
   // a CSV of the Doctors tab, with a new doctor added and an existing one changed
   const rows = E.parseCsv(E.doctorsCsvTemplate(st));
-  rows.push(['A. Newman', 'IMT1', '', '', '', '', 'S. Malik', 'GUH', 'GUH', 'RGH', 'RGH', 'GUH', 'a.newman@example.nhs.uk', '', '', '', '']);
-  rows.find((r) => r[0] === 'Omar')[7] = 'RGH';
+  assert.ok(!rows[0].includes('Mon'), 'no weekday columns on the Doctors tab');
+  rows.push(['A. Newman', 'IMT1', '', '', '', '', 'S. Malik', 'a.newman@example.nhs.uk', '', '', '', '']);
   const q = E.parseMaster(st, [{ name: 'Doctors', rows }]);
   const neu = q.doctors.find((d) => d.name === 'A. Newman');
   assert.equal(neu.group, 'res');
@@ -399,31 +401,50 @@ test('master workbook: template round-trips, CSV works, import adds and updates 
   S.ops.applyMaster(st, 'J. Hale', Object.assign(q, { consultants: { '2026-11-02': 'Dr New' }, restrictions: [{ start: '2026-12-21', end: '2026-12-24', level: 'AVOID', note: 'Xmas' }] }), 'test.csv');
   const added = st.doctors.find((d) => d.name === 'A. Newman');
   assert.equal(R.slotOf(added), R.slotOf(R.doctorById(st, 'r5')), 'takes over S. Malik\'s column');
-  assert.equal(R.doctorById(st, 'm1').plan.A[0], 'RGH');
+  assert.ok(R.doctorById(st, 'm1').plan.A.some(Boolean), 'usual week kept when the file has no weekday columns');
   assert.equal(st.settings.consultantOfWeek['2026-11-02'], 'Dr New');
   assert.ok(st.settings.restricted.some((r) => r.note === 'Xmas'));
   assert.match(st.audit[0].detail, /1 doctors added, 16 updated/);
   assert.equal(st.audit[0].action, 'Rota data file imported');
 });
 
+test('Rota tab: the whole rota as a grid; only changed cells are imported', async () => {
+  const st = S.demoState(TODAY);
+  const wb = await X.read(E.masterTemplate(st, TODAY));
+  const sh = wb.find((x) => x.name === 'Rota');
+  const head = sh.rows[0].map((v) => String(v || ''));
+  assert.deepEqual(head.slice(0, 3), ['Date', 'Day', 'Consultant']);
+  assert.ok(sh.rows.some((r) => r[0] === 'Changeover'), 'changeover rows repeat the column headings');
+  const day = R.dateRange(R.addDays(TODAY, 3), R.addDays(TODAY, 30)).find((d) => R.isWorkday(st, d) && !R.resolveCell(st, R.doctorById(st, 'm1'), d).leave && R.resolveCell(st, R.doctorById(st, 'm1'), d).code !== 'NHH - DAY UNIT');
+  const day2 = R.addDays(day, 1);
+  const edit = (rows) => {
+    const h = rows[0].map((v) => String(v || ''));
+    const colOf = (name) => h.findIndex((x) => x.includes(name));
+    const rowOf = (iso) => rows.findIndex((r) => E.parseDate(r[0]) === iso);
+    rows[rowOf(day)][colOf('Omar')] = 'nhh - day unit';
+    rows[rowOf(day2)][colOf('Omar')] = 'LONG DAY';
+    for (let r = 1; r < rows.length; r++) for (let c = 3; c < h.length; c++) if (/ANNUAL LEAVE|STUDY LEAVE/.test(String(rows[r][c] || '')) && E.parseDate(rows[r][0])) { rows[r][c] = 'GUH'; return true; }
+    return false;
+  };
+  const hadLeave = edit(sh.rows);
+  const csv = E.parseCsv(E.rotaCsv(st, TODAY));
+  edit(csv);
+  for (const sheets of [[sh], [{ name: 'rota', rows: csv }]]) {
+    const p = E.parseMaster(st, sheets);
+    assert.equal(p.rota.changes.length, 2, JSON.stringify(p.rota.changes));
+    if (hadLeave) assert.equal(p.rota.ignored.length, 1, 'approved leave is not overwritten');
+  }
+  const p = E.parseMaster(st, [sh]);
+  S.ops.applyMaster(st, 'J. Hale', p, 'rota.xlsx');
+  assert.equal(R.resolveCell(st, R.doctorById(st, 'm1'), day).code, 'NHH - DAY UNIT');
+  assert.equal(R.resolveCell(st, R.doctorById(st, 'm1'), day2).code, 'LONG DAY');
+  assert.match(st.audit[0].detail, /2 rota cells changed/);
+  assert.match(E.rotaCsv(st, TODAY), /^\uFEFF?Date,Day,Consultant,/);
+});
+
 test('CSV: quotes, commas and formula-looking cells survive', () => {
   const rows = [['Name', 'Note'], ['Smith, J', 'said "hi"'], ['=1+1', 'x']];
   assert.deepEqual(E.parseCsv(E.toCsv(rows)), rows);
-});
-
-test('doctors book their own EDT/SDT only when the rules are met', () => {
-  const st = S.demoState(TODAY);
-  const mon = '2026-10-15'; // a Thursday: Meera is also on the GUH ward, so Omar can be spared
-  const ok = R.edtCheck(st, 'm1', mon, 'AM');
-  assert.ok(ok.ok, JSON.stringify(ok.checks));
-  assert.throws(() => S.bookEdtSelf(st, { doctorId: 'm1', email: 'x@y.z', date: mon, session: 'AM' }, { today: TODAY }), /does not match/);
-  const out = S.bookEdtSelf(st, { doctorId: 'm1', email: 'omar@example.nhs.uk', date: mon, session: 'AM' }, { today: TODAY });
-  assert.equal(R.resolveCell(st, R.doctorById(st, 'm1'), mon).kind, 'edt');
-  assert.throws(() => S.bookEdtSelf(st, { doctorId: 'm1', email: 'omar@example.nhs.uk', date: mon, session: 'PM' }, { today: TODAY }), /can't be booked/);
-  assert.equal(st.notifications[0].to, 'auth');
-  assert.throws(() => S.bookEdtSelf(st, { doctorId: 'r2', email: 'p.nair@example.nhs.uk', date: mon, session: 'AM' }, { today: TODAY }), /GUH only/);
-  S.cancelEdtSelf(st, out.booking.id, 'm1', 'omar@example.nhs.uk', { today: TODAY });
-  assert.notEqual(R.resolveCell(st, R.doctorById(st, 'm1'), mon).kind, 'edt');
 });
 
 test('restore puts an earlier copy back but keeps the change log', () => {
