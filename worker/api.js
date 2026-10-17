@@ -48,7 +48,9 @@ async function ensureSchema(db) {
     db.prepare('CREATE TABLE IF NOT EXISTS auth (id TEXT PRIMARY KEY, salt TEXT NOT NULL, hash TEXT NOT NULL, set_at TEXT NOT NULL)'),
     db.prepare('CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, name TEXT NOT NULL, expires_at INTEGER NOT NULL)'),
     db.prepare('CREATE TABLE IF NOT EXISTS hits (key TEXT NOT NULL, at INTEGER NOT NULL)'),
-    db.prepare('CREATE INDEX IF NOT EXISTS hits_key ON hits (key, at)')
+    db.prepare('CREATE INDEX IF NOT EXISTS hits_key ON hits (key, at)'),
+    db.prepare('CREATE TABLE IF NOT EXISTS backups (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, kind TEXT NOT NULL, by TEXT, note TEXT, version INTEGER, bytes INTEGER, data BLOB NOT NULL)'),
+    db.prepare('CREATE INDEX IF NOT EXISTS backups_kind ON backups (kind, id)')
   ]);
   schemaReady = true;
 }
@@ -64,13 +66,46 @@ function trim(state) {
   if (state.audit && state.audit.length > 2000) state.audit.length = 2000;
   if (state.notifications && state.notifications.length > 500) state.notifications.length = 500;
 }
+// ---------- backups: a compressed copy after every change, plus one each day ----------
+const KEEP_CHANGE_BACKUPS = 500;
+const KEEP_DAILY_BACKUPS = 730;
+async function gzip(text) {
+  const cs = new CompressionStream('gzip');
+  const w = cs.writable.getWriter(); w.write(enc.encode(text)); w.close();
+  return new Uint8Array(await new Response(cs.readable).arrayBuffer());
+}
+async function gunzip(bytes) {
+  const ds = new DecompressionStream('gzip');
+  const w = ds.writable.getWriter(); w.write(bytes); w.close();
+  return new Response(ds.readable).text();
+}
+async function snapshot(db, kind, body, version, by, note) {
+  const data = await gzip(body);
+  await db.prepare('INSERT INTO backups (at, kind, by, note, version, bytes, data) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .bind(new Date().toISOString(), kind, String(by || '').slice(0, 80), String(note || '').slice(0, 300), version, body.length, data).run();
+  const keep = kind === 'daily' ? KEEP_DAILY_BACKUPS : KEEP_CHANGE_BACKUPS;
+  await db.prepare('DELETE FROM backups WHERE kind = ? AND id NOT IN (SELECT id FROM backups WHERE kind = ? ORDER BY id DESC LIMIT ?)').bind(kind, kind, keep).run();
+}
+export async function dailyBackup(env) {
+  if (!env.DB) return;
+  await ensureSchema(env.DB);
+  const day = todayIso();
+  const done = await env.DB.prepare("SELECT id FROM backups WHERE kind = 'daily' AND at >= ? LIMIT 1").bind(day).first();
+  if (done) return;
+  const row = await env.DB.prepare("SELECT json, version FROM kv WHERE id = 'state'").first();
+  if (row) await snapshot(env.DB, 'daily', row.json, row.version, 'Daily backup', day);
+}
+
 // Save only if nobody else saved since we read it. Returns the new version, or null on a clash.
 async function saveState(db, state, baseVersion) {
   trim(state);
   const body = JSON.stringify(state);
   if (body.length > MAX_STATE_BYTES) throw Object.assign(new Error('The rota has grown too large to save. Remove old on-call data or ask for help.'), { status: 413 });
   const res = await db.prepare("UPDATE kv SET json = ?, version = version + 1, updated_at = ? WHERE id = 'state' AND version = ?").bind(body, new Date().toISOString(), baseVersion).run();
-  return res.meta && res.meta.changes === 1 ? baseVersion + 1 : null;
+  if (!(res.meta && res.meta.changes === 1)) return null;
+  const last = (state.audit && state.audit[0]) || {};
+  try { await snapshot(db, 'change', body, baseVersion + 1, last.by, [last.action, last.detail].filter(Boolean).join(': ')); } catch (e) { console.error('backup failed', e); }
+  return baseVersion + 1;
 }
 // Read, change, save; retry if someone else saved at the same moment.
 async function mutate(db, fn) {
@@ -264,6 +299,47 @@ export async function handleApi(request, env) {
       const { state } = await mutate(db, (s) => S.withdrawLeave(s, m[1], body.email));
       await sendEmails(env, state, (state.settings.authoriserEmails || []).map((to) => ({ to, subject: 'Leave request withdrawn', text: 'A doctor withdrew a leave request. Open the rota for details.' })));
       return json({ ok: true });
+    }
+
+    // A doctor books or cancels their own EDT/SDT (all rota rules must be met).
+    if (path === '/api/edt' && method === 'POST') {
+      const key = 'edt:' + ip;
+      if ((await countHits(db, key, 3600000)) >= MAX_REQUESTS_PER_HOUR) return fail(429, 'Too many bookings from this connection. Try again later.');
+      const body = await readJson(request);
+      await addHit(db, key);
+      const { out, state } = await mutate(db, (s) => S.bookEdtSelf(s, body));
+      await sendEmails(env, state, out.emails);
+      return json({ ok: true, booking: out.booking });
+    }
+    if (path === '/api/my-edt' && method === 'POST') {
+      const key = 'look:' + ip;
+      if ((await countHits(db, key, 600000)) >= 30) return fail(429, 'Too many look-ups. Try again in a few minutes.');
+      await addHit(db, key);
+      const body = await readJson(request);
+      const { state } = await loadState(db);
+      return json(S.myEdt(state, body.doctorId, body.email));
+    }
+    const me2 = path.match(/^\/api\/edt\/([\w-]+)\/cancel$/);
+    if (me2 && method === 'POST') {
+      const body = await readJson(request);
+      await mutate(db, (s) => S.cancelEdtSelf(s, me2[1], body.doctorId, body.email));
+      return json({ ok: true });
+    }
+
+    // Backups (authorisers only): list, and fetch one to download or restore.
+    if (path === '/api/backups' && method === 'GET') {
+      if (!me) return fail(401, 'Sign in as an authoriser first.');
+      const changes = await db.prepare("SELECT id, at, kind, by, note, version, bytes FROM backups WHERE kind != 'daily' ORDER BY id DESC LIMIT 200").all();
+      const daily = await db.prepare("SELECT id, at, kind, by, note, version, bytes FROM backups WHERE kind = 'daily' ORDER BY id DESC LIMIT 400").all();
+      return json({ changes: changes.results || [], daily: daily.results || [] });
+    }
+    const mb = path.match(/^\/api\/backups\/(\d+)$/);
+    if (mb && method === 'GET') {
+      if (!me) return fail(401, 'Sign in as an authoriser first.');
+      const row = await db.prepare('SELECT id, at, kind, version, data FROM backups WHERE id = ?').bind(Number(mb[1])).first();
+      if (!row) return fail(404, 'That backup no longer exists.');
+      const text = await gunzip(new Uint8Array(row.data));
+      return json({ id: row.id, at: row.at, kind: row.kind, version: row.version, state: JSON.parse(text) });
     }
 
     // An authoriser saves the whole rota (after changing it in the browser).

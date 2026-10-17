@@ -36,9 +36,9 @@ Good password: long and unguessable, for example 3 or 4 unrelated words mixed wi
 
 The first visit loads **example data with fictional doctors** so you can try everything. When ready: sign in → **Set up → Settings → Start fresh**. This keeps the rules, authoriser names and alert emails. Then:
 
-1. **Set up → People:** add doctors (or import the staff list template). Add their NHS email: leave requests must use the same email.
-2. **Set up → Weekly plan:** each doctor's usual site per weekday (or import the weekly plan template).
-3. **Set up → Import:** each week, import the trust on-call rota using the on-call template.
+1. **Set up → Data file:** download the rota data file, fill in the Doctors tab (with NHS emails: leave requests must use the same email), Consultant of the week, Leave restrictions and On-calls, and upload it.
+2. **Each week:** paste the trust on-calls into the On-calls tab and upload the file again.
+3. **Set up → Master sheet / People & leave:** small changes can also be made by hand there.
 4. **Set up → Rotations:** rotation dates and changeover bands.
 5. **Rules:** check the numbers and the text.
 
@@ -63,4 +63,24 @@ Emails only go to addresses already in the rota (doctors, requesters and alert e
 
 ## Backups
 
-Download an Excel copy from the Rota page (Whole rotation → Download Excel). For a full database backup: `npx wrangler d1 export haematology-rota --remote --output backup.sql`.
+The rota lives in the Cloudflare D1 database `haematology-rota` (not in a file). Copies are kept automatically:
+
+- **After every change:** a compressed copy (the last 500 changes).
+- **Every night** (01:15 UTC, a Cloudflare Cron Trigger set in `wrangler.jsonc`): a daily copy, kept for 2 years.
+- **Cloudflare's own restore points:** D1 Time Travel keeps the last 30 days, in case the database itself has a problem.
+
+Authorisers can see and use these under **Set up → Backups**: download any copy, or put one back (the restore is itself logged and backed up, so it can be undone). The same page downloads a full **Excel backup**. Its Doctors, Consultant of the week and Leave restrictions tabs can be imported again. It also downloads an exact **JSON copy**, which can be uploaded there to restore everything.
+
+For a full database export from your computer: `npx wrangler d1 export haematology-rota --remote --output backup.sql`.
+
+## Setting the rota up from Excel
+
+**Set up → Data file** downloads the **rota data file**, one Excel workbook filled in with what is on the rota now. Its tabs:
+
+- **Doctors:** name, grade, category, start and finish dates, whose column they take over, usual Mon–Fri locations and leave allowances.
+- **Consultant of the week**
+- **Leave restrictions**
+- **On-calls:** the trust on-calls (Date, Doctor, Shift).
+- **Rotation dates** and **Codes:** reference only.
+
+Edit it in Excel and upload it on the same page. Doctors are matched by name, so nobody is deleted. On-calls already on the rota for the dates in the On-calls tab are replaced. The Backups page downloads the same file with extra read-only tabs. A CSV holds only one tab (for example the Doctors tab); the Excel file is the one file that holds everything.

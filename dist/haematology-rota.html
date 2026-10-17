@@ -393,6 +393,103 @@ details.month summary { cursor: pointer; padding: 4px 0; }
 .cons-row { padding: 3px 0; }
 .who { gap: 10px; flex-wrap: wrap; }
 @media (max-width: 760px) { .wl-block { grid-template-columns: 1fr; gap: 2px; } .wl-block .wl-site { justify-self: start; } }
+
+/* chart colours: one blue, two steps (validated), on a neutral track */
+:root { --viz-1: #2a78d6; --viz-2: #86b6ef; --viz-track: #e6e4df; }
+:root[data-theme="dark"] { --viz-1: #3987e5; --viz-2: #184f95; --viz-track: #383835; }
+/* ---------- round 6: mobile polish, quiet theme button, changeover rows, legibility ---------- */
+.icon-btn { width: 32px; height: 32px; min-height: 0; border-radius: 16px; border: 0; background: transparent; color: var(--head-muted); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; opacity: 0.75; transition: opacity 120ms ease, background-color 120ms ease, transform 100ms ease-out; }
+.icon-btn svg { width: 18px; height: 18px; }
+.icon-btn:hover { opacity: 1; background: var(--head-chip); }
+.icon-btn:active { transform: scale(0.92); }
+.who { margin-left: auto; gap: 6px; }
+.who .btn.quiet { background: transparent; border-color: transparent; color: var(--head-fg); font-weight: 600; }
+.who .btn.quiet:hover { background: var(--head-chip); }
+.who-name { font-size: 0.8rem; color: var(--head-muted); }
+.who .short { display: none; }
+.theme-switch { display: none; }
+.tabbar { display: none; }
+.ico { width: 22px; height: 22px; }
+/* legible text on every coloured cell, in every theme */
+.cell { font-weight: 700; letter-spacing: 0.01em; -webkit-text-fill-color: currentColor; }
+.k-site.s-GUH, .k-edt.s-GUH { color: #3b0502; }
+.k-site.s-RGH, .k-edt.s-RGH { color: #03213f; }
+.k-site.s-NHH, .k-edt.s-NHH { color: #142d05; }
+.k-lab, .k-edt.s-LAB { color: #3b0502; }
+.k-leave, .k-sick, .k-oncall, .k-other, .k-half.s-none { color: #2b2000; }
+.k-half { color: #15202b; }
+:root[data-theme="dark"] { --guh-bg: #f0a59e; --rgh-bg: #9cc8f2; --nhh-bg: #b2d998; --lab-bg: #e6c1bd; --leave-bg: #f2d45e; --call-bg: #f2d45e; --sick-bg: #f2d45e; }
+.restr.PROG { background: var(--accent); }
+/* changeover: the column headers repeat with the new names */
+.roster tr.co-row th, .roster tr.co-row td { background: var(--accent-soft); border-top: 2px solid var(--accent); border-bottom: 2px solid var(--accent); }
+.roster tr.co-row th.col-date { position: sticky; left: 0; z-index: 2; font-size: 0.72rem; font-weight: 700; color: var(--accent); line-height: 1.2; }
+.roster tr.co-row th.doc { font-size: 0.78rem; font-weight: 600; color: var(--muted); padding: 6px 4px; }
+.roster tr.co-row th.doc.changed { color: var(--fg); background: var(--surface); box-shadow: inset 0 0 0 2px var(--accent); border-radius: 6px; }
+.roster tr.co-row th.doc.vacant { color: var(--bad-text); font-style: italic; }
+.roster tr.co-row td.co-note { font-size: 0.68rem; color: var(--accent); font-weight: 600; white-space: normal; max-width: 130px; text-align: left; }
+/* More sheet */
+.more-list { display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; background: var(--surface-2); }
+.more-item { display: flex; align-items: center; gap: 12px; padding: 13px 14px; border: 0; background: transparent; color: var(--fg); font: inherit; font-weight: 600; text-align: left; cursor: pointer; border-bottom: 1px solid var(--line); }
+.more-item:last-child { border-bottom: 0; }
+.more-item .chev { margin-left: auto; color: var(--faint); font-size: 1.2rem; }
+.more-item:active { background: var(--line); }
+.theme-seg { justify-content: center; }
+.donut-wrap { display: flex; align-items: center; gap: 14px; }
+.donut { width: 112px; height: 112px; flex: none; }
+.donut text { fill: var(--fg); font-family: var(--font-body); }
+.donut .big { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.donut .sub { font-size: 9px; fill: var(--muted); }
+.legend-list { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; }
+.legend-list .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
+.mini-wrap { max-height: none; }
+.roster.mini td.mine .cell { outline: 3px solid var(--fg); outline-offset: -1px; }
+.roster.mini td.cover .cell { outline: 3px dashed var(--ok-fg); outline-offset: -1px; }
+.roster.mini th.doc.mine { box-shadow: inset 0 -3px 0 var(--fg); }
+.roster.mini th.doc.cover { box-shadow: inset 0 -3px 0 var(--ok-fg); }
+.legend-sw { display: inline-block; width: 14px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.legend-sw.mine { outline: 3px solid var(--fg); outline-offset: -3px; }
+.legend-sw.cover { outline: 3px dashed var(--ok-fg); outline-offset: -3px; }
+.roster.mini td.dim .cell { opacity: 0.35; }
+.roster.mini tr.req-day th.col-date { box-shadow: inset 4px 0 0 var(--warn-fg); }
+@media (max-width: 760px) {
+  body { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+  .app-head { position: sticky; top: 0; padding: 8px 12px; gap: 8px; flex-wrap: nowrap; }
+  .app-head .nav { display: none; }
+  .brand-mark { width: 26px; height: 26px; }
+  .brand strong { font-size: 0.95rem; }
+  .brand span { display: none; }
+  .who .long, .who-name { display: none; }
+  .who .short { display: inline; }
+  .proto-bar { font-size: 0.72rem; padding: 4px 12px; }
+  main { padding-inline: 12px; padding-block: 12px 24px; gap: 12px; }
+  h1 { font-size: 1.45rem; }
+  .page-head p { font-size: 0.85rem; }
+  .tabbar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)); background: var(--material); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%); box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.06) inset, 0 -8px 20px -16px rgba(0, 0, 0, 0.6); }
+  .tabbar button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; background: transparent; border: 0; color: var(--head-muted); font: inherit; font-size: 0.66rem; font-weight: 600; padding: 4px 2px; position: relative; cursor: pointer; transition: color 120ms ease, transform 100ms ease-out; }
+  .tabbar button[aria-current="page"] { color: var(--head-fg); }
+  .tabbar button[aria-current="page"] .ico { stroke-width: 2.3; }
+  .tabbar button:active { transform: scale(0.92); }
+  .tabbar .badge { position: absolute; top: 0; left: calc(50% + 6px); margin: 0; }
+  .toasts { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+  .sheet { bottom: 0; }
+  /* compact grid on phones */
+  .table-wrap { max-height: calc(100vh - 220px); border-radius: 10px; }
+  .roster { font-size: 0.7rem; }
+  .roster .col-date { min-width: 74px; padding: 3px 6px; }
+  .roster th.doc { min-width: 62px; max-width: 80px; padding: 6px 2px; }
+  .roster th.doc .dates, .roster th.doc .next { font-size: 0.58rem; }
+  table.roster { width: min-content; min-width: 100%; }
+  .roster td { padding: 2px; }
+  .roster .cell { word-break: break-word; hyphens: auto; }
+  .roster th.doc .next { display: none; }
+  .roster .cons { display: none; }
+  .roster .col-date { min-width: 66px; white-space: nowrap; }
+  .cell { min-height: 30px; font-size: 0.62rem; padding: 1px 2px; border-radius: 5px; }
+  .cv { font-size: 0.6rem; padding: 2px 3px; }
+  .avail { font-size: 0.6rem; padding: 1px 4px; }
+  .page-head .row { width: 100%; }
+  .page-head .row .btn { flex: 1; }
+}
 /* ---------- Apple-style feel (see .claude/skills/apple-design) ----------
    Instant press feedback, translucent chrome, size-specific type, sheets that
    materialise and can be dragged away, and gentler fallbacks for reduced motion,
@@ -473,6 +570,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
 </header>
 <div class="proto-bar" id="bar" role="note" hidden></div>
 <main id="view" tabindex="-1"></main>
+<nav class="tabbar" id="tabbar" aria-label="Main"></nav>
 <div id="sheet-root"></div>
 <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 
@@ -1630,6 +1728,40 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     notify(state, 'auth', `${doc ? doc.name : 'A doctor'} withdrew their request for ${rangeText(r.start, r.end)}.`);
     return r;
   }
+  // A doctor books their own EDT/SDT session (no password). Allowed only when every rule is met.
+  function bookEdtSelf(state, p, opts) {
+    const today = (opts && opts.today) || R.toIso(new Date());
+    const doc = R.doctorById(state, p.doctorId);
+    if (!doc || doc.placeholder) throw new Error('Choose your name from the list.');
+    if (!emailMatches(doc, p.email)) throw new Error(doc.email ? 'That NHS email does not match the staff list for your name.' : 'Enter your NHS email address.');
+    if (!R.isIso(p.date) || p.date < today) throw new Error('Choose a date from today onwards.');
+    if (R.daysBetween(today, p.date) > 183) throw new Error('Sessions can be booked up to 6 months ahead.');
+    const session = p.session === 'PM' ? 'PM' : 'AM';
+    const chk = R.edtCheck(state, doc.id, p.date, session);
+    if (!chk.ok) throw new Error('This session can\'t be booked: ' + chk.checks.filter((c) => !c.ok).map((c) => c.rule + (c.detail ? ' (' + c.detail + ')' : '')).join('; ') + '. Ask a rota authoriser if it is needed anyway.');
+    const e = { id: uid('e'), doctorId: doc.id, date: p.date, session, type: chk.type, bookedBy: doc.name + ' (self)', at: nowIso() };
+    state.edt.push(e);
+    log(state, doc.name, 'EDT/SDT booked by doctor', `${chk.type} ${R.fmtUk(p.date)} ${session}`);
+    notify(state, 'auth', `${doc.name} booked ${chk.type}: ${R.fmtShort(p.date)} ${session === 'AM' ? 'morning' : 'afternoon'}.`);
+    return { booking: e, emails: authorEmails(state).map((to) => ({ to, subject: `${chk.type} booked: ${doc.name}, ${R.fmtShort(p.date)} ${session}`, text: `${doc.name} (${doc.grade}) booked ${chk.type} for ${R.fmtLong(p.date)} (${session === 'AM' ? 'morning' : 'afternoon'}). All rota rules were met.` })) };
+  }
+  function cancelEdtSelf(state, id, doctorId, email, opts) {
+    const doc = R.doctorById(state, doctorId);
+    if (!doc || !emailMatches(doc, email)) throw new Error('Name and NHS email do not match the staff list.');
+    const e = (state.edt || []).find((x) => x.id === id && x.doctorId === doc.id);
+    if (!e) throw new Error('Booking not found.');
+    if (e.date < ((opts && opts.today) || R.toIso(new Date()))) throw new Error('Past sessions cannot be cancelled.');
+    state.edt = state.edt.filter((x) => x.id !== id);
+    log(state, doc.name, 'EDT/SDT cancelled by doctor', `${e.type} ${R.fmtUk(e.date)} ${e.session}`);
+    notify(state, 'auth', `${doc.name} cancelled ${e.type} on ${R.fmtShort(e.date)} ${e.session}.`);
+    return e;
+  }
+  function myEdt(state, doctorId, email, today) {
+    const doc = R.doctorById(state, doctorId);
+    if (!doc || !emailMatches(doc, email)) throw new Error('Name and NHS email do not match the staff list.');
+    return { entitlement: R.edtEntitlement(state, doc, today || R.toIso(new Date())), bookings: (state.edt || []).filter((e) => e.doctorId === doc.id).sort((a, b) => (a.date < b.date ? -1 : 1)) };
+  }
+
   function myRequests(state, doctorId, email) {
     const doc = R.doctorById(state, doctorId);
     if (!doc || !emailMatches(doc, email)) throw new Error('Name and NHS email do not match the staff list.');
@@ -1651,6 +1783,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
       start: r.start, end: r.end, part: r.part, status: r.status, excludedDates: r.excludedDates || [], days: r.days, cover: (r.cover || []).map((c) => ({ date: c.date, doctorId: c.doctorId, to: c.to }))
     }));
     Object.values(s.overrides || {}).forEach((m) => Object.values(m).forEach((o) => { delete o.reason; delete o.by; }));
+    s.edt = (s.edt || []).map((e) => ({ id: e.id, doctorId: e.doctorId, date: e.date, session: e.session, type: e.type }));
     s.audit = []; s.notifications = [];
     s.settings.authoriserEmails = [];
     s.public = true;
@@ -1778,6 +1911,60 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
       }
       if (!n) throw new Error('None of those doctors are in post on the chosen days.');
       log(state, by, 'Group change', `${ids.map((id) => docName(state, id)).join(', ')}: ${code || '(usual location)'} on ${n} day${n === 1 ? '' : 's'}, ${R.fmtUk(from)} to ${R.fmtUk(to)}${reason ? ` (${reason})` : ''}`);
+      return [];
+    },
+    // Apply a parsed master workbook: update doctors matched by name, add new ones, set consultants, add restrictions.
+    applyMaster(state, by, parsed, fileName) {
+      let added = 0, updated = 0;
+      const byName = (n) => state.doctors.find((d) => d.name.toLowerCase() === String(n || '').trim().toLowerCase()) || null;
+      const missing = [];
+      for (const x of parsed.doctors || []) {
+        const fields = { name: x.name, grade: x.grade, group: x.group, start: x.start || '', end: x.end || '', endProvisional: !!x.endProvisional, plan: { A: x.plan, B: null }, placeholder: !!x.placeholder };
+        if (x.email) fields.email = x.email;
+        if (x.alEntitlement !== undefined) fields.alEntitlement = x.alEntitlement;
+        if (x.alExtra !== undefined) fields.alExtra = x.alExtra;
+        if (x.slEntitlement !== undefined) fields.slEntitlement = x.slEntitlement;
+        if (x.aliases && x.aliases.length) fields.aliases = x.aliases;
+        if (x.replacesName) { const prev = byName(x.replacesName); if (prev && prev.name.toLowerCase() !== x.name.toLowerCase()) fields.slot = R.slotOf(prev); else if (!prev) missing.push(`${x.name}: "${x.replacesName}" not found, so a new column was used`); }
+        const existing = byName(x.name);
+        if (existing) {
+          if (!x.plan.some(Boolean)) delete fields.plan; // no locations in the file: keep the doctor's usual week
+          Object.assign(existing, fields);
+          updated++;
+        } else {
+          const doc = Object.assign({ id: uid('d'), aliases: [], fte: 1, email: '', slEntitlement: x.group === 'mg' ? 10 : 15 }, fields);
+          if (doc.alEntitlement === undefined) doc.alEntitlement = R.alProRata(doc).days;
+          state.doctors.push(doc); added++;
+        }
+      }
+      const weeks = Object.entries(parsed.consultants || {});
+      weeks.forEach(([w, n]) => { state.settings.consultantOfWeek[w] = n; });
+      let restr = 0;
+      for (const r of parsed.restrictions || []) {
+        if (state.settings.restricted.some((x) => x.start === r.start && (x.end || x.start) === r.end && x.level === r.level)) continue;
+        state.settings.restricted.push(Object.assign({ id: uid('x') }, r)); restr++;
+      }
+      let shifts = 0;
+      const oc = parsed.oncall;
+      if (oc && oc.from && oc.to) {
+        const entries = (oc.entries || []).map((e) => Object.assign({}, e, { doctorId: e.doctorId || (parsed.mapping || {})[e.name] || null })).filter((e) => e.doctorId);
+        for (const id of Object.keys(state.oncall)) for (const iso of Object.keys(state.oncall[id])) if (iso >= oc.from && iso <= oc.to) delete state.oncall[id][iso];
+        for (const e of entries) (state.oncall[e.doctorId] = state.oncall[e.doctorId] || {})[e.date] = e.code;
+        for (const [alias, id] of Object.entries(parsed.mapping || {})) { const d = R.doctorById(state, id); if (id && d && !(d.aliases || []).includes(alias)) (d.aliases = d.aliases || []).push(alias); }
+        shifts = entries.length;
+      }
+      log(state, by, 'Rota data file imported', `${fileName || 'file'}: ${added} doctors added, ${updated} updated, ${weeks.length} consultant weeks, ${restr} leave restrictions${oc ? `, ${shifts} on-call shifts (${R.fmtUk(oc.from)} to ${R.fmtUk(oc.to)})` : ''}${missing.length ? '. ' + missing.join('; ') : ''}`);
+      return [];
+    },
+    // Put back an earlier copy of the whole rota (from a backup).
+    restoreState(state, by, copy, label) {
+      if (!copy || copy.version !== 2 || !Array.isArray(copy.doctors)) throw new Error('That is not a rota backup.');
+      const audit = state.audit;
+      Object.keys(state).forEach((k) => delete state[k]);
+      Object.assign(state, clone(copy));
+      upgrade(state);
+      state.audit = audit;
+      log(state, by, 'Rota restored from a backup', label || '');
       return [];
     },
     copyDoctor(state, by, fromId, fields) {
@@ -1961,6 +2148,26 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
         await api('POST', `/api/requests/${encodeURIComponent(id)}/withdraw`, { email });
         await store.refresh();
       },
+      async bookEdtSelf(payload) {
+        if (store.mode === 'local') { const out = bookEdtSelf(store.state, payload); saveLocal(); emit(); return out; }
+        const out = await api('POST', '/api/edt', payload);
+        await store.refresh(true);
+        return out;
+      },
+      async cancelEdtSelf(id, doctorId, email) {
+        if (store.mode === 'local') { cancelEdtSelf(store.state, id, doctorId, email); saveLocal(); emit(); return; }
+        await api('POST', `/api/edt/${encodeURIComponent(id)}/cancel`, { doctorId, email });
+        await store.refresh(true);
+      },
+      async myEdt(doctorId, email) {
+        if (store.mode === 'local') return myEdt(store.state, doctorId, email);
+        return api('POST', '/api/my-edt', { doctorId, email });
+      },
+      async listBackups() {
+        if (store.mode === 'local') return { backups: [], local: true };
+        return api('GET', '/api/backups');
+      },
+      async getBackup(id) { return api('GET', `/api/backups/${encodeURIComponent(id)}`); },
       async myRequests(doctorId, email) {
         if (store.mode === 'local') return myRequests(store.state, doctorId, email);
         return api('POST', '/api/my-requests', { doctorId, email });
@@ -1997,7 +2204,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     return ((state.settings && state.settings.restricted) || []).find((r) => iso >= r.start && iso <= (r.end || r.start)) || null;
   }
 
-  const api = { createStore, demoState, emptyState, upgrade, submitLeave, withdrawLeave, myRequests, publicView, ops, restrictionOn, DEFAULT_RULES_TEXT, LOCAL_KEY };
+  const api = { createStore, demoState, emptyState, upgrade, submitLeave, withdrawLeave, myRequests, bookEdtSelf, cancelEdtSelf, myEdt, publicView, ops, restrictionOn, DEFAULT_RULES_TEXT, LOCAL_KEY };
   root.RotaStore = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -2255,6 +2462,214 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     return { staff, problems };
   }
 
+
+  // ---------- master workbook (doctors + consultant of the week + leave restrictions) ----------
+  const MASTER_COLS = ['Name', 'Grade', 'Category (Resident or Senior)', 'Starts', 'Finishes', 'Finish date confirmed (Yes/No)', 'Takes over the column of (name)', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'NHS email', 'Annual leave days', 'Carried over / extra days', 'Study leave days', 'Other spellings (comma separated)'];
+  const MASTER_HELP = [
+    'How to fill in the rota master workbook',
+    '',
+    'This one file sets up the rota. Fill in the tabs you need and upload it under Set up → Data file. You can import it again at any time: doctors are matched by name and updated, new ones are added. Nobody is deleted by an import.',
+    '',
+    'Doctors tab: one row per doctor (or per post, for placeholders).',
+    '  • Grade: e.g. F1, F2, IMT1, IMT2, IMT3, JCF, Registrar ST3–ST8, Specialty doctor, Specialist grade, Senior clinical fellow, or anything else.',
+    '  • Category: Resident (F1, F2, IMT, JCF) or Senior (registrars, specialty doctors, specialist grade, senior clinical fellows). Left blank, it is worked out from the grade.',
+    '  • Starts / Finishes: dd/mm/yyyy. Left blank for a Foundation, IMT or registrar grade, the next rotation dates are filled in (see the Rotation dates tab).',
+    '  • Finish date confirmed: No if the finish date may change (e.g. a registrar who may stay 6 or 12 months).',
+    '  • Takes over the column of: the name of the doctor they replace, so the rota continues in the same column at the changeover.',
+    '  • Name not known yet: write "New F1" (or New + grade). It shows as TBC until you type the real name over it.',
+    '  • Mon–Fri: usual location each weekday, using the codes on the Codes tab (GUH, RGH - DAY UNIT, NHH - DAY UNIT, GUH LAB, OFF …).',
+    '  • Annual leave days: left blank, the Wales default for the grade and time in post is used. Carried over / extra: accrued or carried-over days.',
+    '',
+    'Consultant of the week tab: the Monday of each week and the consultant. Add as many weeks as you like.',
+    'Leave restrictions tab: dates when annual leave is not normally approved (NO AL) or should be avoided (AVOID).',
+    'On-calls tab: one row per on-call shift (Date, Doctor, Shift). Paste in the trust on-calls each week. When imported, on-calls already on the rota for the dates in this tab are replaced by what is here. Shift codes are on the Codes tab.',
+    'Rotation dates tab: reference only. The changeover dates worked out from the programme rules for the next few years.',
+    '',
+    'This one file is also the backup: Set up → Backups downloads the same file with extra read-only tabs (leave, changes, EDT/SDT, change log).',
+    'CSV files cannot have tabs, so a CSV holds one tab only (for example the Doctors tab). The Excel file is the one file that holds everything.'
+  ];
+  const yesNo = (b) => (b ? 'Yes' : 'No');
+  function doctorRows(state) {
+    const rows = [MASTER_COLS.map(head)];
+    const cols = R.columns(state, '1900-01-01', '2999-12-31');
+    const order = [];
+    for (const g of ['res', 'mg']) for (const c of cols) if (c.docs[0].group === g) order.push(...c.docs);
+    for (const d of order) {
+      const prev = R.predecessorOf(state, d);
+      const plan = (d.plan && d.plan.A) || ['', '', '', '', ''];
+      rows.push([d.name, d.grade, d.group === 'mg' ? 'Senior' : 'Resident', d.start ? { v: d.start, date: true } : '', d.end ? { v: d.end, date: true } : '',
+        d.end ? yesNo(!d.endProvisional) : '', prev ? prev.name : ''].concat(plan.map((x) => x || '')).concat([d.email || '', d.alEntitlement === undefined ? '' : d.alEntitlement, d.alExtra || '', d.slEntitlement === undefined ? '' : d.slEntitlement, (d.aliases || []).join(', ')]));
+    }
+    return rows;
+  }
+  function consultantRows(state, todayIso) {
+    const map = (state.settings && state.settings.consultantOfWeek) || {};
+    const rows = [[head('Week commencing (Monday)'), head('Consultant')]];
+    const keys = Object.keys(map).sort();
+    let w = R.mondayOf((state.settings && state.settings.rotation && state.settings.rotation.start) || todayIso);
+    if (keys.length && keys[0] < w) w = keys[0];
+    let last = R.addDays(R.mondayOf(todayIso), 7 * 26);
+    if (keys.length && keys[keys.length - 1] > last) last = keys[keys.length - 1];
+    for (; w <= last; w = R.addDays(w, 7)) rows.push([{ v: w, date: true }, map[w] || '']);
+    return rows;
+  }
+  function oncallRows(state, fromIso) {
+    const docName = (id) => (R.doctorById(state, id) || { name: id }).name;
+    const list = [];
+    Object.entries(state.oncall || {}).forEach(([id, m]) => Object.entries(m).forEach(([d, code]) => { if (!fromIso || d >= fromIso) list.push([d, docName(id), code]); }));
+    list.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] < b[1] ? -1 : 1));
+    return [[head('Date'), head('Doctor'), head('Shift')]].concat(list.map(([d, n, c]) => [{ v: d, date: true }, n, c]));
+  }
+  function restrictionRows(state) {
+    return [[head('From'), head('To'), head('Level (NO AL or AVOID)'), head('Note')]].concat(((state.settings && state.settings.restricted) || []).slice().sort((a, b) => (a.start < b.start ? -1 : 1))
+      .map((r) => [{ v: r.start, date: true }, { v: r.end || r.start, date: true }, r.level, r.note || '']));
+  }
+  function rotationRows(todayIso, years) {
+    const rows = [[head('Programme'), head('Rotation starts'), head('Day before the next start'), head('Rule')]];
+    const from = R.addMonths(todayIso, -6);
+    for (const [k, p] of Object.entries(R.PROGRAMMES)) {
+      const starts = R.programmeStarts(k, from, (years || 5) * p.months.length + 1);
+      for (let i = 0; i < starts.length - 1; i++) rows.push([p.label, { v: starts[i], date: true }, { v: R.addDays(starts[i + 1], -1), date: true }, i === 0 ? p.note : '']);
+    }
+    return rows;
+  }
+  function codesRows() {
+    const rows = [[head('Location code (Mon–Fri columns)'), head('Meaning')]].concat(R.SITE_CODES.map((c) => [c, CODE_MEANINGS[c] || '']));
+    rows.push(['', ''], [head('On-call shift code (On-calls tab)'), head('Meaning')]);
+    R.ONCALL_CODES.forEach((c) => rows.push([c, CODE_MEANINGS[c] || '']));
+    rows.push(['', ''], [head('Grades'), head('Category')]);
+    ['F1', 'F2', 'IMT1', 'IMT2', 'IMT3', 'JCF'].forEach((g) => rows.push([g, 'Resident']));
+    ['Registrar ST3', 'Registrar ST4', 'Registrar ST5', 'Registrar ST6', 'Registrar ST7', 'Registrar ST8', 'Specialty doctor', 'Specialist grade', 'Senior clinical fellow'].forEach((g) => rows.push([g, 'Senior']));
+    return rows;
+  }
+  const helpSheet = (lines) => ({ name: 'How to use', rows: lines.map((t, i) => [i === 0 ? { v: t, style: { bold: true, size: 12 } } : note(t)]), widths: [130] });
+  const MASTER_WIDTHS = [20, 20, 14, 13, 13, 13, 22, 15, 15, 15, 15, 15, 30, 10, 10, 10, 30];
+  function masterTemplate(state, todayIso) {
+    return X.write([
+      helpSheet(MASTER_HELP),
+      { name: 'Doctors', rows: doctorRows(state), widths: MASTER_WIDTHS, freeze: { row: 1, col: 1 }, heights: { 0: 42 } },
+      { name: 'Consultant of the week', rows: consultantRows(state, todayIso), widths: [24, 30], freeze: { row: 1 } },
+      { name: 'Leave restrictions', rows: restrictionRows(state), widths: [13, 13, 20, 50], freeze: { row: 1 } },
+      { name: 'On-calls', rows: oncallRows(state, R.addDays(todayIso, -14)), widths: [12, 22, 20], freeze: { row: 1 } },
+      { name: 'Rotation dates', rows: rotationRows(todayIso, 5), widths: [28, 18, 22, 70], freeze: { row: 1 } },
+      { name: 'Codes', rows: codesRows(), widths: [34, 50] }
+    ]);
+  }
+
+  // CSV (one sheet only). Dates are written dd/mm/yyyy.
+  const csvCell = (v) => {
+    let t = v === null || v === undefined ? '' : typeof v === 'object' ? (v.date ? R.fmtUk(v.v) : String(v.v === undefined ? '' : v.v)) : String(v);
+    if (/^[=+\-@]/.test(t)) t = "'" + t; // keep spreadsheet formulas from running
+    return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+  };
+  const toCsv = (rows) => '﻿' + rows.map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
+  function parseCsv(text) {
+    const t = String(text).replace(/^﻿/, '');
+    const rows = []; let row = [], cur = '', q = false;
+    for (let i = 0; i < t.length; i++) {
+      const ch = t[i];
+      if (q) { if (ch === '"') { if (t[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; continue; }
+      if (ch === '"') q = true;
+      else if (ch === ',' || ch === ';' && !t.includes(',')) { row.push(cur); cur = ''; }
+      else if (ch === '\n' || ch === '\r') { if (ch === '\r' && t[i + 1] === '\n') i++; row.push(cur); rows.push(row); row = []; cur = ''; }
+      else cur += ch;
+    }
+    if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
+    return rows.map((r) => r.map((c) => c.replace(/^'(?=[=+\-@])/, '')));
+  }
+  const doctorsCsvTemplate = (state) => toCsv(doctorRows(state));
+
+  // Reads a master workbook (or a CSV of one of its tabs). Returns what would change; nothing is applied here.
+  function parseMaster(state, sheets) {
+    const out = { doctors: [], consultants: {}, restrictions: [], problems: [], found: [] };
+    const headerOf = (sh) => { const h = findHeaderRowAny(sh.rows); return { h, cols: (sh.rows[h] || []).map((v) => cellText(v).toLowerCase()) }; };
+    for (const sh of sheets) {
+      const { h, cols } = headerOf(sh);
+      const idx = (re) => cols.findIndex((x) => re.test(x));
+      if (idx(/^name$|^name\b/) >= 0 && idx(/^grade/) >= 0) {
+        out.found.push(sh.name || 'Doctors');
+        const c = { name: idx(/^name/), grade: idx(/^grade/), cat: idx(/^categ|^group/), start: idx(/^start/), end: idx(/^finish(es)?$|^finishes|^end/), conf: idx(/confirm/), rep: idx(/takes over|replac/),
+          email: idx(/email/), al: idx(/^annual/), extra: idx(/carried|extra/), sl: idx(/^study/), alias: idx(/spelling|alias/), days: ['mon', 'tue', 'wed', 'thu', 'fri'].map((d) => idx(new RegExp('^' + d))) };
+        for (let r = h + 1; r < sh.rows.length; r++) {
+          const row = sh.rows[r] || [];
+          const name = cellText(row[c.name]);
+          if (!name) continue;
+          const grade = cellText(row[c.grade]);
+          if (!grade) { out.problems.push(`Doctors row ${r + 1}: no grade for ${name}; skipped.`); continue; }
+          const catTxt = cellText(row[c.cat]).toLowerCase();
+          const prog = R.programmeOf(grade);
+          const group = /senior|middle|\bmg\b/.test(catTxt) ? 'mg' : /resident|junior/.test(catTxt) ? 'res'
+            : (prog === 'registrar' || /specialty|specialist|senior|registrar|\bsas\b|\bst[3-9]/i.test(grade)) ? 'mg' : 'res';
+          let start = parseDate(row[c.start]) || '', end = parseDate(row[c.end]) || '';
+          if ((cellText(row[c.start]) && !start) || (cellText(row[c.end]) && !end)) out.problems.push(`Doctors row ${r + 1}: could not read a date for ${name}. Use dd/mm/yyyy.`);
+          let suggested = false;
+          if (!start && prog !== 'other') { const sug = R.suggestDates(grade, R.toIso(new Date())); start = sug.start; end = end || sug.end; suggested = true; }
+          const plan = c.days.map((i) => (i >= 0 ? R.canonicalCode(cellText(row[i])) : ''));
+          plan.forEach((code, k) => { if (code && !['site', 'lab', 'off', 'leave'].includes(R.kindOf(code))) out.problems.push(`Doctors row ${r + 1}: "${cellText(row[c.days[k]])}" is not a location code (${name}, ${R.DOW_SHORT[k]}).`); });
+          const num = (v) => { const t = cellText(v); if (t === '') return undefined; const n = Number(t); return isFinite(n) ? n : undefined; };
+          const conf = cellText(row[c.conf]).toLowerCase();
+          out.doctors.push({ row: r + 1, name, grade, group, start, end, endProvisional: conf ? /^n/.test(conf) : prog !== 'foundation' && !!end && suggested,
+            replacesName: cellText(row[c.rep]), plan, email: cellText(row[c.email]), alEntitlement: num(row[c.al]), alExtra: num(row[c.extra]), slEntitlement: num(row[c.sl]),
+            aliases: cellText(row[c.alias]).split(',').map((x) => x.trim()).filter(Boolean), placeholder: /^new\b|\btbc\b/i.test(name), suggested });
+        }
+      } else if (idx(/week/) >= 0 && idx(/consultant/) >= 0) {
+        out.found.push(sh.name || 'Consultant of the week');
+        const iw = idx(/week/), ic = idx(/consultant/);
+        for (let r = h + 1; r < sh.rows.length; r++) {
+          const row = sh.rows[r] || [];
+          const d = parseDate(row[iw]);
+          const who = cellText(row[ic]);
+          if (!d) { if (cellText(row[iw])) out.problems.push(`Consultant row ${r + 1}: could not read the date.`); continue; }
+          if (who) out.consultants[R.mondayOf(d)] = who;
+        }
+      } else if (/on-?call/i.test(sh.name || '') || (idx(/^date/) >= 0 && (idx(/^shift|^code/) >= 0))) {
+        if (out.oncall || !sh.rows.slice(h + 1).some((r) => r && r.some((v) => cellText(v)))) continue;
+        out.found.push(sh.name || 'On-calls');
+        out.oncall = parseOncall(state, [sh]);
+      } else if (idx(/^level/) >= 0 && idx(/^from/) >= 0) {
+        out.found.push(sh.name || 'Leave restrictions');
+        const ia = idx(/^from/), ib = idx(/^to/), il = idx(/^level/), inote = idx(/^note/);
+        for (let r = h + 1; r < sh.rows.length; r++) {
+          const row = sh.rows[r] || [];
+          const a = parseDate(row[ia]);
+          if (!a) continue;
+          const b = parseDate(row[ib]) || a;
+          const level = /avoid/i.test(cellText(row[il])) ? 'AVOID' : 'NO AL';
+          out.restrictions.push({ start: a, end: b < a ? a : b, level, note: cellText(row[inote]) });
+        }
+      }
+    }
+    if (!out.found.length) out.problems.push('No Doctors, Consultant of the week, Leave restrictions or On-calls tab was found. Use the rota data file template.');
+    return out;
+  }
+  function findHeaderRowAny(rows) {
+    for (let i = 0; i < Math.min(rows.length, 10); i++) {
+      if ((rows[i] || []).some((v) => /^(name|grade|week|from|date|doctor)/i.test(cellText(v)))) return i;
+    }
+    return 0;
+  }
+
+  // Full backup: the master tabs (re-importable) plus everything else, read-only.
+  function backupWorkbook(state, todayIso) {
+    const docName = (id) => (R.doctorById(state, id) || { name: id }).name;
+    const changes = [[head('Date'), head('Doctor'), head('Changed to'), head('Reason'), head('By')]];
+    Object.entries(state.overrides || {}).forEach(([id, m]) => Object.entries(m).forEach(([d, o]) => changes.push([{ v: d, date: true }, docName(id), o.code, o.reason || '', o.by || ''])));
+    const leave = [[head('Doctor'), head('Type'), head('From'), head('To'), head('Part'), head('Working days'), head('Status'), head('Days not approved'), head('Decided by'), head('Sent')]].concat(state.requests.map((r) => [docName(r.doctorId), r.type === 'SICK' ? 'Unavailable' : (R.LEAVE_TYPES[r.type] || R.LEAVE_TYPES.OTHER).label, { v: r.start, date: true }, { v: r.end, date: true }, r.part, r.days, r.status, (r.excludedDates || []).map(R.fmtUk).join(', '), r.decidedBy || '', (r.submittedAt || '').slice(0, 10)]));
+    const edt = [[head('Date'), head('Session'), head('Doctor'), head('Type'), head('Booked by')]].concat((state.edt || []).map((e) => [{ v: e.date, date: true }, e.session, docName(e.doctorId), e.type, e.bookedBy || '']));
+    const audit = [[head('When'), head('Who'), head('What'), head('Details')]].concat((state.audit || []).map((a) => [a.at.slice(0, 16).replace('T', ' '), a.by, a.action, a.detail]));
+    return X.write([
+      helpSheet([`Haematology rota data file and backup, ${R.fmtLong(todayIso)}`, '', 'This is the same file as Set up → Data file. The Doctors, Consultant of the week, Leave restrictions and On-calls tabs can be uploaded again there.', 'The other tabs (Leave, Rota changes, EDT SDT, Change log) are a read-only record.', 'For an exact restore of everything, use Set up → Backups on the website.']),
+      { name: 'Doctors', rows: doctorRows(state), widths: MASTER_WIDTHS, freeze: { row: 1, col: 1 }, heights: { 0: 42 } },
+      { name: 'Consultant of the week', rows: consultantRows(state, todayIso), widths: [24, 30], freeze: { row: 1 } },
+      { name: 'Leave restrictions', rows: restrictionRows(state), widths: [13, 13, 20, 50], freeze: { row: 1 } },
+      { name: 'On-calls', rows: oncallRows(state), widths: [12, 22, 20], freeze: { row: 1 } },
+      { name: 'Leave', rows: leave, widths: [18, 22, 12, 12, 7, 8, 11, 30, 14, 12], freeze: { row: 1 } },
+      { name: 'Rota changes', rows: changes, widths: [12, 20, 20, 40, 14], freeze: { row: 1 } },
+      { name: 'EDT SDT', rows: edt, widths: [12, 8, 20, 8, 14], freeze: { row: 1 } },
+      { name: 'Change log', rows: audit, widths: [17, 18, 26, 90], freeze: { row: 1 } }
+    ]);
+  }
+
   // ---------- roster export ----------
   function rosterWorkbook(state, from, to) {
     const docs = state.doctors.filter((d) => R.dateRange(from, to).some((iso) => R.inPost(d, iso) || (d.start && d.start <= to)))
@@ -2302,7 +2717,8 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     ]);
   }
 
-  const api = { oncallTemplate, planTemplate, staffTemplate, parseOncall, parsePlans, parseStaff, matchDoctor, parseDate, rosterWorkbook, FILL };
+  const api = { oncallTemplate, planTemplate, staffTemplate, parseOncall, parsePlans, parseStaff, matchDoctor, parseDate, rosterWorkbook, FILL,
+    masterTemplate, doctorsCsvTemplate, parseMaster, parseCsv, toCsv, backupWorkbook };
   root.RotaExcel = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -2317,9 +2733,9 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
   const narrow = () => window.matchMedia('(max-width: 760px)').matches;
 
   const ui = {
-    view: 'rota', start: TODAY, end: R.addDays(R.addMonths(TODAY, 2), -1), scrollToIso: null, days: [], layout: narrow() ? 'list' : 'grid', group: 'both', hi: 'all', q: '', hideWeekends: false,
+    view: 'rota', start: TODAY, end: R.addDays(R.addMonths(TODAY, 2), -1), scrollToIso: null, days: [], layout: 'grid', group: 'both', hi: 'all', q: '', hideWeekends: false,
     editing: null, form: null, submitted: null, mine: { doctorId: '', email: '', result: null }, reqSel: null, reqFilter: 'open',
-    edt: { doctorId: '', date: '', session: 'AM', reason: '' }, setupTab: 'master', nd: null, consExtra: 0, bulk: null, importPreview: null, confirm: null, logQ: '',
+    edt: { doctorId: '', date: '', session: 'AM', reason: '' }, setupTab: 'import', nd: null, consExtra: 0, bulk: null, importPreview: null, confirm: null, logQ: '',
     rulesDraft: null, dialog: null, busy: false, scrollToToday: true, copyFrom: ''
   };
   try { const v = sessionStorage.getItem('haem-rota-view'); if (v) ui.view = v; } catch (e) { /* storage blocked */ }
@@ -2365,8 +2781,8 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
   }
   const op = (name, ...args) => (s, by) => S.ops[name](s, by, ...args);
 
-  function saveFile(filename, bytes) {
-    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  function saveFile(filename, bytes, type) {
+    const url = URL.createObjectURL(new Blob([bytes], { type: type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
     const a = document.createElement('a');
     a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 3000);
@@ -2374,27 +2790,47 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
   }
 
   // ---------- header ----------
+  const ICONS = {
+    rota: '<path d="M4 5h16v15H4z M4 10h16 M9 5v15 M14.5 5v15"/>',
+    request: '<path d="M7 3v3 M17 3v3 M4 7h16v13H4z M9 14l2 2 4-4"/>',
+    edt: '<path d="M12 4l9 4-9 4-9-4z M7 10v5c0 1.5 2.5 3 5 3s5-1.5 5-3v-5"/>',
+    mine: '<path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M5 20c1-3.5 4-5 7-5s6 1.5 7 5"/>',
+    rules: '<path d="M6 4h10l3 3v13H6z M9 10h7 M9 14h7 M9 18h4"/>',
+    requests: '<path d="M4 13l3-8h10l3 8v6H4z M4 13h5l1 2h4l1-2h5"/>',
+    setup: '<path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z M12 2v3 M12 19v3 M2 12h3 M19 12h3 M5 5l2 2 M17 17l2 2 M5 19l2-2 M17 7l2-2"/>',
+    log: '<path d="M12 7v5l3 2 M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z"/>',
+    more: '<path d="M5 12h.01 M12 12h.01 M19 12h.01"/>'
+  };
+  const icon = (k) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[k] || ''}</svg>`;
   function navItems() {
-    const items = [['rota', 'Rota'], ['request', 'Request leave'], ['mine', 'Check my request'], ['rules', 'Rules']];
+    const items = [['rota', 'Rota'], ['request', 'Request leave', 0, 'Leave'], ['edt', 'EDT / SDT', 0, 'EDT/SDT'], ['mine', 'My leave', 0, 'My leave'], ['rules', 'Rules']];
     if (isAuth()) {
       const waiting = st().requests.filter((r) => r.status === 'pending' || r.status === 'hold').length;
-      items.push(['requests', 'Requests', waiting], ['edt', 'EDT / SDT'], ['setup', 'Set up'], ['log', 'Change log']);
+      items.splice(1, 0, ['requests', 'Requests', waiting]);
+      items.push(['setup', 'Set up'], ['log', 'Change log']);
     }
     return items;
   }
+  const THEMES = [['dark', 'Dark'], ['light', 'Light'], ['blue', 'Blue']];
   function renderHead() {
     const items = navItems();
     if (!items.some((i) => i[0] === ui.view)) ui.view = 'rota';
     $('#nav').innerHTML = items.map(([id, label, n]) => `<button type="button" data-act="nav" data-view="${id}"${ui.view === id ? ' aria-current="page"' : ''}>${esc(label)}${n ? `<span class="badge">${n}</span>` : ''}</button>`).join('');
+    // Phone: a bottom tab bar with the four most used places and "More".
+    const primary = items.slice(0, 4), rest = items.slice(4);
+    const inRest = rest.some((i) => i[0] === ui.view);
+    $('#tabbar').innerHTML = primary.map(([id, label, n, short]) => `<button type="button" data-act="nav" data-view="${id}"${ui.view === id ? ' aria-current="page"' : ''}>${icon(id)}<span>${esc(short || label)}</span>${n ? `<span class="badge">${n}</span>` : ''}</button>`).join('')
+      + `<button type="button" data-act="open-more"${inRest ? ' aria-current="page"' : ''}>${icon('more')}<span>${inRest ? esc((rest.find((i) => i[0] === ui.view) || [])[3] || (rest.find((i) => i[0] === ui.view) || [])[1]) : 'More'}</span></button>`;
     const theme = document.documentElement.getAttribute('data-theme') || 'dark';
-    const sw = `<div class="theme-switch" role="group" aria-label="Colour theme">${[['dark', 'Dark'], ['light', 'Light'], ['blue', 'Blue']].map(([v, l]) => `<button type="button" data-act="theme" data-val="${v}" aria-pressed="${theme === v}">${l}</button>`).join('')}</div>`;
-    $('#who').innerHTML = sw + (isAuth()
-      ? `<span>Authoriser: <strong>${esc(store.me)}</strong></span><button type="button" class="btn small-btn" data-act="sign-out">Sign out</button>`
-      : `<button type="button" class="btn small-btn" data-act="open-signin">Authoriser sign in</button>`);
+    const tName = (THEMES.find((x) => x[0] === theme) || THEMES[0])[1];
+    const sw = `<button type="button" class="icon-btn" data-act="theme-cycle" title="Colour theme: ${tName}. Click to change." aria-label="Colour theme: ${tName}. Change theme"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg></button>`;
+    $('#who').innerHTML = (isAuth()
+      ? `<span class="who-name">${esc(store.me)}</span><button type="button" class="btn small-btn quiet" data-act="sign-out">Sign out</button>`
+      : `<button type="button" class="btn small-btn quiet" data-act="open-signin"><span class="long">Authoriser sign in</span><span class="short">Sign in</span></button>`) + sw;
     const bar = [];
-    if (store.mode === 'local') bar.push('<strong>Demo mode.</strong> This copy is not connected to the server, so changes stay in this browser. Authoriser sign-in needs no password here.');
-    else if (!store.hasPassword) bar.push('<strong>First-time setup:</strong> no authoriser password has been set yet. <button type="button" class="linkish" data-act="open-setup">Set it now</button> before sharing the link.');
-    if (st().settings.demo) bar.push(`Showing <strong>example data with fictional doctors</strong>.${isAuth() ? ' To start for real: Set up → Settings → Start fresh.' : ''}`);
+    if (store.mode === 'local') bar.push('<strong>Demo mode.</strong> Not connected to the server: changes stay in this browser.');
+    else if (!store.hasPassword) bar.push('<strong>First-time setup:</strong> no authoriser password yet. <button type="button" class="linkish" data-act="open-setup">Set it now</button>');
+    if (st().settings.demo) bar.push(`<strong>Example data</strong> with fictional doctors.${isAuth() ? ' Set up → Settings → Start fresh.' : ''}`);
     if (store.error) bar.push(`<span style="color:var(--bad-text)">Could not reach the server: ${esc(store.error)}</span>`);
     $('#bar').innerHTML = bar.map((b) => `<div>${b}</div>`).join('');
     $('#bar').hidden = !bar.length;
@@ -2512,18 +2948,24 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
       const dim = hiOn && cell.kind !== 'none' && cat !== ui.hi;
       return `<td class="${dim ? 'dim' : ''}">${cellHtml(d, iso, cell, canEdit)}</td>`;
     };
-    const bandCells = (list, iso) => list.map((c) => {
-      const d = c.docs.find((x) => x.start === iso && x !== c.docs[0]);
-      return d ? `<td class="band-cell" title="${esc(d.name)} (${esc(d.grade)}) starts">→ ${esc(d.name)}<span>${esc(d.grade)}</span></td>` : '<td></td>';
+    // At a changeover the column headers are repeated with whoever holds each column from that day.
+    const coCells = (list, iso) => list.map((c) => {
+      const d = R.holderOn(c, iso);
+      const changed = c.docs.some((x) => x.start === iso && x !== c.docs[0]) || (d.end && R.addDays(d.end, 1) === iso);
+      const vacant = !R.inPost(d, iso);
+      return `<th class="doc co${changed ? ' changed' : ''}${vacant ? ' vacant' : ''}" scope="col"><span class="grade">${esc(d.grade)}</span>${vacant ? 'Vacant' : esc(d.name)}${d.placeholder && !vacant ? ' <span class="tbc">TBC</span>' : ''}<span class="dates">${vacant ? '' : esc(endTxt(d))}</span></th>`;
     }).join('');
+    const progStarts = {};
+    for (const [k, p] of Object.entries(R.PROGRAMMES)) R.programmeStarts(k, first, 24).filter((d) => d <= dates[dates.length - 1]).forEach((d) => { (progStarts[d] = progStarts[d] || []).push(p.label.split(' (')[0]); });
     const rows = dates.map((iso) => {
       const wk = R.isWeekend(iso);
       const restr = S.restrictionOn(st(), iso);
       const bh = R.isBankHoliday(st(), iso);
-      const band = changeovers[iso] ? `<tr class="band"><th class="col-date" scope="row" title="${esc(changeovers[iso].join(' · '))}">Changeover<br>${esc(R.fmtShort(iso))}</th><td class="band-note">${esc(changeovers[iso].filter((t) => !t.includes('→')).join(' · '))}</td>
-        ${showRes ? bandCells(res, iso) + '<td class="gap-col"></td>' : ''}${showMg ? bandCells(mg, iso) + '<td class="gap-col"></td>' : ''}<td colspan="${(showRes ? 1 : 0) + (showMg ? 1 : 0)}"></td></tr>` : '';
+      const notes = (changeovers[iso] || []).filter((t) => !/→| starts$| leaves( \(date not confirmed\))?$/.test(t)).concat(progStarts[iso] ? [progStarts[iso].join(', ') + ' rotation'] : []);
+      const band = changeovers[iso] ? `<tr class="co-row"><th class="col-date" scope="row">From<br>${esc(R.fmtShort(iso))}</th><td class="co-note cons">${esc(notes.join(' · '))}</td>
+        ${showRes ? coCells(res, iso) + '<td class="gap-col"></td>' : ''}${showMg ? coCells(mg, iso) + '<td class="gap-col"></td>' : ''}<td colspan="${(showRes ? 1 : 0) + (showMg ? 1 : 0)}"></td></tr>` : '';
       return band + `<tr class="${wk ? 'weekend' : ''}${iso === TODAY ? ' today' : ''}" data-date="${iso}"${iso === TODAY ? ' id="today-row"' : ''}>
-        <th class="col-date" scope="row"><span class="tabular">${esc(R.fmtShort(iso))}</span>${restr ? `<span class="restr ${restr.level.replace(' ', '-')}" title="${esc(restr.note || '')}">${esc(restr.level)}</span>` : ''}${bh ? '<span class="restr BH" title="Bank holiday">BH</span>' : ''}${wk || bh ? '' : `<br>${availChip(availableOn(iso, allDocs))}`}</th>
+        <th class="col-date" scope="row"><span class="tabular">${esc(R.fmtShort(iso))}</span>${restr ? `<span class="restr ${restr.level.replace(' ', '-')}" title="${esc(restr.note || '')}">${esc(restr.level)}</span>` : ''}${bh ? '<span class="restr BH" title="Bank holiday">BH</span>' : ''}${progStarts[iso] && !changeovers[iso] ? `<span class="restr PROG" title="${esc(progStarts[iso].join(', '))} rotation starts">Rotation</span>` : ''}${wk || bh ? '' : `<br>${availChip(availableOn(iso, allDocs))}`}</th>
         <td class="cons">${wk ? '' : esc(st().settings.consultantOfWeek[R.mondayOf(iso)] || '')}</td>
         ${showRes ? res.map((c) => td(c, iso)).join('') + '<td class="gap-col"></td>' : ''}
         ${showMg ? mg.map((c) => td(c, iso)).join('') + '<td class="gap-col"></td>' : ''}
@@ -2535,11 +2977,11 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     return `<div class="table-wrap" id="rota-scroll">${moreButton('top')}
       <table class="roster${hiOn ? ' hi-on' : ''}">
         <thead>
-          <tr class="groups"><th class="col-date"></th><th></th>
+          <tr class="groups"><th class="col-date"></th><th class="cons"></th>
             ${showRes ? `<th colspan="${res.length}">Resident doctors</th><th class="gap-col"></th>` : ''}
             ${showMg ? `<th colspan="${mg.length}">Senior doctors</th><th class="gap-col"></th>` : ''}
             <th colspan="${(showRes ? 1 : 0) + (showMg ? 1 : 0)}">Cover check</th></tr>
-          <tr class="names"><th class="col-date" scope="col">Date</th><th scope="col">Consultant</th>
+          <tr class="names"><th class="col-date" scope="col">Date</th><th scope="col" class="cons">Consultant</th>
             ${showRes ? res.map(colTh).join('') + '<th class="gap-col"></th>' : ''}
             ${showMg ? mg.map(colTh).join('') + '<th class="gap-col"></th>' : ''}
             ${showRes ? '<th scope="col">Residents</th>' : ''}${showMg ? '<th scope="col">Seniors</th>' : ''}</tr>
@@ -2614,7 +3056,10 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     return `<div class="day-card-head"><h3>${esc(R.fmtLong(iso))}${iso === TODAY ? ' <span class="pill authorised">Today</span>' : ''}${restr ? ` <span class="restr ${restr.level.replace(' ', '-')}">${esc(restr.level)}</span>` : ''}${R.isBankHoliday(st(), iso) ? ' <span class="restr BH">Bank holiday</span>' : ''} ${availChip(n)}</h3>
       ${covers ? `<div>${coverChips(covers[iso], 'res')} ${coverChips(covers[iso], 'mg')}</div>` : ''}</div>`;
   }
-  const bandCard = (iso, changeovers) => (changeovers[iso] ? `<div class="band-card"><strong>Changeover ${esc(R.fmtShort(iso))}:</strong> ${esc(changeovers[iso].join(' · '))}</div>` : '');
+  const bandCard = (iso, changeovers) => {
+    const list = (changeovers[iso] || []).filter((t) => !/ leaves( \(date not confirmed\))?$/.test(t));
+    return list.length ? `<div class="band-card"><strong>From ${esc(R.fmtShort(iso))}:</strong> ${esc(list.join(' · '))}</div>` : '';
+  };
   // List: one line per grade group, title in bold.
   function renderRotaList(dates, docs, covers, changeovers) {
     const days = dates.map((iso) => {
@@ -2710,7 +3155,6 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     const q = (n, label, inner, hint) => `<div class="q"><div class="qn">${n}</div><div class="qb"><div class="ql">${label}${hint ? `<span class="hint">${hint}</span>` : ''}</div>${inner}</div></div>`;
     const typeOpt = (v, l) => `<label class="opt"><input type="radio" name="ltype" data-form="type" value="${v}"${f.type === v ? ' checked' : ''}> <span>${l}</span></label>`;
     const coverSel = (field, id) => `<select id="${id}" data-form="${field}"><option value="">${sick ? 'Not known' : 'Nobody needed / not arranged'}</option>${docOptions(f[field], (d) => d.id !== f.doctorId && (!okDates || R.inPost(d, f.start) || R.inPost(d, f.end)))}</select>`;
-    const dayRow = (d) => `<tr><td class="tabular">${esc(R.fmtShort(d.date))}</td><td>${esc(d.at)}</td><td><span class="cv ${d.status === 'ok' ? 'ok' : d.status === 'warn' ? 'exception' : 'gap'}">${d.status === 'ok' ? '✓' : d.status === 'warn' ? '!' : '✕'}</span> ${esc(d.text)}${d.problems.length ? `<br><span class="small muted">${esc(d.problems.join(' '))}</span>` : ''}</td></tr>`;
     return `
     <div class="page-head"><div><h1>${sick ? 'Report sickness' : 'Request leave'}</h1><p class="muted">No password needed. ${sick ? 'Sickness is recorded straight away and the authorisers are told. It shows on the rota only as "Unavailable".' : `Leave is not on the rota until an authoriser approves it. See the decision under "Check my request"${st().settings.emailDoctors ? ' (you\'ll also get an email)' : ''}.`}</p></div></div>
     <form id="leave-form" class="split" novalidate>
@@ -2733,15 +3177,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
         ${q(10, 'Additional notes', `<textarea id="f-note" data-form="note" rows="3" placeholder="${sick ? 'Optional. Do not include medical details.' : 'Anything the authorisers should know'}">${esc(f.note)}</textarea>`)}
         <div class="row"><button type="submit" class="btn primary"${ui.busy ? ' disabled' : ''}>${sick ? 'Report sickness' : 'Send request'}</button><button type="button" class="btn ghost" data-act="form-reset">Clear form</button></div>
       </div>
-      <aside class="side stack">
-        <section class="card"><h2>Will there be enough doctors?</h2>
-          ${!doc ? '<p class="muted small">Choose your name and dates to see the check.</p>' : !okDates ? '<p class="muted small">Choose valid dates.</p>' : !check.days.length ? '<p class="muted small">No working days in this range.</p>' : `
-          <p class="small">${check.bad ? `<strong style="color:var(--bad-text)">Not enough doctors on ${plural(check.bad, 'day')}.</strong> You can still send it: the authorisers will see this and may approve the other days, suggest another date or arrange cover.` : check.warn ? `<strong>Enough doctors, with ${plural(check.warn, 'warning')}.</strong>` : '<strong style="color:var(--ok-fg)">Enough doctors on every day.</strong>'}</p>
-          <div class="scroll-x"><table class="plain small"><thead><tr><th>Day</th><th>You are</th><th>Check</th></tr></thead><tbody>${check.days.map(dayRow).join('')}</tbody></table></div>
-          ${check.alternatives.length ? `<p class="small">Nearby days with enough doctors: ${check.alternatives.map((d) => esc(R.fmtShort(d))).join(', ')}.</p>` : ''}`}
-        </section>
-        ${notes.map(([cls, t]) => `<p class="notice ${cls} small">${esc(t)}</p>`).join('')}
-      </aside>
+      ${notes.length ? `<aside class="side stack">${notes.map(([cls, t]) => `<p class="notice ${cls} small">${esc(t)}</p>`).join('')}</aside>` : ''}
     </form>`;
   }
   function renderSubmitted() {
@@ -2750,7 +3186,6 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     return `<div class="page-head"><div><h1>${sick ? 'Sickness recorded' : 'Request sent'}</h1></div></div>
       <section class="card" style="max-width:720px">
         <p class="notice ok">${sick ? `Recorded for ${esc(rangeText(r.start, r.end))}. The authorisers have been told. It shows on the rota as "Unavailable" and is not taken from annual leave.` : `Your request for ${esc(rangeText(r.start, r.end))} (${plural(r.days, 'working day')}) has been sent to the rota authorisers.`}</p>
-        ${check && check.bad && !sick ? `<p class="notice warn small">There may not be enough doctors on ${plural(check.bad, 'day')}. The authorisers will look at this; they may approve the other days or suggest another date.</p>` : ''}
         <p class="small muted">${emailed ? 'A confirmation email is on its way. ' : ''}${sick ? '' : 'See the decision under "Check my request". It is not on the rota until approved.'}</p>
         <div class="row"><button type="button" class="btn primary" data-act="nav" data-view="mine">Check my requests</button><button type="button" class="btn" data-act="form-new">Send another</button></div>
       </section>`;
@@ -2790,7 +3225,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
         <button type="submit" class="btn primary">Show my requests</button>
       </form>
       ${res && res.balance ? `<section class="card bal-card"><h2>Your leave</h2><div class="bal-grid">
-        ${[['Annual leave', res.balance.al], ['Study leave', res.balance.sl]].map(([t, b]) => `<div class="bal"><span class="bal-n">${b.left}</span><span class="bal-t">${t} days left</span><span class="small muted">${b.entitlement} allowance · ${b.used} approved · ${b.pending} waiting</span></div>`).join('')}</div>
+        ${[['Annual leave', res.balance.al], ['Study leave', res.balance.sl]].map(([t, b]) => leaveDonut(t, b)).join('')}</div>
         <p class="small muted">Annual leave allowance: ${esc(res.balance.alBasis)}, including any carried-over days added by the authorisers. Ask them if this looks wrong.</p></section>` : ''}
       ${res ? `<div class="grid-2"><div class="stack">${res.requests.map(card).join('') || '<p class="muted">No requests yet.</p>'}</div>
         <section class="card"><h2>Messages</h2>${res.notifications.map((n) => `<div class="small"><span class="muted tabular">${esc(n.at.slice(0, 10))}</span> ${esc(n.text)}</div>`).join('') || '<p class="muted small">None yet.</p>'}</section></div>` : ''}`;
@@ -2885,7 +3320,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     const notice = R.daysBetween((r.submittedAt || TODAY).slice(0, 10), r.start) / 7;
     const sick = r.type === 'SICK';
     const balTxt = (b, name) => `${name}: ${b.entitlement} days, ${b.used} approved, ${b.pending} waiting, <strong>${b.left} left</strong>`;
-    const dayRow = (d) => `<tr class="${d.status}">${open ? `<td><input type="checkbox" class="day-tick" value="${d.date}"${d.status !== 'bad' ? ' checked' : ''} aria-label="Approve ${esc(R.fmtShort(d.date))}"></td>` : `<td>${(r.excludedDates || []).includes(d.date) ? '✕' : r.status === 'authorised' ? '✓' : ''}</td>`}<td class="tabular">${esc(R.fmtShort(d.date))}</td><td>${esc(d.at)}</td>
+    const dayRow = (d) => `<tr class="${d.status}">${open ? `<td><input type="checkbox" class="day-tick" value="${d.date}" data-ok="${d.status !== 'bad' ? 1 : 0}"${d.status !== 'bad' ? ' checked' : ''} aria-label="Approve ${esc(R.fmtShort(d.date))}"></td>` : `<td>${(r.excludedDates || []).includes(d.date) ? '✕' : r.status === 'authorised' ? '✓' : ''}</td>`}<td class="tabular">${esc(R.fmtShort(d.date))}</td><td>${esc(d.at)}</td>
       <td><span class="cv ${d.status === 'ok' ? 'ok' : d.status === 'warn' ? 'exception' : 'gap'}">${d.status === 'ok' ? '✓' : d.status === 'warn' ? '!' : '✕'}</span> ${esc(d.text)}
         ${d.problems.length ? `<br><span class="small">${esc(d.problems.join(' '))}</span>` : ''}
         ${d.whoElse ? `<br><span class="small muted">Others that day: ${esc(d.whoElse)}</span>` : ''}
@@ -2909,7 +3344,9 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
         <dt>10 Notes</dt><dd style="font-weight:400">${esc(r.note || '—')}</dd>
       </dl>
       ${restr.length ? restr.map((x) => `<p class="notice ${x.level === 'NO AL' ? 'bad' : 'warn'} small">${esc(rangeText(x.start, x.end))} is marked ${esc(x.level)}${x.note ? ': ' + esc(x.note) : ''}.</p>`).join('') : ''}
-      ${chk.days.length ? `<h3>Staffing check, day by day</h3><div class="scroll-x"><table class="plain small check"><thead><tr><th>${open ? 'Approve' : ''}</th><th>Day</th><th>Usually</th><th>Result</th></tr></thead><tbody>${chk.days.map(dayRow).join('')}</tbody></table></div>${open ? '<p class="small muted">Untick any day you don\'t want to approve. The doctor is told exactly which days are approved.</p>' : ''}` : ''}
+      ${bal && !sick && (r.type === 'AL' || r.type === 'SL') ? `<div class="bal-grid">${leaveDonut(r.type === 'AL' ? 'Annual leave' : 'Study leave', r.type === 'AL' ? bal.al : bal.sl)}</div>` : ''}
+      <h3>The rota around these dates</h3>${miniRoster(r)}
+      ${chk.days.length ? `<h3>Staffing check, day by day</h3><div class="scroll-x"><table class="plain small check"><thead><tr><th>${open ? 'Approve' : ''}</th><th>Day</th><th>Usually</th><th>Result</th></tr></thead><tbody>${chk.days.map(dayRow).join('')}</tbody></table></div>${open ? '<div class="row small"><span class="muted">Untick any day you don\'t want to approve. The doctor is told exactly which days are approved.</span><button type="button" class="btn small-btn" data-act="tick-all">Tick all</button><button type="button" class="btn small-btn" data-act="tick-covered">Only days with enough doctors</button></div>' : ''}` : ''}
       ${open ? `<div class="decide stack"><label class="field" for="dec-msg">Message to the doctor <span class="hint">Needed to decline, ask a question, or approve days without enough doctors</span><textarea id="dec-msg" rows="2"></textarea></label>
         <div class="row">
           <button type="button" class="btn good" data-act="decide" data-val="${chk.days.length ? 'approveDays' : 'approve'}"${ui.busy ? ' disabled' : ''}>${chk.days.length ? 'Approve ticked days' : 'Approve'}</button>
@@ -2922,42 +3359,115 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     </article>`;
   }
 
+  // A read-only slice of the rota around a request: the requester's column is outlined, and doctors in the
+  // same group who are working at a site that day (so could cover) are outlined with a dashed line.
+  function miniRoster(r) {
+    const s = st();
+    const doc = R.doctorById(s, r.doctorId);
+    if (!doc) return '';
+    let from = R.addDays(r.start, -1), to = R.addDays(r.end, 1);
+    while (R.isWeekend(from)) from = R.addDays(from, -1);
+    while (R.isWeekend(to)) to = R.addDays(to, 1);
+    if (R.daysBetween(from, to) > 27) to = R.addDays(from, 27);
+    const dates = R.dateRange(from, to);
+    const cols = R.columns(s, from, to);
+    const named = new Set([r.dayUnitCoverId, r.guhCoverId].filter(Boolean));
+    const res = cols.filter((c) => c.group === 'res'), mg = cols.filter((c) => c.group === 'mg');
+    const th = (c) => { const d = R.holderOn(c, r.start); const cls = d.id === doc.id ? ' mine' : named.has(d.id) ? ' cover' : ''; return `<th class="doc${cls}" scope="col"><span class="grade">${esc(d.grade)}</span>${esc(d.name)}${d.id === doc.id ? '<span class="dates">requester</span>' : named.has(d.id) ? '<span class="dates">named cover</span>' : ''}</th>`; };
+    const td = (c, iso) => {
+      const d = R.holderOn(c, iso);
+      const cell = R.resolveCell(s, d, iso);
+      const inReq = iso >= r.start && iso <= r.end;
+      let cls = '';
+      if (d.id === doc.id) cls = 'mine';
+      else if (inReq && d.group === doc.group && R.inPost(d, iso) && (cell.am || cell.pm)) cls = 'cover';
+      else if (inReq) cls = 'dim';
+      return `<td class="${cls}">${cellHtml(d, iso, cell, false)}</td>`;
+    };
+    const rows = dates.map((iso) => {
+      const cover = R.coverWithRisk(s, iso);
+      return `<tr class="${R.isWeekend(iso) ? 'weekend' : ''}${iso >= r.start && iso <= r.end ? ' req-day' : ''}"><th class="col-date" scope="row">${esc(R.fmtShort(iso))}${R.isWorkday(s, iso) ? `<br>${availChip(availableOn(iso, cols.flatMap((c) => c.docs)))}` : ''}</th>
+        ${res.map((c) => td(c, iso)).join('')}<td class="gap-col"></td>${mg.map((c) => td(c, iso)).join('')}<td class="gap-col"></td>
+        <td class="cover-cell">${coverChips(cover, 'res')}</td><td class="cover-cell">${coverChips(cover, 'mg')}</td></tr>`;
+    }).join('');
+    return `<div class="table-wrap mini-wrap"><table class="roster mini"><thead><tr class="names"><th class="col-date" scope="col">Date</th>${res.map(th).join('')}<th class="gap-col"></th>${mg.map(th).join('')}<th class="gap-col"></th><th scope="col">Residents</th><th scope="col">Seniors</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="row small"><span><span class="legend-sw mine"></span>requester</span><span><span class="legend-sw cover"></span>${doc.group === 'mg' ? 'senior doctors' : 'resident doctors'} working at a site that day (could cover)</span><button type="button" class="btn small-btn" data-act="open-rota-at" data-val="${r.start}">Open these dates in the rota</button></div>`;
+  }
+
   // ---------- authoriser: EDT / SDT ----------
   function renderEdt() {
     const s = st();
     const f = ui.edt;
-    const docs = docsSorted().filter((d) => R.inPost(d, TODAY) || (d.start && d.start > TODAY));
+    if (f.email === undefined) { f.email = ui.mine.email || ''; if (!f.doctorId) f.doctorId = ui.mine.doctorId || ''; }
     const doc = R.doctorById(s, f.doctorId);
     const chk = doc && R.isIso(f.date) ? R.edtCheck(s, doc.id, f.date, f.session) : null;
-    const rows = docs.map((d) => {
-      const e = R.edtEntitlement(s, d, TODAY);
-      const behind = e.booked < e.dueByToday;
-      return `<tr><td><strong>${esc(d.name)}</strong> <span class="muted small">${esc(d.grade)}</span></td><td>${esc(e.type)}</td><td class="tabular">${e.hours}h/wk${e.fte < 1 ? ` × ${e.fte}` : ''}</td>
-        <td class="tabular small">${esc(R.fmtUk(e.from))} – ${esc(R.fmtUk(e.to))}</td><td class="tabular">${e.due}h</td><td class="tabular">${e.dueByToday}h</td><td class="tabular${behind ? ' warn-text' : ''}">${e.booked}h</td>
-        <td><input type="number" min="0" max="10" step="0.5" aria-label="Hours a week for ${esc(d.name)}" data-act="doc-field" data-doc="${d.id}" data-field="edtHours" value="${esc(d.edtHours === undefined || d.edtHours === null ? '' : d.edtHours)}" placeholder="${R.edtDefault(Object.assign({}, d, { edtHours: undefined })).hours}"></td></tr>`;
-    }).join('');
-    const upcoming = (s.edt || []).filter((e) => e.date >= R.addDays(TODAY, -7)).sort((a, b) => (a.date < b.date ? -1 : 1)).slice(0, 80);
-    return `<div class="page-head"><div><h1>EDT / SDT</h1><p class="muted">Booked as a morning or afternoon session and shown on the rota. Residents at GUH only, with enough other residents there; senior doctors at any site if senior cover is kept.</p></div></div>
-      <div class="split"><section class="main card"><h2>Book a session</h2>
-        <div class="row" style="align-items:flex-end">
-          <label class="field" for="edt-doc">Doctor<select id="edt-doc" data-edt="doctorId"><option value="">Choose</option>${docOptions(f.doctorId)}</select></label>
-          <label class="field" for="edt-date">Date<input type="date" id="edt-date" data-edt="date" value="${esc(f.date)}"></label>
-          <div class="field">Session<div class="seg">${['AM', 'PM'].map((x) => `<button type="button" class="chip" data-act="edt-session" data-val="${x}" aria-pressed="${f.session === x}">${x === 'AM' ? 'Morning' : 'Afternoon'}</button>`).join('')}</div></div>
+    const past = R.isIso(f.date) && f.date < TODAY;
+    const ent = doc ? R.edtEntitlement(s, doc, TODAY) : null;
+    const mine = doc ? (s.edt || []).filter((e) => e.doctorId === doc.id).sort((a, b) => (a.date < b.date ? -1 : 1)) : [];
+    const checks = chk ? `<ul class="checks">${chk.checks.map((c) => `<li class="${c.ok ? 'ok' : 'bad'}"><span aria-hidden="true">${c.ok ? '✓' : '✕'}</span> <strong>${esc(c.rule)}</strong><br><span class="small">${esc(c.detail)}</span></li>`).join('')}</ul>` : '';
+    const selfCard = `<section class="main card"><h2>Book your EDT / SDT</h2>
+        <p class="small muted">Pick a morning or afternoon. It is booked straight away if the rota rules are met, shown on the rota, and the authorisers are told. No password needed.</p>
+        <div class="grid-3">
+          <label class="field" for="edt-doc">Your name<select id="edt-doc" data-edt="doctorId"><option value="">Choose your name</option>${docOptions(f.doctorId, (d) => !d.end || d.end >= TODAY)}</select></label>
+          <label class="field" for="edt-email">NHS email<input type="email" id="edt-email" data-edt="email" value="${esc(f.email || '')}" autocomplete="email"></label>
+          <label class="field" for="edt-date">Date<input type="date" id="edt-date" data-edt="date" value="${esc(f.date)}" min="${TODAY}"></label>
         </div>
-        ${chk ? `<ul class="checks">${chk.checks.map((c) => `<li class="${c.ok ? 'ok' : 'bad'}"><span aria-hidden="true">${c.ok ? '✓' : '✕'}</span> <strong>${esc(c.rule)}</strong><br><span class="small">${esc(c.detail)}</span></li>`).join('')}</ul>
-          ${chk.ok ? `<div class="row"><button type="button" class="btn primary" data-act="edt-book">Book ${esc(chk.type)} ${f.session === 'AM' ? 'morning' : 'afternoon'}</button></div>` : `<div class="row" style="align-items:flex-end"><label class="field" for="edt-reason" style="flex:1">Book anyway: reason<input type="text" id="edt-reason" placeholder="Why the rule can be broken this time"></label><button type="button" class="btn" data-act="edt-book">Book anyway</button></div>`}`
-          : '<p class="muted small">Choose a doctor and date to check the rules.</p>'}
-      </section>
-      <section class="side card"><h2>Booked</h2>${upcoming.map((e) => `<div class="row small" style="justify-content:space-between"><span><span class="tabular">${esc(R.fmtShort(e.date))} ${e.session}</span> · <strong>${esc(docName(e.doctorId))}</strong> ${esc(e.type)}${e.reason ? ' <span class="cv exception">override</span>' : ''}</span><button type="button" class="btn ghost small-btn" data-act="edt-remove" data-id="${e.id}">Remove</button></div>`).join('') || '<p class="muted small">None booked.</p>'}</section></div>
-      <section class="card"><h2>Entitlement by grade (Wales defaults, editable)</h2>
-        <p class="small muted">Defaults: F1 SDT 1h/week, F2 SDT 3h, IMT and JCF EDT 2h, registrars and senior clinical fellows EDT 4h, specialty and specialist doctors SPA 4h. Pro-rata for less than full time. Each session counts as 4 hours. Type a number to override for one doctor. Please check these against current Welsh contracts and local agreements.</p>
-        <div class="scroll-x"><table class="plain"><thead><tr><th>Doctor</th><th>Type</th><th>Default</th><th>Period</th><th>Due in period</th><th>Due by today</th><th>Booked</th><th>Override h/wk</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+        <div class="field">Session<div class="seg">${['AM', 'PM'].map((x) => `<button type="button" class="chip" data-act="edt-session" data-val="${x}" aria-pressed="${f.session === x}">${x === 'AM' ? 'Morning' : 'Afternoon'}</button>`).join('')}</div></div>
+        ${past ? '<p class="notice warn small">Choose a date from today onwards.</p>' : checks || '<p class="muted small">Choose your name and a date to check the rules.</p>'}
+        <div class="row">
+          <button type="button" class="btn primary" data-act="edt-self-book"${chk && chk.ok && !past ? '' : ' disabled'}>${chk ? `Book ${esc(chk.type)} ${f.session === 'AM' ? 'morning' : 'afternoon'}` : 'Book'}</button>
+          ${chk && !chk.ok && !isAuth() ? '<span class="small muted">This session breaks a rule. If it is needed anyway, ask a rota authoriser.</span>' : ''}
+          ${chk && !chk.ok && isAuth() ? `<label class="field" for="edt-reason" style="flex:1">Authoriser: book anyway, reason<input type="text" id="edt-reason" placeholder="Why the rule can be broken this time"></label><button type="button" class="btn" data-act="edt-book">Book anyway</button>` : ''}
+        </div></section>`;
+    const myCard = `<section class="side card"><h2>${doc ? esc(doc.name) + '’s sessions' : 'Your sessions'}</h2>
+        ${ent ? `<div class="donut-wrap">${donut([{ v: ent.taken, label: 'Taken' }, { v: Math.max(0, ent.booked - ent.taken), label: 'Booked ahead' }], Math.max(ent.due, ent.booked), `${Math.max(0, ent.due - ent.booked)}h`, 'still to book')}
+          <div class="legend-list"><span><span class="sw" style="background:var(--viz-1)"></span>${ent.taken}h taken</span><span><span class="sw" style="background:var(--viz-2)"></span>${Math.max(0, ent.booked - ent.taken)}h booked ahead</span><span><span class="sw" style="background:var(--viz-track)"></span>${Math.max(0, ent.due - ent.booked)}h still to book</span>
+          <span class="small muted">${esc(ent.type)} ${ent.hours}h a week${ent.fte < 1 ? ` × ${ent.fte} FTE` : ''}, ${esc(R.fmtUk(ent.from))} to ${esc(R.fmtUk(ent.to))}: ${ent.due}h in total (each session counts as 4h).</span></div></div>` : '<p class="muted small">Choose your name to see your sessions.</p>'}
+        ${mine.map((e) => `<div class="row small" style="justify-content:space-between"><span><span class="tabular">${esc(R.fmtShort(e.date))}</span> ${e.session === 'AM' ? 'morning' : 'afternoon'} · ${esc(e.type)}</span>${e.date >= TODAY ? `<button type="button" class="btn ghost small-btn" data-act="edt-self-cancel" data-id="${e.id}">${ui.confirm === 'edtc:' + e.id ? 'Confirm cancel' : 'Cancel'}</button>` : ''}</div>`).join('')}</section>`;
+    let auth = '';
+    if (isAuth()) {
+      const docs = docsSorted().filter((d) => !d.placeholder && (R.inPost(d, TODAY) || (d.start && d.start > TODAY)));
+      const rows = docs.map((d) => {
+        const e = R.edtEntitlement(s, d, TODAY);
+        const behind = e.booked < e.dueByToday;
+        return `<tr><td><strong>${esc(d.name)}</strong> <span class="muted small">${esc(d.grade)}</span></td><td>${esc(e.type)}</td><td class="tabular">${e.hours}h/wk${e.fte < 1 ? ` × ${e.fte}` : ''}</td>
+          <td class="tabular small">${esc(R.fmtUk(e.from))} – ${esc(R.fmtUk(e.to))}</td><td class="tabular">${e.due}h</td><td class="tabular">${e.dueByToday}h</td><td class="tabular${behind ? ' warn-text' : ''}">${e.booked}h</td>
+          <td><input type="number" min="0" max="10" step="0.5" aria-label="Hours a week for ${esc(d.name)}" data-act="doc-field" data-doc="${d.id}" data-field="edtHours" value="${esc(d.edtHours === undefined || d.edtHours === null ? '' : d.edtHours)}" placeholder="${R.edtDefault(Object.assign({}, d, { edtHours: undefined })).hours}"></td></tr>`;
+      }).join('');
+      const upcoming = (s.edt || []).filter((e) => e.date >= R.addDays(TODAY, -7)).sort((a, b) => (a.date < b.date ? -1 : 1)).slice(0, 120);
+      auth = `<h2 class="section-title">Authorisers</h2>
+        <section class="card"><h2>All booked sessions</h2>${upcoming.map((e) => `<div class="row small" style="justify-content:space-between"><span><span class="tabular">${esc(R.fmtShort(e.date))} ${e.session}</span> · <strong>${esc(docName(e.doctorId))}</strong> ${esc(e.type)}${e.reason ? ' <span class="cv exception">override</span>' : ''}${/\(self\)/.test(e.bookedBy || '') ? ' <span class="muted">booked by the doctor</span>' : ''}</span><button type="button" class="btn ghost small-btn" data-act="edt-remove" data-id="${e.id}">Remove</button></div>`).join('') || '<p class="muted small">None booked.</p>'}</section>
+        <section class="card"><h2>Entitlement by grade (Wales defaults, editable)</h2>
+          <p class="small muted">Defaults: F1 SDT 1h/week, F2 SDT 3h, IMT and JCF EDT 2h, registrars and senior clinical fellows EDT 4h, specialty and specialist doctors SPA 4h. Pro-rata for less than full time. Each session counts as 4 hours. Type a number to override for one doctor. Please check these against current Welsh contracts and local agreements.</p>
+          <div class="scroll-x"><table class="plain"><thead><tr><th>Doctor</th><th>Type</th><th>Default</th><th>Period</th><th>Due in period</th><th>Due by today</th><th>Booked</th><th>Override h/wk</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+    }
+    return `<div class="page-head"><div><h1>EDT / SDT</h1><p class="muted">Morning or afternoon sessions, shown on the rota. Residents (F1, F2, IMT, JCF) at GUH only, with at least ${R.ruleNum(s, 'edtOthersAtGUH')} other residents there that session; senior doctors at any site as long as GUH keeps its senior doctor.</p></div></div>
+      <div class="split">${selfCard}${myCard}</div>${auth}`;
+  }
+
+  // Leave used / waiting / left as a ring with the days left in the middle.
+  function leaveDonut(title, b) {
+    const left = Math.max(0, b.entitlement - b.used - b.pending);
+    return `<div class="bal"><span class="bal-t">${esc(title)}</span><div class="donut-wrap">${donut([{ v: b.used, label: 'Approved (taken or booked)' }, { v: b.pending, label: 'Waiting for a decision' }], b.entitlement, String(b.left), 'days left')}
+      <div class="legend-list"><span><span class="sw" style="background:var(--viz-1)"></span>${b.used} approved</span><span><span class="sw" style="background:var(--viz-2)"></span>${b.pending} waiting</span><span><span class="sw" style="background:var(--viz-track)"></span>${left} not yet requested</span><span class="small muted">of ${b.entitlement} days</span></div></div></div>`;
+  }
+  // A ring showing parts of a whole (e.g. leave used / waiting / left). parts: [{v, label}], total = the whole.
+  function donut(parts, total, centre, sub) {
+    const r = 42, c = 2 * Math.PI * r, gap = parts.filter((p) => p.v > 0).length > 1 ? 2.5 : 0;
+    let off = 0;
+    const segs = parts.map((p, i) => {
+      const len = total > 0 ? Math.max(0, Math.min(1, p.v / total)) * c : 0;
+      const seg = len > 0 ? `<circle cx="56" cy="56" r="${r}" fill="none" stroke="var(--viz-${i + 1})" stroke-width="14" stroke-dasharray="${Math.max(0, len - gap)} ${c}" stroke-dashoffset="${-off}" transform="rotate(-90 56 56)"><title>${esc(p.label)}: ${p.v}</title></circle>` : '';
+      off += len;
+      return seg;
+    }).join('');
+    return `<svg class="donut" viewBox="0 0 112 112" role="img" aria-label="${esc(parts.map((p) => `${p.label} ${p.v}`).join(', '))} of ${total}"><circle cx="56" cy="56" r="${r}" fill="none" stroke="var(--viz-track)" stroke-width="14"/>${segs}<text x="56" y="56" text-anchor="middle" class="big">${esc(centre)}</text><text x="56" y="71" text-anchor="middle" class="sub">${esc(sub)}</text></svg>`;
   }
 
   // ---------- authoriser: set up ----------
   function renderSetup() {
-    const tabs = [['master', 'Master sheet'], ['people', 'People & leave'], ['import', 'Import'], ['rotation', 'Rotations'], ['consultant', 'Consultant of the week'], ['leave', 'Leave restrictions'], ['settings', 'Settings']];
-    const body = { master: renderMaster, people: renderPeople, import: renderImport, rotation: renderRotation, consultant: renderConsultant, leave: renderRestrictions, settings: renderSettings }[ui.setupTab] || renderMaster;
+    const tabs = [['import', 'Data file'], ['master', 'Master sheet'], ['people', 'People & leave'], ['rotation', 'Rotations'], ['consultant', 'Consultant of the week'], ['leave', 'Leave restrictions'], ['backup', 'Backups'], ['settings', 'Settings']];
+    const body = { master: renderMaster, people: renderPeople, import: renderImport, rotation: renderRotation, consultant: renderConsultant, leave: renderRestrictions, backup: renderBackups, settings: renderSettings }[ui.setupTab] || renderMaster;
     return `<div class="page-head"><div><h1>Set up</h1><p class="muted">Doctors, their usual locations, imported on-calls, rotations and settings. The rota is built from these.</p></div></div>
       <div class="tabs" role="tablist">${tabs.map(([id, l]) => `<button type="button" role="tab" data-act="setup-tab" data-val="${id}" aria-selected="${ui.setupTab === id}">${l}</button>`).join('')}</div>${body()}`;
   }
@@ -3041,59 +3551,67 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     return `<section class="card"><p class="muted small">Annual leave allowance is filled in from the Wales default for the grade, dates in post and FTE (28 days a year for foundation, core and fellows; 33 for registrars ST3+; 29 for specialty doctors, 34 after 2 years in grade; 34 for specialist grade) and can be changed. Use "Carried over / extra" for accrued or carried-over days. Doctors see their remaining days under "Check my request".</p>
       <div class="scroll-x"><table class="plain people"><thead><tr><th>Doctor</th><th>NHS email</th><th>FTE</th><th>Annual leave days</th><th>Carried over / extra</th><th>AL left</th><th>Study leave days</th><th>Other spellings (on-call sheet)</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
   }
-  const IMPORT_INFO = {
-    oncall: ['On-call rota (from the trust)', 'Each week, put the trust on-calls into this template (list or grid layout) and import it. Earlier imports for the same dates are replaced.'],
-    plan: ['Weekly plan', 'Everyone\'s usual site for each weekday. Alternating weeks are supported with a "B" row.'],
-    staff: ['Staff list', 'Names, grades, emails, dates in post and leave allowances. Existing doctors are updated by name.']
-  };
+  function masterPreview(p) {
+    const x = p.parsed;
+    const known = x.doctors.filter((d) => st().doctors.some((e) => e.name.toLowerCase() === d.name.toLowerCase())).length;
+    const oc = x.oncall;
+    const ocUsable = oc ? oc.entries.filter((e) => e.doctorId || p.mapping[e.name]).length : 0;
+    p.count = x.doctors.length + Object.keys(x.consultants).length + x.restrictions.length + ocUsable;
+    const unknown = oc ? Object.keys(oc.unknownNames || {}) : [];
+    const sample = x.doctors.slice(0, 40).map((d) => `<tr><td>${esc(d.name)}${d.placeholder ? ' <span class="tbc">TBC</span>' : ''}</td><td>${esc(d.grade)}</td><td>${d.group === 'mg' ? 'Senior' : 'Resident'}</td><td class="tabular">${d.start ? esc(R.fmtUk(d.start)) : ''}${d.suggested ? ' <span class="muted">(suggested)</span>' : ''}</td><td class="tabular">${d.end ? esc(R.fmtUk(d.end)) : ''}${d.endProvisional ? '?' : ''}</td><td>${esc(d.replacesName)}</td><td class="small">${esc(d.plan.map((c) => c || '–').join(' · '))}</td></tr>`).join('');
+    const bad = oc ? (oc.badCodes || []).slice(0, 8).map((b) => `Row ${b.row}: "${esc(b.code)}"`).join(', ') : '';
+    return `<p>Found: ${esc(x.found.join(', ') || 'nothing')}.</p>
+      <ul class="small">
+        <li><strong>${x.doctors.length}</strong> doctors (${known} updated, ${x.doctors.length - known} new)</li>
+        <li><strong>${Object.keys(x.consultants).length}</strong> consultant-of-the-week entries</li>
+        <li><strong>${x.restrictions.length}</strong> leave restrictions</li>
+        ${oc ? `<li><strong>${ocUsable}</strong> on-call shifts, ${oc.from ? esc(R.fmtUk(oc.from)) : '?'} to ${oc.to ? esc(R.fmtUk(oc.to)) : '?'}. On-calls already on the rota for those dates are replaced.</li>` : ''}
+      </ul>
+      ${x.problems.map((m) => `<p class="small warn-text">${esc(m)}</p>`).join('')}
+      ${unknown.length ? `<p class="small"><strong>On-call names to match once.</strong> The spelling is remembered next time.</p>${unknown.map((name, i) => `<div class="row small"><span>"${esc(name)}" (${plural(oc.unknownNames[name], 'row')}) is</span><label class="sr-only" for="map-${i}">Match ${esc(name)}</label><select id="map-${i}" data-act="map-name" data-name="${esc(name)}"><option value="">Not one of ours: skip</option>${docOptions(p.mapping[name])}</select></div>`).join('')}` : ''}
+      ${bad ? `<p class="small" style="color:var(--bad-text)">On-call codes not recognised (skipped): ${bad}</p>` : ''}
+      ${oc && oc.badDates ? `<p class="small" style="color:var(--bad-text)">${plural(oc.badDates, 'on-call row')} skipped because the date could not be read. Use dd/mm/yyyy.</p>` : ''}
+      ${sample ? `<details><summary class="small">Doctors in the file (${x.doctors.length})</summary><div class="scroll-x"><table class="plain small"><thead><tr><th>Name</th><th>Grade</th><th>Category</th><th>Starts</th><th>Finishes</th><th>Takes over from</th><th>Mon–Fri</th></tr></thead><tbody>${sample}</tbody></table></div></details>` : ''}`;
+  }
+  // Set up → Data file: one Excel file holds everything that is imported, and is also the backup.
   function renderImport() {
     const p = ui.importPreview;
-    const card = (kind) => {
-      const [title, text] = IMPORT_INFO[kind];
-      let preview = '';
-      if (p && p.kind === kind) {
-        const unknown = Object.keys(p.parsed.unknownNames || {});
-        const mapRows = unknown.map((name, i) => `<div class="row small"><span>"${esc(name)}" (${plural(p.parsed.unknownNames[name], 'row')}) is</span><label class="sr-only" for="map-${i}">Match ${esc(name)}</label><select id="map-${i}" data-act="map-name" data-name="${esc(name)}"><option value="">Not one of ours: skip</option>${docOptions(p.mapping[name])}</select></div>`).join('');
-        let summary = '';
-        if (kind === 'oncall') {
-          const usable = p.parsed.entries.filter((e) => e.doctorId || p.mapping[e.name]).length;
-          summary = `<p><strong>${usable}</strong> on-call shifts from ${p.parsed.from ? esc(R.fmtUk(p.parsed.from)) : '?'} to ${p.parsed.to ? esc(R.fmtUk(p.parsed.to)) : '?'} (${esc(p.parsed.format)} layout, sheet "${esc(p.parsed.sheet)}"). Imported on-calls already in those dates will be replaced.</p>
-            ${p.parsed.skipped.length ? `<p class="small muted">${plural(p.parsed.skipped.length, 'cell')} with site codes were ignored (sites come from the weekly plan).</p>` : ''}`;
-          p.count = usable;
-        } else if (kind === 'plan') {
-          p.count = p.parsed.plans.filter((x) => x.doctorId || p.mapping[x.name]).length;
-          summary = `<p>Weekly plans for <strong>${p.count}</strong> doctors. Their current plans will be replaced.</p>`;
-        } else {
-          const existing = p.parsed.staff.filter((x) => st().doctors.some((d) => d.name.toLowerCase() === x.name.toLowerCase())).length;
-          summary = `<p><strong>${p.parsed.staff.length}</strong> people: ${existing} updated, ${p.parsed.staff.length - existing} new.</p>${(p.parsed.problems || []).map((x) => `<p class="small warn-text">${esc(x)}</p>`).join('')}`;
-          p.count = p.parsed.staff.length;
-        }
-        const bad = (p.parsed.badCodes || []).slice(0, 8).map((b) => `Row ${b.row}: "${esc(b.code)}"`).join(', ');
-        preview = `<div class="notice info stack"><strong>${esc(p.fileName)}</strong>${summary}
-          ${unknown.length ? `<p class="small"><strong>New names to match once.</strong> The spelling is remembered for next time.</p>${mapRows}` : ''}
-          ${bad ? `<p class="small" style="color:var(--bad-text)">Codes not recognised (skipped): ${bad}${p.parsed.badCodes.length > 8 ? ' …' : ''}</p>` : ''}
-          ${p.parsed.badDates ? `<p class="small" style="color:var(--bad-text)">${plural(p.parsed.badDates, 'row')} skipped because the date could not be read. Use dd/mm/yyyy.</p>` : ''}
-          <div class="row"><button type="button" class="btn primary" data-act="confirm-import"${p.count ? '' : ' disabled'}>Import</button><button type="button" class="btn ghost" data-act="cancel-import">Cancel</button></div></div>`;
-      }
-      return `<article class="card"><h2>${title}</h2><p class="small muted">${text}</p>
-        <div class="drop"><div class="row"><button type="button" class="btn" data-act="template" data-kind="${kind}">Download template</button></div>
-        <label class="field" for="file-${kind}">Choose a filled-in .xlsx file<input type="file" id="file-${kind}" accept=".xlsx" data-act="import-file" data-kind="${kind}"></label></div>${preview}</article>`;
-    };
-    return `<div class="grid-3">${card('oncall')}${card('plan')}${card('staff')}</div>
-      <p class="muted small">On-call layouts accepted: a list (Date, Doctor, Shift) or a grid like the rota (dates down the side, doctors across the top). Names are matched by exact name, a remembered spelling, or surname and initial.</p>`;
+    const preview = p ? `<div class="notice info stack"><strong>${esc(p.fileName)}</strong>${masterPreview(p)}
+      <div class="row"><button type="button" class="btn primary" data-act="confirm-import"${p.count ? '' : ' disabled'}>Import</button><button type="button" class="btn ghost" data-act="cancel-import">Cancel</button></div></div>` : '';
+    return `<section class="card"><h2>Rota data file</h2>
+      <p class="small muted">One Excel file holds everything the rota is built from. Download it (it comes filled in with what is on the rota now), change it in Excel, and upload it again. You can do this as often as you like.</p>
+      <ul class="small">
+        <li><strong>Doctors:</strong> grade, resident or senior, start and finish dates, whose column they take over, usual Mon–Fri locations, leave allowances. Blank start dates are filled in from the rotation rules.</li>
+        <li><strong>Consultant of the week</strong></li>
+        <li><strong>Leave restrictions</strong> (NO AL / AVOID dates)</li>
+        <li><strong>On-calls:</strong> paste in the trust on-calls each week (Date, Doctor, Shift).</li>
+        <li><strong>Rotation dates</strong> and <strong>Codes</strong>, for reference.</li>
+      </ul>
+      <p class="small muted">Doctors are matched by name: existing ones are updated, new ones added, nobody is deleted. You see what will change before anything is saved. The same file (with extra read-only tabs) is what Backups downloads. A CSV holds one tab only, so the Excel file is the one to use; a CSV of a single tab (e.g. Doctors) is also accepted.</p>
+      <div class="drop"><div class="row"><button type="button" class="btn primary" data-act="template" data-kind="master">Download the rota data file</button><button type="button" class="btn ghost" data-act="template" data-kind="master-csv">Doctors tab as CSV</button></div>
+        <label class="field" for="file-master">Upload the filled-in file (.xlsx, or a .csv of one tab)<input type="file" id="file-master" accept=".xlsx,.csv" data-act="import-file" data-kind="master"></label></div>
+      ${preview}</section>`;
   }
   function renderRotation() {
     const s = st().settings;
     const list = (s.changeovers || []).slice().sort((a, b) => (a.date < b.date ? -1 : 1));
     const auto = Object.entries(R.changeoversIn(st(), R.addDays(TODAY, -30), R.addDays(TODAY, 400))).sort();
-    const progs = Object.entries(R.PROGRAMMES).map(([k, p]) => `<tr><td><strong>${esc(p.label)}</strong><br><span class="small muted">${esc(p.note)}</span></td><td class="tabular">${R.programmeStarts(k, TODAY, 3).map((d) => esc(R.fmtLong(d))).join('<br>')}</td></tr>`).join('');
+    const years = ui.rotYears || 2;
+    const until = R.addMonths(TODAY, 12 * years);
+    const cal = [];
+    for (const [k, p] of Object.entries(R.PROGRAMMES)) R.programmeStarts(k, TODAY, 60).filter((d) => d <= until).forEach((d) => cal.push([d, p.label]));
+    cal.sort((a, b) => (a[0] < b[0] ? -1 : 1));
+    const progs = cal.map(([d, l]) => `<tr><td class="tabular">${esc(R.fmtLong(d))}</td><td>${esc(l)}</td></tr>`).join('');
+    const rules = Object.values(R.PROGRAMMES).map((p) => `<li><strong>${esc(p.label)}:</strong> ${esc(p.note)}</li>`).join('');
     const open = st().doctors.filter((d) => d.end && d.end >= R.addDays(TODAY, -7) && !d.placeholder && !st().doctors.some((x) => x.slot === R.slotOf(d) && x.start && x.start > d.end));
     return `<div class="grid-2">
       <section class="card"><h2>Rotation</h2>
         <div class="row" style="align-items:flex-end"><label class="field" for="rot-start">Current rotation started<input type="date" id="rot-start" value="${esc(s.rotation.start || '')}"></label><button type="button" class="btn primary" data-act="save-rotation">Save</button></div>
         <p class="small muted">The rota opens on today and shows 2 months, with "Show 2 more months" (and "Show 2 earlier months") to see further. Doctors are rostered until ${esc(R.fmtLong(R.rotaHorizon(st(), TODAY)))} at the moment.</p>
-        <h3>Next start dates</h3><div class="scroll-x"><table class="plain small"><tbody>${progs}</tbody></table></div>
-        <p class="small muted">These are suggestions. Each doctor's dates can be changed on the Master sheet, and finish dates can be marked "not confirmed".</p></section>
+        <h3>Changeover dates</h3><ul class="small">${rules}</ul>
+        <p class="small muted">Worked out from these rules for as far ahead as you like; the next ${plural(years, 'year')} are shown. They are marked "Rotation" on the rota and listed in the master workbook. Each doctor's own dates can still be changed, and finish dates marked "not confirmed".</p>
+        <div class="scroll-x"><table class="plain small"><thead><tr><th>Date</th><th>Programme</th></tr></thead><tbody>${progs}</tbody></table></div>
+        <div class="row"><button type="button" class="btn" data-act="rot-more">Show 2 more years</button></div></section>
       <section class="card"><h2>Who follows whom</h2>
         ${open.length ? `<p class="small muted">These doctors finish with nobody named to take over their column. Add a placeholder now ("New F1") and fill in the name later.</p>
         ${open.map((d) => `<div class="row small" style="justify-content:space-between"><span><strong>${esc(d.name)}</strong> (${esc(d.grade)}) finishes ${esc(R.fmtUk(d.end))}${d.endProvisional ? ' (not confirmed)' : ''}</span><button type="button" class="btn small-btn" data-act="add-placeholder" data-doc="${d.id}">Add "New ${esc(d.grade.split(' ')[0])}"</button></div>`).join('')}` : '<p class="small muted">Everyone who is finishing has somebody (or a placeholder) following them.</p>'}
@@ -3102,6 +3620,31 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
         ${list.map((c) => `<div class="row small" style="justify-content:space-between"><span><span class="tabular">${esc(R.fmtUk(c.date))}</span> · ${esc(c.label)}</span><button type="button" class="btn ghost small-btn" data-act="remove-changeover" data-id="${c.id}">Remove</button></div>`).join('') || ''}
         <div class="row" style="align-items:flex-end"><label class="field" for="co-date">Date<input type="date" id="co-date"></label><label class="field" for="co-label" style="flex:1">Description<input type="text" id="co-label" placeholder="e.g. IMT changeover"></label><button type="button" class="btn primary" data-act="add-changeover">Add</button></div>
         <details><summary class="small">Automatic changeovers (${auto.length})</summary>${auto.map(([d, t]) => `<div class="small"><span class="tabular">${esc(R.fmtUk(d))}</span> · ${esc(t.join(' · '))}</div>`).join('')}</details></section></div>`;
+  }
+  function renderBackups() {
+    const b = ui.backups;
+    if (store.mode === 'remote' && !b && !ui.backupsLoading) { ui.backupsLoading = true; store.listBackups().then((x) => { ui.backups = x; }).catch((e) => { ui.backups = { error: e.message, changes: [], daily: [] }; }).finally(() => { ui.backupsLoading = false; render(); }); }
+    const when = (at) => `${R.fmtShort(at.slice(0, 10))} ${at.slice(11, 16)}`;
+    const row = (x) => `<tr><td class="tabular">${esc(when(x.at))}</td><td>${esc(x.by || '')}</td><td class="small">${esc(x.note || '')}</td><td class="small muted">${Math.round((x.bytes || 0) / 1024)} KB</td>
+      <td><div class="row"><button type="button" class="btn ghost small-btn" data-act="backup-download" data-id="${x.id}">Download</button><button type="button" class="btn small-btn" data-act="restore-backup" data-id="${x.id}" data-at="${esc(when(x.at))}">${ui.confirm === 'restore:' + x.id ? 'Confirm: put this copy back' : 'Restore'}</button></div></td></tr>`;
+    const table = (list, n) => list.length ? `<div class="scroll-x"><table class="plain small"><thead><tr><th>When (UTC)</th><th>By</th><th>What changed</th><th>Size</th><th></th></tr></thead><tbody>${list.slice(0, n).map(row).join('')}</tbody></table></div>` : '<p class="muted small">None yet.</p>';
+    return `<div class="grid-2">
+      <section class="card"><h2>Where the rota is kept</h2>
+        <ul class="small">
+          <li><strong>The live rota</strong> is stored in your Cloudflare database (D1, called <code>haematology-rota</code>), not in a file. Every change is saved straight away.</li>
+          <li><strong>After every change</strong> a compressed copy is kept (the last 500 changes).</li>
+          <li><strong>Every night</strong> (about 01:15 UTC) a daily copy is kept for 2 years.</li>
+          <li><strong>Cloudflare also keeps its own restore points</strong> for the last 30 days (D1 Time Travel), in case the database itself has a problem.</li>
+          <li>You can <strong>download a copy</strong> at any time. The Excel version is the rota data file plus read-only tabs (leave, changes, EDT/SDT, change log); upload it under Data file to bring its doctors, consultants, leave restrictions and on-calls back. The exact copy (JSON) puts back everything in one step.</li>
+        </ul>
+        <div class="row"><button type="button" class="btn primary" data-act="backup-excel">Download full backup (Excel)</button><button type="button" class="btn" data-act="backup-json">Download exact copy (JSON)</button></div>
+        <label class="field" for="restore-file">Put back an exact copy from a file <span class="hint">A .json file downloaded from here. The current rota is backed up first.</span><input type="file" id="restore-file" accept=".json,application/json" data-act="restore-file"></label></section>
+      <section class="card"><h2>Copies on the server</h2>
+        ${store.mode !== 'remote' ? '<p class="muted small">Copies are kept on the server. In this demo copy, use the download buttons instead.</p>'
+          : !b ? '<p class="muted small">Loading…</p>' : b.error ? `<p class="notice bad small">${esc(b.error)}</p>`
+          : `<h3>Daily</h3>${table(b.daily, ui.backupsMore ? 400 : 14)}<h3>After each change</h3>${table(b.changes, ui.backupsMore ? 200 : 20)}
+             <div class="row"><button type="button" class="btn ghost small-btn" data-act="backups-more">${ui.backupsMore ? 'Show fewer' : 'Show all'}</button><button type="button" class="btn ghost small-btn" data-act="backups-refresh">Refresh</button></div>`}
+        <p class="small muted">Restoring puts the whole rota back as it was at that moment (doctors, leave, on-calls, settings). The change log is kept, and the restore itself is logged and backed up, so it can be undone.</p></section></div>`;
   }
   function renderConsultant() {
     const map = st().settings.consultantOfWeek || {};
@@ -3125,6 +3668,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
         ${weeks.map((w) => `<label class="row small cons-row" for="cons-${w}"><span class="tabular" style="width:130px">w/c ${esc(R.fmtShort(w))}</span><input type="text" id="cons-${w}" data-act="cons" data-week="${w}" value="${esc(map[w] || '')}" placeholder="Consultant"></label>`).join('')}</details>`;
     }).join('');
     return `<section class="card"><h2>Consultant of the week</h2><p class="small muted">Shown in the rota's Consultant column, the list and by-site views, and the Excel copy. Months are folded away so the list stays short; open one to edit it. Changes save when you leave the box.</p>
+      <div class="row small"><span class="muted">Many weeks at once:</span><button type="button" class="btn small-btn" data-act="template" data-kind="master">Download the rota data file</button><span class="muted">fill in its "Consultant of the week" tab, then</span><button type="button" class="btn small-btn" data-act="setup-tab" data-val="import">upload it under Data file</button></div>
       ${blocks}<div class="row"><button type="button" class="btn" data-act="cons-more">Add 4 more weeks</button></div></section>`;
   }
   function renderRestrictions() {
@@ -3173,6 +3717,14 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
   // ---------- dialogs: sign in and first-time setup ----------
   function renderDialog() {
     if (!ui.dialog) return '';
+    if (ui.dialog === 'more') {
+      const items = navItems().slice(4);
+      const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+      return `<div class="scrim" data-act="close-dialog"></div><section class="dialog more-sheet" role="dialog" aria-modal="true" aria-label="More"><div class="grabber" aria-hidden="true"></div>
+        <div class="more-list">${items.map(([id, label, n]) => `<button type="button" class="more-item" data-act="nav-more" data-view="${id}">${icon(id)}<span>${esc(label)}</span>${n ? `<span class="badge">${n}</span>` : ''}<span class="chev" aria-hidden="true">›</span></button>`).join('')}</div>
+        <div class="seg theme-seg" role="group" aria-label="Colour theme">${THEMES.map(([v, l]) => `<button type="button" class="chip" data-act="theme" data-val="${v}" aria-pressed="${theme === v}">${l}</button>`).join('')}</div>
+        <div class="row"><button type="button" class="btn ghost" data-act="close-dialog">Close</button></div></section>`;
+    }
     if (ui.dialog === 'setup') {
       return `<div class="scrim" data-act="close-dialog"></div><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title"><div class="grabber" aria-hidden="true"></div><form id="setup-form" class="stack">
         <h2 id="dlg-title" class="sheet-head">First-time setup</h2>
@@ -3331,9 +3883,13 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     if (!t || t.tagName === 'SELECT' || (t.tagName === 'INPUT' && t.type !== 'button')) return;
     const act = t.dataset.act, val = t.dataset.val;
     const confirmStep = (key) => { if (ui.confirm === key) { ui.confirm = null; return true; } ui.confirm = key; render(); return false; };
-    if (!['remove-doc', 'start-fresh', 'withdraw', 'revoke'].includes(act)) ui.confirm = null;
+    if (!['remove-doc', 'start-fresh', 'withdraw', 'revoke', 'edt-self-cancel', 'restore-backup'].includes(act)) ui.confirm = null;
     switch (act) {
       case 'nav': go(t.dataset.view); return;
+      case 'open-rota-at': resetRange(R.addDays(val, -3)); ui.layout = 'grid'; go('rota'); ui.scrollToToday = false; return;
+      case 'tick-all': document.querySelectorAll('.day-tick').forEach((x) => { x.checked = true; }); return;
+      case 'tick-covered': document.querySelectorAll('.day-tick').forEach((x) => { x.checked = x.dataset.ok === '1'; }); return;
+      case 'nav-more': ui.dialog = null; go(t.dataset.view); return;
       case 'open-signin': ui.dialog = 'signin'; break;
       case 'open-setup': ui.dialog = 'setup'; break;
       case 'close-dialog': closeOverlay(() => { ui.dialog = null; }); return;
@@ -3393,6 +3949,22 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
         break;
       }
       case 'edt-session': ui.edt.session = val; break;
+      case 'edt-self-book': {
+        const f = ui.edt;
+        try {
+          await store.bookEdtSelf({ doctorId: f.doctorId, email: (f.email || '').trim(), date: f.date, session: f.session });
+          ui.mine.doctorId = f.doctorId; ui.mine.email = (f.email || '').trim();
+          try { localStorage.setItem('haem-rota-mine', JSON.stringify({ doctorId: ui.mine.doctorId, email: ui.mine.email })); } catch (e) { /* storage blocked */ }
+          toast('Booked. It is on the rota and the authorisers have been told.');
+          f.date = '';
+        } catch (e) { toast(e.message, true); }
+        break;
+      }
+      case 'edt-self-cancel': {
+        if (!confirmStep('edtc:' + t.dataset.id)) return;
+        try { await store.cancelEdtSelf(t.dataset.id, ui.edt.doctorId, (ui.edt.email || '').trim()); toast('Session cancelled.'); } catch (e) { toast(e.message, true); }
+        break;
+      }
       case 'edt-book': {
         const f = ui.edt;
         const reason = $('#edt-reason') ? $('#edt-reason').value.trim() : '';
@@ -3448,10 +4020,19 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
         break;
       }
       case 'cons-more': ui.consExtra++; break;
+      case 'theme-cycle': {
+        const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+        const next = THEMES[(THEMES.findIndex((x) => x[0] === cur) + 1) % THEMES.length][0];
+        document.documentElement.setAttribute('data-theme', next);
+        try { localStorage.setItem('haem-rota-theme', next); } catch (e) { /* storage blocked */ }
+        renderHead();
+        return;
+      }
+      case 'open-more': ui.dialog = 'more'; break;
       case 'theme': {
         document.documentElement.setAttribute('data-theme', val);
         try { localStorage.setItem('haem-rota-theme', val); } catch (e) { /* storage blocked */ }
-        renderHead();
+        render();
         return;
       }
       case 'quick-code': { const sel = $('#edit-code'); if (sel) sel.value = val; return; }
@@ -3459,13 +4040,31 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
       case 'remove-doc': if (!confirmStep('remove:' + t.dataset.doc)) return; await change(op('removeDoctor', t.dataset.doc), 'Doctor removed.'); break;
       case 'template': {
         const kind = t.dataset.kind;
-        const bytes = kind === 'oncall' ? E.oncallTemplate(TODAY) : kind === 'plan' ? E.planTemplate(st()) : E.staffTemplate(st());
-        saveFile({ oncall: 'oncall-import-template.xlsx', plan: 'weekly-plan-template.xlsx', staff: 'staff-list-template.xlsx' }[kind], bytes);
+        if (kind === 'master-csv') { saveFile('rota-doctors.csv', E.doctorsCsvTemplate(st()), 'text/csv;charset=utf-8'); return; }
+        const bytes = kind === 'oncall' ? E.oncallTemplate(TODAY) : E.masterTemplate(st(), TODAY);
+        saveFile(kind === 'oncall' ? 'oncall-import-template.xlsx' : 'rota-data-file.xlsx', bytes);
         return;
       }
       case 'cancel-import': ui.importPreview = null; break;
       case 'confirm-import': await confirmImport(); break;
-      case 'save-rotation': await change(op('setSetting', 'rotation', { start: $('#rot-start').value, end: $('#rot-end').value }, `Rotation dates: ${$('#rot-start').value} to ${$('#rot-end').value}`), 'Rotation dates saved.'); break;
+      case 'save-rotation': await change(op('setSetting', 'rotation', { start: $('#rot-start').value }, `Rotation started ${$('#rot-start').value}`), 'Saved.'); break;
+      case 'backup-excel': saveFile(`haematology-rota-backup-${TODAY}.xlsx`, E.backupWorkbook(st(), TODAY)); return;
+      case 'backup-json': saveFile(`haematology-rota-backup-${TODAY}.json`, JSON.stringify(st()), 'application/json'); return;
+      case 'backups-more': ui.backupsMore = !ui.backupsMore; break;
+      case 'backups-refresh': ui.backups = null; break;
+      case 'backup-download': {
+        try { const x = await store.getBackup(t.dataset.id); saveFile(`haematology-rota-backup-${x.at.slice(0, 16).replace(/[:T]/g, '-')}.json`, JSON.stringify(x.state), 'application/json'); } catch (e) { toast(e.message, true); }
+        return;
+      }
+      case 'restore-backup': {
+        if (!confirmStep('restore:' + t.dataset.id)) return;
+        try {
+          const x = await store.getBackup(t.dataset.id);
+          if (await change(op('restoreState', x.state, `Copy from ${t.dataset.at} UTC`), 'Rota restored from that copy.')) ui.backups = null;
+        } catch (e) { toast(e.message, true); }
+        break;
+      }
+      case 'rot-more': ui.rotYears = (ui.rotYears || 2) + 2; break;
       case 'add-changeover': await change(op('addChangeover', $('#co-date').value, $('#co-label').value), 'Changeover added.'); break;
       case 'remove-changeover': await change(op('removeChangeover', t.dataset.id)); break;
       case 'add-restr': await change(op('addRestricted', $('#rs-start').value, $('#rs-end').value, $('#rs-level').value, $('#rs-note').value.trim()), 'Restriction added.'); break;
@@ -3509,7 +4108,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
       render(); return;
     }
     if (t.dataset.mine) { ui.mine[t.dataset.mine] = t.value; ui.mine.result = null; return; }
-    if (t.dataset.edt) { ui.edt[t.dataset.edt] = t.value; render(); return; }
+    if (t.dataset.edt) { ui.edt[t.dataset.edt] = t.value; if (t.type === 'email') return; render(); return; }
     if (t.dataset.nd && ui.nd) {
       const k = t.dataset.nd;
       ui.nd[k] = t.type === 'checkbox' ? t.checked : t.value;
@@ -3551,14 +4150,26 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
       case 'toggle-b': await change(op('toggleWeekB', t.dataset.doc, t.checked)); return;
       case 'cons': { const w = t.dataset.week, v = t.value.trim(); await change((s, by) => S.ops.setSetting(s, by, 'consultantOfWeek.' + w, v, `Consultant w/c ${R.fmtUk(w)}: ${v || '(blank)'}`)); return; }
       case 'map-name': ui.importPreview.mapping[t.dataset.name] = t.value; break;
+      case 'restore-file': {
+        const file = t.files && t.files[0];
+        if (!file) return;
+        try {
+          const copy = JSON.parse(await file.text());
+          if (!window.confirm(`Put back the rota from ${file.name}? The current rota is backed up first, so this can be undone.`)) { t.value = ''; return; }
+          await change(op('restoreState', copy, `From file ${file.name}`), 'Rota restored from the file.');
+          ui.backups = null;
+        } catch (e) { toast(`Could not use ${file.name}: ${e.message}`, true); }
+        break;
+      }
       case 'import-file': {
         const file = t.files && t.files[0];
         if (!file) return;
-        if (!/\.xlsx$/i.test(file.name)) { toast('Save the file as an Excel Workbook (.xlsx) and choose it again.', true); return; }
+        const kind = t.dataset.kind;
+        const isCsv = /\.csv$/i.test(file.name);
+        if (!/\.xlsx$/i.test(file.name) && !(isCsv && kind === 'master')) { toast('Save the file as an Excel Workbook (.xlsx)' + (kind === 'master' ? ' or CSV' : '') + ' and choose it again.', true); return; }
         try {
-          const sheets = await X.read(await file.arrayBuffer());
-          const kind = t.dataset.kind;
-          const parsed = kind === 'oncall' ? E.parseOncall(st(), sheets) : kind === 'plan' ? E.parsePlans(st(), sheets) : E.parseStaff(st(), sheets);
+          const sheets = isCsv ? [{ name: 'Doctors', rows: E.parseCsv(await file.text()) }] : await X.read(await file.arrayBuffer());
+          const parsed = kind === 'oncall' ? E.parseOncall(st(), sheets) : E.parseMaster(st(), sheets);
           ui.importPreview = { kind, fileName: file.name, parsed, mapping: {} };
         } catch (e) { toast(`Could not read ${file.name}: ${e.message}`, true); }
         break;
@@ -3573,6 +4184,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     if (t.dataset.live) { ui[t.dataset.live] = t.value; render(); return; }
     if (t.dataset.form && ui.form && (t.tagName === 'TEXTAREA' || t.type === 'text' || t.type === 'email')) ui.form[t.dataset.form] = t.value; // keep typing without re-render
     if (t.dataset.mine) ui.mine[t.dataset.mine] = t.value;
+    if (t.dataset.edt === 'email') ui.edt.email = t.value;
     if (t.dataset.nd && ui.nd && (t.type === 'text' || t.type === 'email')) ui.nd[t.dataset.nd] = t.value;
     if (t.dataset.bulk === 'reason' && ui.bulk) ui.bulk.reason = t.value;
     if (ui.rulesDraft) {
@@ -3613,6 +4225,7 @@ button.cell:active, .list-item:active { transform: scale(0.97); }
     const newAliases = {};
     for (const [name, id] of Object.entries(p.mapping)) if (id) newAliases[name] = id;
     let payload;
+    if (p.kind === 'master') { if (await change(op('applyMaster', Object.assign({}, p.parsed, { mapping: p.mapping }), p.fileName), `Imported ${p.fileName}.`)) { ui.importPreview = null; render(); } return; }
     if (p.kind === 'oncall') payload = { entries: p.parsed.entries.map((e) => Object.assign({}, e, { doctorId: resolve(e) })).filter((e) => e.doctorId), from: p.parsed.from, to: p.parsed.to, fileName: p.fileName, newAliases };
     else if (p.kind === 'plan') payload = { plans: p.parsed.plans.map((x) => Object.assign({}, x, { doctorId: resolve(x) })).filter((x) => x.doctorId), fileName: p.fileName, newAliases };
     else payload = { staff: p.parsed.staff, fileName: p.fileName, newAliases };
