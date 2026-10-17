@@ -429,7 +429,6 @@
     const q = (n, label, inner, hint) => `<div class="q"><div class="qn">${n}</div><div class="qb"><div class="ql">${label}${hint ? `<span class="hint">${hint}</span>` : ''}</div>${inner}</div></div>`;
     const typeOpt = (v, l) => `<label class="opt"><input type="radio" name="ltype" data-form="type" value="${v}"${f.type === v ? ' checked' : ''}> <span>${l}</span></label>`;
     const coverSel = (field, id) => `<select id="${id}" data-form="${field}"><option value="">${sick ? 'Not known' : 'Nobody needed / not arranged'}</option>${docOptions(f[field], (d) => d.id !== f.doctorId && (!okDates || R.inPost(d, f.start) || R.inPost(d, f.end)))}</select>`;
-    const dayRow = (d) => `<tr><td class="tabular">${esc(R.fmtShort(d.date))}</td><td>${esc(d.at)}</td><td><span class="cv ${d.status === 'ok' ? 'ok' : d.status === 'warn' ? 'exception' : 'gap'}">${d.status === 'ok' ? '✓' : d.status === 'warn' ? '!' : '✕'}</span> ${esc(d.text)}${d.problems.length ? `<br><span class="small muted">${esc(d.problems.join(' '))}</span>` : ''}</td></tr>`;
     return `
     <div class="page-head"><div><h1>${sick ? 'Report sickness' : 'Request leave'}</h1><p class="muted">No password needed. ${sick ? 'Sickness is recorded straight away and the authorisers are told. It shows on the rota only as "Unavailable".' : `Leave is not on the rota until an authoriser approves it. See the decision under "Check my request"${st().settings.emailDoctors ? ' (you\'ll also get an email)' : ''}.`}</p></div></div>
     <form id="leave-form" class="split" novalidate>
@@ -452,15 +451,7 @@
         ${q(10, 'Additional notes', `<textarea id="f-note" data-form="note" rows="3" placeholder="${sick ? 'Optional. Do not include medical details.' : 'Anything the authorisers should know'}">${esc(f.note)}</textarea>`)}
         <div class="row"><button type="submit" class="btn primary"${ui.busy ? ' disabled' : ''}>${sick ? 'Report sickness' : 'Send request'}</button><button type="button" class="btn ghost" data-act="form-reset">Clear form</button></div>
       </div>
-      <aside class="side stack">
-        <section class="card"><h2>Will there be enough doctors?</h2>
-          ${!doc ? '<p class="muted small">Choose your name and dates to see the check.</p>' : !okDates ? '<p class="muted small">Choose valid dates.</p>' : !check.days.length ? '<p class="muted small">No working days in this range.</p>' : `
-          <p class="small">${check.bad ? `<strong style="color:var(--bad-text)">Not enough doctors on ${plural(check.bad, 'day')}.</strong> You can still send it: the authorisers will see this and may approve the other days, suggest another date or arrange cover.` : check.warn ? `<strong>Enough doctors, with ${plural(check.warn, 'warning')}.</strong>` : '<strong style="color:var(--ok-fg)">Enough doctors on every day.</strong>'}</p>
-          <div class="scroll-x"><table class="plain small"><thead><tr><th>Day</th><th>You are</th><th>Check</th></tr></thead><tbody>${check.days.map(dayRow).join('')}</tbody></table></div>
-          ${check.alternatives.length ? `<p class="small">Nearby days with enough doctors: ${check.alternatives.map((d) => esc(R.fmtShort(d))).join(', ')}.</p>` : ''}`}
-        </section>
-        ${notes.map(([cls, t]) => `<p class="notice ${cls} small">${esc(t)}</p>`).join('')}
-      </aside>
+      ${notes.length ? `<aside class="side stack">${notes.map(([cls, t]) => `<p class="notice ${cls} small">${esc(t)}</p>`).join('')}</aside>` : ''}
     </form>`;
   }
   function renderSubmitted() {
@@ -469,7 +460,6 @@
     return `<div class="page-head"><div><h1>${sick ? 'Sickness recorded' : 'Request sent'}</h1></div></div>
       <section class="card" style="max-width:720px">
         <p class="notice ok">${sick ? `Recorded for ${esc(rangeText(r.start, r.end))}. The authorisers have been told. It shows on the rota as "Unavailable" and is not taken from annual leave.` : `Your request for ${esc(rangeText(r.start, r.end))} (${plural(r.days, 'working day')}) has been sent to the rota authorisers.`}</p>
-        ${check && check.bad && !sick ? `<p class="notice warn small">There may not be enough doctors on ${plural(check.bad, 'day')}. The authorisers will look at this; they may approve the other days or suggest another date.</p>` : ''}
         <p class="small muted">${emailed ? 'A confirmation email is on its way. ' : ''}${sick ? '' : 'See the decision under "Check my request". It is not on the rota until approved.'}</p>
         <div class="row"><button type="button" class="btn primary" data-act="nav" data-view="mine">Check my requests</button><button type="button" class="btn" data-act="form-new">Send another</button></div>
       </section>`;
@@ -750,7 +740,7 @@
 
   // ---------- authoriser: set up ----------
   function renderSetup() {
-    const tabs = [['import', 'Import (Excel)'], ['master', 'Master sheet'], ['people', 'People & leave'], ['rotation', 'Rotations'], ['consultant', 'Consultant of the week'], ['leave', 'Leave restrictions'], ['backup', 'Backups'], ['settings', 'Settings']];
+    const tabs = [['import', 'Data file'], ['master', 'Master sheet'], ['people', 'People & leave'], ['rotation', 'Rotations'], ['consultant', 'Consultant of the week'], ['leave', 'Leave restrictions'], ['backup', 'Backups'], ['settings', 'Settings']];
     const body = { master: renderMaster, people: renderPeople, import: renderImport, rotation: renderRotation, consultant: renderConsultant, leave: renderRestrictions, backup: renderBackups, settings: renderSettings }[ui.setupTab] || renderMaster;
     return `<div class="page-head"><div><h1>Set up</h1><p class="muted">Doctors, their usual locations, imported on-calls, rotations and settings. The rota is built from these.</p></div></div>
       <div class="tabs" role="tablist">${tabs.map(([id, l]) => `<button type="button" role="tab" data-act="setup-tab" data-val="${id}" aria-selected="${ui.setupTab === id}">${l}</button>`).join('')}</div>${body()}`;
@@ -835,48 +825,46 @@
     return `<section class="card"><p class="muted small">Annual leave allowance is filled in from the Wales default for the grade, dates in post and FTE (28 days a year for foundation, core and fellows; 33 for registrars ST3+; 29 for specialty doctors, 34 after 2 years in grade; 34 for specialist grade) and can be changed. Use "Carried over / extra" for accrued or carried-over days. Doctors see their remaining days under "Check my request".</p>
       <div class="scroll-x"><table class="plain people"><thead><tr><th>Doctor</th><th>NHS email</th><th>FTE</th><th>Annual leave days</th><th>Carried over / extra</th><th>AL left</th><th>Study leave days</th><th>Other spellings (on-call sheet)</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
   }
-  const IMPORT_INFO = {
-    master: ['Master workbook: doctors, consultant of the week, leave restrictions', 'One Excel file sets up everything: the Doctors tab (grades, dates, who takes over whose column, usual Mon–Fri locations, leave allowances), the Consultant of the week tab and the Leave restrictions tab. The template comes filled in with what is on the rota now, so you can edit and re-import it. Doctors are matched by name: existing ones are updated, new ones added, nobody is deleted. A CSV of the Doctors tab also works.'],
-    oncall: ['On-call rota (from the trust)', 'Each week, put the trust on-calls into this template (list or grid layout) and import it. Earlier imports for the same dates are replaced.']
-  };
   function masterPreview(p) {
     const x = p.parsed;
     const known = x.doctors.filter((d) => st().doctors.some((e) => e.name.toLowerCase() === d.name.toLowerCase())).length;
-    p.count = x.doctors.length + Object.keys(x.consultants).length + x.restrictions.length;
+    const oc = x.oncall;
+    const ocUsable = oc ? oc.entries.filter((e) => e.doctorId || p.mapping[e.name]).length : 0;
+    p.count = x.doctors.length + Object.keys(x.consultants).length + x.restrictions.length + ocUsable;
+    const unknown = oc ? Object.keys(oc.unknownNames || {}) : [];
     const sample = x.doctors.slice(0, 40).map((d) => `<tr><td>${esc(d.name)}${d.placeholder ? ' <span class="tbc">TBC</span>' : ''}</td><td>${esc(d.grade)}</td><td>${d.group === 'mg' ? 'Senior' : 'Resident'}</td><td class="tabular">${d.start ? esc(R.fmtUk(d.start)) : ''}${d.suggested ? ' <span class="muted">(suggested)</span>' : ''}</td><td class="tabular">${d.end ? esc(R.fmtUk(d.end)) : ''}${d.endProvisional ? '?' : ''}</td><td>${esc(d.replacesName)}</td><td class="small">${esc(d.plan.map((c) => c || '–').join(' · '))}</td></tr>`).join('');
+    const bad = oc ? (oc.badCodes || []).slice(0, 8).map((b) => `Row ${b.row}: "${esc(b.code)}"`).join(', ') : '';
     return `<p>Found: ${esc(x.found.join(', ') || 'nothing')}.</p>
-      <p><strong>${x.doctors.length}</strong> doctors (${known} updated, ${x.doctors.length - known} new) · <strong>${Object.keys(x.consultants).length}</strong> consultant weeks · <strong>${x.restrictions.length}</strong> leave restrictions.</p>
+      <ul class="small">
+        <li><strong>${x.doctors.length}</strong> doctors (${known} updated, ${x.doctors.length - known} new)</li>
+        <li><strong>${Object.keys(x.consultants).length}</strong> consultant-of-the-week entries</li>
+        <li><strong>${x.restrictions.length}</strong> leave restrictions</li>
+        ${oc ? `<li><strong>${ocUsable}</strong> on-call shifts, ${oc.from ? esc(R.fmtUk(oc.from)) : '?'} to ${oc.to ? esc(R.fmtUk(oc.to)) : '?'}. On-calls already on the rota for those dates are replaced.</li>` : ''}
+      </ul>
       ${x.problems.map((m) => `<p class="small warn-text">${esc(m)}</p>`).join('')}
-      ${sample ? `<div class="scroll-x"><table class="plain small"><thead><tr><th>Name</th><th>Grade</th><th>Category</th><th>Starts</th><th>Finishes</th><th>Takes over from</th><th>Mon–Fri</th></tr></thead><tbody>${sample}</tbody></table></div>` : ''}`;
+      ${unknown.length ? `<p class="small"><strong>On-call names to match once.</strong> The spelling is remembered next time.</p>${unknown.map((name, i) => `<div class="row small"><span>"${esc(name)}" (${plural(oc.unknownNames[name], 'row')}) is</span><label class="sr-only" for="map-${i}">Match ${esc(name)}</label><select id="map-${i}" data-act="map-name" data-name="${esc(name)}"><option value="">Not one of ours: skip</option>${docOptions(p.mapping[name])}</select></div>`).join('')}` : ''}
+      ${bad ? `<p class="small" style="color:var(--bad-text)">On-call codes not recognised (skipped): ${bad}</p>` : ''}
+      ${oc && oc.badDates ? `<p class="small" style="color:var(--bad-text)">${plural(oc.badDates, 'on-call row')} skipped because the date could not be read. Use dd/mm/yyyy.</p>` : ''}
+      ${sample ? `<details><summary class="small">Doctors in the file (${x.doctors.length})</summary><div class="scroll-x"><table class="plain small"><thead><tr><th>Name</th><th>Grade</th><th>Category</th><th>Starts</th><th>Finishes</th><th>Takes over from</th><th>Mon–Fri</th></tr></thead><tbody>${sample}</tbody></table></div></details>` : ''}`;
   }
+  // Set up → Data file: one Excel file holds everything that is imported, and is also the backup.
   function renderImport() {
     const p = ui.importPreview;
-    const card = (kind) => {
-      const [title, text] = IMPORT_INFO[kind];
-      let preview = '';
-      if (p && p.kind === kind) {
-        const unknown = Object.keys(p.parsed.unknownNames || {});
-        const mapRows = unknown.map((name, i) => `<div class="row small"><span>"${esc(name)}" (${plural(p.parsed.unknownNames[name], 'row')}) is</span><label class="sr-only" for="map-${i}">Match ${esc(name)}</label><select id="map-${i}" data-act="map-name" data-name="${esc(name)}"><option value="">Not one of ours: skip</option>${docOptions(p.mapping[name])}</select></div>`).join('');
-        let summary = '';
-        if (kind === 'oncall') {
-          const usable = p.parsed.entries.filter((e) => e.doctorId || p.mapping[e.name]).length;
-          summary = `<p><strong>${usable}</strong> on-call shifts from ${p.parsed.from ? esc(R.fmtUk(p.parsed.from)) : '?'} to ${p.parsed.to ? esc(R.fmtUk(p.parsed.to)) : '?'} (${esc(p.parsed.format)} layout, sheet "${esc(p.parsed.sheet)}"). Imported on-calls already in those dates will be replaced.</p>
-            ${p.parsed.skipped.length ? `<p class="small muted">${plural(p.parsed.skipped.length, 'cell')} with site codes were ignored (sites come from the master sheet).</p>` : ''}`;
-          p.count = usable;
-        } else summary = masterPreview(p);
-        const bad = (p.parsed.badCodes || []).slice(0, 8).map((b) => `Row ${b.row}: "${esc(b.code)}"`).join(', ');
-        preview = `<div class="notice info stack"><strong>${esc(p.fileName)}</strong>${summary}
-          ${unknown.length ? `<p class="small"><strong>New names to match once.</strong> The spelling is remembered for next time.</p>${mapRows}` : ''}
-          ${bad ? `<p class="small" style="color:var(--bad-text)">Codes not recognised (skipped): ${bad}${p.parsed.badCodes.length > 8 ? ' …' : ''}</p>` : ''}
-          ${p.parsed.badDates ? `<p class="small" style="color:var(--bad-text)">${plural(p.parsed.badDates, 'row')} skipped because the date could not be read. Use dd/mm/yyyy.</p>` : ''}
-          <div class="row"><button type="button" class="btn primary" data-act="confirm-import"${p.count ? '' : ' disabled'}>Import</button><button type="button" class="btn ghost" data-act="cancel-import">Cancel</button></div></div>`;
-      }
-      return `<article class="card"><h2>${title}</h2><p class="small muted">${text}</p>
-        <div class="drop"><div class="row"><button type="button" class="btn" data-act="template" data-kind="${kind}">Download template (Excel)</button>${kind === 'master' ? '<button type="button" class="btn ghost" data-act="template" data-kind="master-csv">Doctors tab as CSV</button>' : ''}</div>
-        <label class="field" for="file-${kind}">Choose a filled-in ${kind === 'master' ? '.xlsx or .csv' : '.xlsx'} file<input type="file" id="file-${kind}" accept="${kind === 'master' ? '.xlsx,.csv' : '.xlsx'}" data-act="import-file" data-kind="${kind}"></label></div>${preview}</article>`;
-    };
-    return `<div class="grid-2">${card('master')}${card('oncall')}</div>
-      <p class="muted small">On-call layouts accepted: a list (Date, Doctor, Shift) or a grid like the rota (dates down the side, doctors across the top). Names are matched by exact name, a remembered spelling, or surname and initial.</p>`;
+    const preview = p ? `<div class="notice info stack"><strong>${esc(p.fileName)}</strong>${masterPreview(p)}
+      <div class="row"><button type="button" class="btn primary" data-act="confirm-import"${p.count ? '' : ' disabled'}>Import</button><button type="button" class="btn ghost" data-act="cancel-import">Cancel</button></div></div>` : '';
+    return `<section class="card"><h2>Rota data file</h2>
+      <p class="small muted">One Excel file holds everything the rota is built from. Download it (it comes filled in with what is on the rota now), change it in Excel, and upload it again. You can do this as often as you like.</p>
+      <ul class="small">
+        <li><strong>Doctors:</strong> grade, resident or senior, start and finish dates, whose column they take over, usual Mon–Fri locations, leave allowances. Blank start dates are filled in from the rotation rules.</li>
+        <li><strong>Consultant of the week</strong></li>
+        <li><strong>Leave restrictions</strong> (NO AL / AVOID dates)</li>
+        <li><strong>On-calls:</strong> paste in the trust on-calls each week (Date, Doctor, Shift).</li>
+        <li><strong>Rotation dates</strong> and <strong>Codes</strong>, for reference.</li>
+      </ul>
+      <p class="small muted">Doctors are matched by name: existing ones are updated, new ones added, nobody is deleted. You see what will change before anything is saved. The same file (with extra read-only tabs) is what Backups downloads. A CSV holds one tab only, so the Excel file is the one to use; a CSV of a single tab (e.g. Doctors) is also accepted.</p>
+      <div class="drop"><div class="row"><button type="button" class="btn primary" data-act="template" data-kind="master">Download the rota data file</button><button type="button" class="btn ghost" data-act="template" data-kind="master-csv">Doctors tab as CSV</button></div>
+        <label class="field" for="file-master">Upload the filled-in file (.xlsx, or a .csv of one tab)<input type="file" id="file-master" accept=".xlsx,.csv" data-act="import-file" data-kind="master"></label></div>
+      ${preview}</section>`;
   }
   function renderRotation() {
     const s = st().settings;
@@ -921,7 +909,7 @@
           <li><strong>After every change</strong> a compressed copy is kept (the last 500 changes).</li>
           <li><strong>Every night</strong> (about 01:15 UTC) a daily copy is kept for 2 years.</li>
           <li><strong>Cloudflare also keeps its own restore points</strong> for the last 30 days (D1 Time Travel), in case the database itself has a problem.</li>
-          <li>You can <strong>download a copy</strong> at any time: the Excel version opens in Excel and its Doctors, Consultant and Leave restrictions tabs can be imported again; the exact copy (JSON) can be put back here in one step.</li>
+          <li>You can <strong>download a copy</strong> at any time. The Excel version is the rota data file plus read-only tabs (leave, changes, EDT/SDT, change log); upload it under Data file to bring its doctors, consultants, leave restrictions and on-calls back. The exact copy (JSON) puts back everything in one step.</li>
         </ul>
         <div class="row"><button type="button" class="btn primary" data-act="backup-excel">Download full backup (Excel)</button><button type="button" class="btn" data-act="backup-json">Download exact copy (JSON)</button></div>
         <label class="field" for="restore-file">Put back an exact copy from a file <span class="hint">A .json file downloaded from here. The current rota is backed up first.</span><input type="file" id="restore-file" accept=".json,application/json" data-act="restore-file"></label></section>
@@ -954,7 +942,7 @@
         ${weeks.map((w) => `<label class="row small cons-row" for="cons-${w}"><span class="tabular" style="width:130px">w/c ${esc(R.fmtShort(w))}</span><input type="text" id="cons-${w}" data-act="cons" data-week="${w}" value="${esc(map[w] || '')}" placeholder="Consultant"></label>`).join('')}</details>`;
     }).join('');
     return `<section class="card"><h2>Consultant of the week</h2><p class="small muted">Shown in the rota's Consultant column, the list and by-site views, and the Excel copy. Months are folded away so the list stays short; open one to edit it. Changes save when you leave the box.</p>
-      <div class="row small"><span class="muted">Many weeks at once:</span><button type="button" class="btn small-btn" data-act="template" data-kind="master">Download the master workbook</button><span class="muted">fill in its "Consultant of the week" tab, then</span><button type="button" class="btn small-btn" data-act="setup-tab" data-val="import">upload it under Import</button></div>
+      <div class="row small"><span class="muted">Many weeks at once:</span><button type="button" class="btn small-btn" data-act="template" data-kind="master">Download the rota data file</button><span class="muted">fill in its "Consultant of the week" tab, then</span><button type="button" class="btn small-btn" data-act="setup-tab" data-val="import">upload it under Data file</button></div>
       ${blocks}<div class="row"><button type="button" class="btn" data-act="cons-more">Add 4 more weeks</button></div></section>`;
   }
   function renderRestrictions() {
@@ -1328,7 +1316,7 @@
         const kind = t.dataset.kind;
         if (kind === 'master-csv') { saveFile('rota-doctors.csv', E.doctorsCsvTemplate(st()), 'text/csv;charset=utf-8'); return; }
         const bytes = kind === 'oncall' ? E.oncallTemplate(TODAY) : E.masterTemplate(st(), TODAY);
-        saveFile(kind === 'oncall' ? 'oncall-import-template.xlsx' : 'rota-master-workbook.xlsx', bytes);
+        saveFile(kind === 'oncall' ? 'oncall-import-template.xlsx' : 'rota-data-file.xlsx', bytes);
         return;
       }
       case 'cancel-import': ui.importPreview = null; break;
@@ -1511,7 +1499,7 @@
     const newAliases = {};
     for (const [name, id] of Object.entries(p.mapping)) if (id) newAliases[name] = id;
     let payload;
-    if (p.kind === 'master') { if (await change(op('applyMaster', p.parsed, p.fileName), `Imported ${p.fileName}.`)) { ui.importPreview = null; render(); } return; }
+    if (p.kind === 'master') { if (await change(op('applyMaster', Object.assign({}, p.parsed, { mapping: p.mapping }), p.fileName), `Imported ${p.fileName}.`)) { ui.importPreview = null; render(); } return; }
     if (p.kind === 'oncall') payload = { entries: p.parsed.entries.map((e) => Object.assign({}, e, { doctorId: resolve(e) })).filter((e) => e.doctorId), from: p.parsed.from, to: p.parsed.to, fileName: p.fileName, newAliases };
     else if (p.kind === 'plan') payload = { plans: p.parsed.plans.map((x) => Object.assign({}, x, { doctorId: resolve(x) })).filter((x) => x.doctorId), fileName: p.fileName, newAliases };
     else payload = { staff: p.parsed.staff, fileName: p.fileName, newAliases };

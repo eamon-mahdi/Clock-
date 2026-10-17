@@ -256,7 +256,7 @@
   const MASTER_HELP = [
     'How to fill in the rota master workbook',
     '',
-    'This one file sets up the rota. Fill in the tabs you need and import it under Set up → Import → Master workbook. You can import it again at any time: doctors are matched by name and updated, new ones are added. Nobody is deleted by an import.',
+    'This one file sets up the rota. Fill in the tabs you need and upload it under Set up → Data file. You can import it again at any time: doctors are matched by name and updated, new ones are added. Nobody is deleted by an import.',
     '',
     'Doctors tab: one row per doctor (or per post, for placeholders).',
     '  • Grade: e.g. F1, F2, IMT1, IMT2, IMT3, JCF, Registrar ST3–ST8, Specialty doctor, Specialist grade, Senior clinical fellow, or anything else.',
@@ -270,9 +270,11 @@
     '',
     'Consultant of the week tab: the Monday of each week and the consultant. Add as many weeks as you like.',
     'Leave restrictions tab: dates when annual leave is not normally approved (NO AL) or should be avoided (AVOID).',
+    'On-calls tab: one row per on-call shift (Date, Doctor, Shift). Paste in the trust on-calls each week. When imported, on-calls already on the rota for the dates in this tab are replaced by what is here. Shift codes are on the Codes tab.',
     'Rotation dates tab: reference only. The changeover dates worked out from the programme rules for the next few years.',
     '',
-    'A CSV version of the Doctors tab is also available (one sheet only: CSV files cannot have tabs).'
+    'This one file is also the backup: Set up → Backups downloads the same file with extra read-only tabs (leave, changes, EDT/SDT, change log).',
+    'CSV files cannot have tabs, so a CSV holds one tab only (for example the Doctors tab). The Excel file is the one file that holds everything.'
   ];
   const yesNo = (b) => (b ? 'Yes' : 'No');
   function doctorRows(state) {
@@ -299,6 +301,13 @@
     for (; w <= last; w = R.addDays(w, 7)) rows.push([{ v: w, date: true }, map[w] || '']);
     return rows;
   }
+  function oncallRows(state, fromIso) {
+    const docName = (id) => (R.doctorById(state, id) || { name: id }).name;
+    const list = [];
+    Object.entries(state.oncall || {}).forEach(([id, m]) => Object.entries(m).forEach(([d, code]) => { if (!fromIso || d >= fromIso) list.push([d, docName(id), code]); }));
+    list.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] < b[1] ? -1 : 1));
+    return [[head('Date'), head('Doctor'), head('Shift')]].concat(list.map(([d, n, c]) => [{ v: d, date: true }, n, c]));
+  }
   function restrictionRows(state) {
     return [[head('From'), head('To'), head('Level (NO AL or AVOID)'), head('Note')]].concat(((state.settings && state.settings.restricted) || []).slice().sort((a, b) => (a.start < b.start ? -1 : 1))
       .map((r) => [{ v: r.start, date: true }, { v: r.end || r.start, date: true }, r.level, r.note || '']));
@@ -314,6 +323,8 @@
   }
   function codesRows() {
     const rows = [[head('Location code (Mon–Fri columns)'), head('Meaning')]].concat(R.SITE_CODES.map((c) => [c, CODE_MEANINGS[c] || '']));
+    rows.push(['', ''], [head('On-call shift code (On-calls tab)'), head('Meaning')]);
+    R.ONCALL_CODES.forEach((c) => rows.push([c, CODE_MEANINGS[c] || '']));
     rows.push(['', ''], [head('Grades'), head('Category')]);
     ['F1', 'F2', 'IMT1', 'IMT2', 'IMT3', 'JCF'].forEach((g) => rows.push([g, 'Resident']));
     ['Registrar ST3', 'Registrar ST4', 'Registrar ST5', 'Registrar ST6', 'Registrar ST7', 'Registrar ST8', 'Specialty doctor', 'Specialist grade', 'Senior clinical fellow'].forEach((g) => rows.push([g, 'Senior']));
@@ -327,8 +338,9 @@
       { name: 'Doctors', rows: doctorRows(state), widths: MASTER_WIDTHS, freeze: { row: 1, col: 1 }, heights: { 0: 42 } },
       { name: 'Consultant of the week', rows: consultantRows(state, todayIso), widths: [24, 30], freeze: { row: 1 } },
       { name: 'Leave restrictions', rows: restrictionRows(state), widths: [13, 13, 20, 50], freeze: { row: 1 } },
+      { name: 'On-calls', rows: oncallRows(state, R.addDays(todayIso, -14)), widths: [12, 22, 20], freeze: { row: 1 } },
       { name: 'Rotation dates', rows: rotationRows(todayIso, 5), widths: [28, 18, 22, 70], freeze: { row: 1 } },
-      { name: 'Codes', rows: codesRows(), widths: [30, 50] }
+      { name: 'Codes', rows: codesRows(), widths: [34, 50] }
     ]);
   }
 
@@ -398,6 +410,10 @@
           if (!d) { if (cellText(row[iw])) out.problems.push(`Consultant row ${r + 1}: could not read the date.`); continue; }
           if (who) out.consultants[R.mondayOf(d)] = who;
         }
+      } else if (/on-?call/i.test(sh.name || '') || (idx(/^date/) >= 0 && (idx(/^shift|^code/) >= 0))) {
+        if (out.oncall || !sh.rows.slice(h + 1).some((r) => r && r.some((v) => cellText(v)))) continue;
+        out.found.push(sh.name || 'On-calls');
+        out.oncall = parseOncall(state, [sh]);
       } else if (idx(/^level/) >= 0 && idx(/^from/) >= 0) {
         out.found.push(sh.name || 'Leave restrictions');
         const ia = idx(/^from/), ib = idx(/^to/), il = idx(/^level/), inote = idx(/^note/);
@@ -411,7 +427,7 @@
         }
       }
     }
-    if (!out.found.length) out.problems.push('No Doctors, Consultant of the week or Leave restrictions tab was found. Use the master template.');
+    if (!out.found.length) out.problems.push('No Doctors, Consultant of the week, Leave restrictions or On-calls tab was found. Use the rota data file template.');
     return out;
   }
   function findHeaderRowAny(rows) {
@@ -424,21 +440,18 @@
   // Full backup: the master tabs (re-importable) plus everything else, read-only.
   function backupWorkbook(state, todayIso) {
     const docName = (id) => (R.doctorById(state, id) || { name: id }).name;
-    const oncall = [[head('Date'), head('Doctor'), head('Shift')]];
-    Object.entries(state.oncall || {}).forEach(([id, m]) => Object.entries(m).forEach(([d, code]) => oncall.push([{ v: d, date: true }, docName(id), code])));
-    oncall.splice(1, oncall.length, ...oncall.slice(1).sort((a, b) => (a[0].v < b[0].v ? -1 : a[0].v > b[0].v ? 1 : 0)));
     const changes = [[head('Date'), head('Doctor'), head('Changed to'), head('Reason'), head('By')]];
     Object.entries(state.overrides || {}).forEach(([id, m]) => Object.entries(m).forEach(([d, o]) => changes.push([{ v: d, date: true }, docName(id), o.code, o.reason || '', o.by || ''])));
     const leave = [[head('Doctor'), head('Type'), head('From'), head('To'), head('Part'), head('Working days'), head('Status'), head('Days not approved'), head('Decided by'), head('Sent')]].concat(state.requests.map((r) => [docName(r.doctorId), r.type === 'SICK' ? 'Unavailable' : (R.LEAVE_TYPES[r.type] || R.LEAVE_TYPES.OTHER).label, { v: r.start, date: true }, { v: r.end, date: true }, r.part, r.days, r.status, (r.excludedDates || []).map(R.fmtUk).join(', '), r.decidedBy || '', (r.submittedAt || '').slice(0, 10)]));
     const edt = [[head('Date'), head('Session'), head('Doctor'), head('Type'), head('Booked by')]].concat((state.edt || []).map((e) => [{ v: e.date, date: true }, e.session, docName(e.doctorId), e.type, e.bookedBy || '']));
     const audit = [[head('When'), head('Who'), head('What'), head('Details')]].concat((state.audit || []).map((a) => [a.at.slice(0, 16).replace('T', ' '), a.by, a.action, a.detail]));
     return X.write([
-      helpSheet([`Haematology rota backup, ${R.fmtLong(todayIso)}`, '', 'The Doctors, Consultant of the week and Leave restrictions tabs can be imported again (Set up → Import → Master workbook). The On-call (list) tab can be imported as an on-call file.', 'For an exact restore of everything, use Set up → Backups on the website.']),
+      helpSheet([`Haematology rota data file and backup, ${R.fmtLong(todayIso)}`, '', 'This is the same file as Set up → Data file. The Doctors, Consultant of the week, Leave restrictions and On-calls tabs can be uploaded again there.', 'The other tabs (Leave, Rota changes, EDT SDT, Change log) are a read-only record.', 'For an exact restore of everything, use Set up → Backups on the website.']),
       { name: 'Doctors', rows: doctorRows(state), widths: MASTER_WIDTHS, freeze: { row: 1, col: 1 }, heights: { 0: 42 } },
       { name: 'Consultant of the week', rows: consultantRows(state, todayIso), widths: [24, 30], freeze: { row: 1 } },
       { name: 'Leave restrictions', rows: restrictionRows(state), widths: [13, 13, 20, 50], freeze: { row: 1 } },
+      { name: 'On-calls', rows: oncallRows(state), widths: [12, 22, 20], freeze: { row: 1 } },
       { name: 'Leave', rows: leave, widths: [18, 22, 12, 12, 7, 8, 11, 30, 14, 12], freeze: { row: 1 } },
-      { name: 'On-call (list)', rows: oncall, widths: [12, 20, 20], freeze: { row: 1 } },
       { name: 'Rota changes', rows: changes, widths: [12, 20, 20, 40, 14], freeze: { row: 1 } },
       { name: 'EDT SDT', rows: edt, widths: [12, 8, 20, 8, 14], freeze: { row: 1 } },
       { name: 'Change log', rows: audit, widths: [17, 18, 26, 90], freeze: { row: 1 } }

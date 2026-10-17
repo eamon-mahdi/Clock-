@@ -377,8 +377,14 @@ test('months are added safely for the 4-month view and "show more"', () => {
 test('master workbook: template round-trips, CSV works, import adds and updates by name', async () => {
   const st = S.demoState(TODAY);
   const wb = await X.read(E.masterTemplate(st, TODAY));
-  assert.deepEqual(wb.map((s) => s.name), ['How to use', 'Doctors', 'Consultant of the week', 'Leave restrictions', 'Rotation dates', 'Codes']);
+  assert.deepEqual(wb.map((s) => s.name), ['How to use', 'Doctors', 'Consultant of the week', 'Leave restrictions', 'On-calls', 'Rotation dates', 'Codes']);
   const p = E.parseMaster(st, wb);
+  assert.ok(p.oncall && p.oncall.entries.length > 10 && p.oncall.entries.every((e) => e.doctorId), 'on-calls in the same file');
+  // importing the file unchanged leaves the on-calls as they were
+  const before = JSON.stringify(st.oncall);
+  S.ops.applyMaster(st, 'J. Hale', p, 'same.xlsx');
+  const keep = (o) => JSON.stringify(Object.fromEntries(Object.entries(JSON.parse(o)).map(([k, m]) => [k, Object.fromEntries(Object.entries(m).filter(([d]) => d >= p.oncall.from))])));
+  assert.equal(keep(JSON.stringify(st.oncall)), keep(before));
   assert.equal(p.doctors.length, st.doctors.length);
   assert.deepEqual(p.problems, []);
   assert.equal(p.doctors.find((d) => d.name === 'New F1').replacesName, 'E. Ward');
@@ -397,6 +403,7 @@ test('master workbook: template round-trips, CSV works, import adds and updates 
   assert.equal(st.settings.consultantOfWeek['2026-11-02'], 'Dr New');
   assert.ok(st.settings.restricted.some((r) => r.note === 'Xmas'));
   assert.match(st.audit[0].detail, /1 doctors added, 16 updated/);
+  assert.equal(st.audit[0].action, 'Rota data file imported');
 });
 
 test('CSV: quotes, commas and formula-looking cells survive', () => {

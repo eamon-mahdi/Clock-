@@ -486,7 +486,16 @@
         if (state.settings.restricted.some((x) => x.start === r.start && (x.end || x.start) === r.end && x.level === r.level)) continue;
         state.settings.restricted.push(Object.assign({ id: uid('x') }, r)); restr++;
       }
-      log(state, by, 'Master workbook imported', `${fileName || 'file'}: ${added} doctors added, ${updated} updated, ${weeks.length} consultant weeks, ${restr} leave restrictions${missing.length ? '. ' + missing.join('; ') : ''}`);
+      let shifts = 0;
+      const oc = parsed.oncall;
+      if (oc && oc.from && oc.to) {
+        const entries = (oc.entries || []).map((e) => Object.assign({}, e, { doctorId: e.doctorId || (parsed.mapping || {})[e.name] || null })).filter((e) => e.doctorId);
+        for (const id of Object.keys(state.oncall)) for (const iso of Object.keys(state.oncall[id])) if (iso >= oc.from && iso <= oc.to) delete state.oncall[id][iso];
+        for (const e of entries) (state.oncall[e.doctorId] = state.oncall[e.doctorId] || {})[e.date] = e.code;
+        for (const [alias, id] of Object.entries(parsed.mapping || {})) { const d = R.doctorById(state, id); if (id && d && !(d.aliases || []).includes(alias)) (d.aliases = d.aliases || []).push(alias); }
+        shifts = entries.length;
+      }
+      log(state, by, 'Rota data file imported', `${fileName || 'file'}: ${added} doctors added, ${updated} updated, ${weeks.length} consultant weeks, ${restr} leave restrictions${oc ? `, ${shifts} on-call shifts (${R.fmtUk(oc.from)} to ${R.fmtUk(oc.to)})` : ''}${missing.length ? '. ' + missing.join('; ') : ''}`);
       return [];
     },
     // Put back an earlier copy of the whole rota (from a backup).
