@@ -99,13 +99,22 @@
       st.consultantOfWeek = st.consultantOfWeek || {};
       st.schema = 3;
     }
+    if (st.schema < 4) {
+      // Bank holidays are now worked out for every year; keep only real differences from the rules.
+      const old = st.bankHolidays || [];
+      const years = [...new Set(old.map((x) => Number(x.slice(0, 4))))];
+      st.bankHolidayExtra = old.filter((x) => !R.bankHolidaysFor(Number(x.slice(0, 4))).includes(x));
+      st.bankHolidayRemoved = years.flatMap((y) => R.bankHolidaysFor(y)).filter((x) => !old.includes(x));
+      delete st.bankHolidays;
+      st.schema = 4;
+    }
     return state;
   }
 
   function baseSettings() {
     return {
-      bankHolidays: R.BANK_HOLIDAYS.slice(), restricted: [], consultantOfWeek: {}, rules: Object.assign({}, R.DEFAULT_RULES),
-      rulesText: clone(DEFAULT_RULES_TEXT), changeovers: [], rotation: { start: '2026-08-05' }, schema: 3,
+      bankHolidayExtra: [], bankHolidayRemoved: [], restricted: [], consultantOfWeek: {}, rules: Object.assign({}, R.DEFAULT_RULES),
+      rulesText: clone(DEFAULT_RULES_TEXT), changeovers: [], rotation: { start: '2026-08-05' }, schema: 4,
       authorisers: ['Authoriser 1', 'Authoriser 2', 'Authoriser 3'], authoriserEmails: [], demo: false
     };
   }
@@ -278,8 +287,39 @@
     return {
       balance: { al: bal.al, sl: bal.sl, alBasis: R.alProRata(doc).basis, start: doc.start || '', end: doc.end || '' },
       requests: state.requests.filter((r) => r.doctorId === doc.id && (!r.email || r.email.toLowerCase() === mail || doc.email)).sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1)),
-      notifications: state.notifications.filter((n) => n.to === 'd:' + doc.id).slice(0, 30)
+      notifications: state.notifications.filter((n) => n.to === 'd:' + doc.id).slice(0, 30),
+      calToken: doc.calToken || ''
     };
+  }
+
+  // ---------- calendar feed (one secret link per doctor) ----------
+  function newCalToken() {
+    const b = new Uint8Array(24);
+    (root.crypto || globalThis.crypto).getRandomValues(b);
+    return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+  }
+  // The doctor's own rota as an iCalendar feed. Built from what anyone can see on the rota (so no extra detail,
+  // sickness shows as Unavailable), from 2 weeks ago to 6 months ahead.
+  function icsFor(state, doctorId, todayIso, nowStamp) {
+    const pub = publicView(state);
+    const doc = R.doctorById(pub, doctorId);
+    if (!doc) return null;
+    const esc = (t) => String(t).replace(/\\/g, '\\\\').replace(/[,;]/g, (c) => '\\' + c).replace(/\n/g, '\\n');
+    const fold = (line) => { const out = []; let x = line; while (x.length > 74) { out.push(x.slice(0, 74)); x = ' ' + x.slice(74); } out.push(x); return out.join('\r\n'); };
+    const d8 = (iso) => iso.replace(/-/g, '');
+    const stamp = (nowStamp || new Date().toISOString()).replace(/[-:]/g, '').replace(/\.\d+/, '').slice(0, 15) + 'Z';
+    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Haematology Rota//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+      `X-WR-CALNAME:${esc('Haematology rota: ' + doc.name)}`, 'X-WR-TIMEZONE:Europe/London', 'REFRESH-INTERVAL;VALUE=DURATION:PT6H', 'X-PUBLISHED-TTL:PT6H'];
+    for (const iso of R.dateRange(R.addDays(todayIso, -14), R.addMonths(todayIso, 6))) {
+      const cell = R.resolveCell(pub, doc, iso);
+      if (!cell.code || cell.kind === 'gone') continue;
+      const text = cell.kind === 'sick' ? 'Unavailable' : cell.code;
+      const cons = (pub.settings.consultantOfWeek || {})[R.mondayOf(iso)];
+      lines.push('BEGIN:VEVENT', `UID:${d8(iso)}-${doc.id}@haematology-rota`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${d8(iso)}`, `DTEND;VALUE=DATE:${d8(R.addDays(iso, 1))}`,
+        `SUMMARY:${esc(text)}`, cons && !R.isWeekend(iso) ? `DESCRIPTION:${esc('Consultant of the week: ' + cons)}` : null, 'TRANSP:TRANSPARENT', 'END:VEVENT');
+    }
+    lines.push('END:VCALENDAR');
+    return lines.filter(Boolean).map(fold).join('\r\n') + '\r\n';
   }
 
   // What anyone with the link can see (no emails, notes, reasons, sickness or audit).
@@ -308,7 +348,7 @@
 
   function publicView(state) {
     const s = clone(state);
-    s.doctors.forEach((d) => { delete d.email; delete d.alEntitlement; delete d.slEntitlement; delete d.alExtra; delete d.slExtra; delete d.note; });
+    s.doctors.forEach((d) => { delete d.calToken; delete d.email; delete d.alEntitlement; delete d.slEntitlement; delete d.alExtra; delete d.slExtra; delete d.note; });
     s.requests = s.requests.filter((r) => ['pending', 'hold', 'authorised'].includes(r.status)).map((r) => ({
       id: r.id, doctorId: r.doctorId, type: r.type === 'SICK' ? 'UNAVAIL' : (['AL', 'SL'].includes(r.type) ? r.type : 'OTHER'),
       start: r.start, end: r.end, part: r.part, status: r.status, excludedDates: r.excludedDates || [], days: r.days, cover: (r.cover || []).map((c) => ({ date: c.date, doctorId: c.doctorId, to: c.to }))
@@ -323,6 +363,16 @@
 
   // ---------- authoriser actions (pure functions on state; return emails to send) ----------
   const ops = {
+    // Make (or replace) a doctor's secret calendar link. Replacing it stops the old link working.
+    calendarLink(state, by, doctorId, reset) {
+      const d = R.doctorById(state, doctorId);
+      if (!d) throw new Error('Doctor not found.');
+      if (d.calToken && !reset) return [];
+      const had = !!d.calToken;
+      d.calToken = newCalToken();
+      log(state, by, had ? 'Calendar link replaced' : 'Calendar link created', `${d.name}${had ? ': the old link no longer works' : ''}`);
+      return [];
+    },
     setCell(state, by, doctorId, iso, code, reason) {
       const d = R.doctorById(state, doctorId);
       state.overrides[doctorId] = state.overrides[doctorId] || {};
@@ -694,6 +744,10 @@
         store.me = null;
         await store.refresh(true);
       },
+      async listUsers() { return api('GET', '/api/users'); },
+      async saveUser(name, password) { await api('POST', '/api/users', { name, password }); await store.refresh(true); },
+      async removeUser(name) { const out = await api('POST', '/api/users/remove', { name }); if (out.signedOut) store.me = null; await store.refresh(true); },
+      async sharedOff() { await api('POST', '/api/shared-password/off', {}); await store.refresh(true); },
       async submitLeave(payload) {
         if (store.mode === 'local') { const out = submitLeave(store.state, payload); saveLocal(); emit(); return { request: out.request, check: out.check, emailed: false }; }
         const out = await api('POST', '/api/requests', payload);
@@ -742,7 +796,7 @@
     });
     function applyServer(data) {
       store.state = upgrade(data.state); store.version = data.version; store.me = data.me || null;
-      store.hasPassword = data.hasPassword !== false; store.emailOn = !!data.emailOn; store.setupCodeRequired = !!data.setupCodeRequired;
+      store.hasPassword = data.hasPassword !== false; store.mustChange = !!data.mustChange; store.ownPassword = !!data.ownPassword; store.emailOn = !!data.emailOn; store.setupCodeRequired = !!data.setupCodeRequired;
     }
     return store;
   }
@@ -751,7 +805,7 @@
     return ((state.settings && state.settings.restricted) || []).find((r) => iso >= r.start && iso <= (r.end || r.start)) || null;
   }
 
-  const api = { createStore, demoState, emptyState, upgrade, submitLeave, withdrawLeave, myRequests, publicView, ops, restrictionOn, DEFAULT_RULES_TEXT, LOCAL_KEY };
+  const api = { createStore, demoState, emptyState, upgrade, submitLeave, withdrawLeave, myRequests, publicView, icsFor, ops, restrictionOn, DEFAULT_RULES_TEXT, LOCAL_KEY };
   root.RotaStore = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

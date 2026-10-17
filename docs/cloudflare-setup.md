@@ -28,9 +28,13 @@ The Worker name in `wrangler.jsonc` (`"name"`) must match the Worker name in the
 
 Until this is done, anyone with the link could set the password. To prevent that, add a **setup code** first: in the dashboard go to your Worker → Settings → Variables and Secrets → Add → type *Secret*, name `SETUP_CODE`, any value. The setup screen will then ask for it.
 
-The password is stored only as a salted PBKDF2 hash. Nobody can read it back. If it is forgotten, delete the row in the `auth` table (D1 → haematology-rota → Console: `DELETE FROM auth;`) and set a new one.
+The password is stored only as a salted PBKDF2 hash. Nobody can read it back. If a personal password is forgotten, another authoriser can reset it under Sign-ins. If everyone is locked out, delete the rows in the `auth` and `users` tables (D1 → haematology-rota → Console: `DELETE FROM auth; DELETE FROM users;`) and run first-time setup again.
 
 Good password: long and unguessable, for example 3 or 4 unrelated words mixed with a haematology term only the authorisers would think of. Avoid ward names, the department name, or anything shown on the site.
+
+### Personal sign-ins (recommended)
+
+Once the shared password is set, give each authoriser their own: **Set up → Settings → Sign-ins**. Type their name and a temporary password, tell them it in person or by phone, and they are asked to choose their own the first time they sign in. Each change in the change log then shows exactly who made it, and one person can be removed (or their password reset) without affecting anyone else. When everyone has their own password, click **Turn off the shared password**. Personal passwords are stored the same way (salted PBKDF2 hash, table `users`).
 
 ## 3. Start for real
 
@@ -96,3 +100,10 @@ It cannot erase anything: it only changes the cells that differ from the rota no
 - **Rotation dates** and **Codes:** reference only.
 
 Use it for setting up, new doctors and rotations. Edit it in Excel and upload it on the same page. Doctors are matched by name, so nobody is deleted. On-calls already on the rota for the dates in the On-calls tab are replaced. The Backups page downloads the same file with extra read-only tabs. A CSV holds only one tab (the Rota tab or the Doctors tab can be downloaded and uploaded as CSV); the Excel file is the one file that holds everything.
+
+## Calendar feeds, printing and the phone app
+
+- **Calendar:** each doctor gets a secret link to their own rota under **My leave** (after looking themselves up). It works with iPhone, Outlook and Google Calendar and updates by itself. It shows only what the public rota shows (sickness appears as "Unavailable"). An authoriser can make a new link under **People & leave** if one is shared by mistake; the old link then stops working.
+- **Print a week:** on the Rota page, **Print a week** gives one A4 landscape page for a noticeboard, with cover checks for each day.
+- **Phone app:** open the website on a phone and choose **Add to Home Screen** (iPhone: Share → Add to Home Screen; Android: menu → Install app). It then opens like an app.
+- **Bank holidays** are worked out automatically for every year (England and Wales). One-off extras or moved dates can be set under Set up → Settings.

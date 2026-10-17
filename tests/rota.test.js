@@ -355,7 +355,28 @@ test('older saved rotas are upgraded', () => {
   S.upgrade(st);
   assert.equal(st.settings.rules.minSenRGH, 0);
   assert.equal(st.settings.rotation.end, undefined);
-  assert.equal(st.settings.schema, 3);
+  assert.equal(st.settings.schema, 4);
+});
+
+test('bank holidays are worked out for any year, with weekend substitutes and manual changes', () => {
+  assert.deepEqual([...R.bankHolidaysFor(2026), ...R.bankHolidaysFor(2027)], R.BANK_HOLIDAYS, 'matches the published 2026-27 list');
+  assert.deepEqual(R.bankHolidaysFor(2022), ['2022-01-03', '2022-04-15', '2022-04-18', '2022-05-02', '2022-05-30', '2022-08-29', '2022-12-26', '2022-12-27']);
+  assert.deepEqual(R.bankHolidaysFor(2028).slice(-2), ['2028-12-25', '2028-12-26']);
+  assert.equal(R.bankHolidaysFor(2033).length, 8);
+  const st = S.demoState(TODAY);
+  assert.ok(R.isBankHoliday(st, '2031-04-14'), 'Easter Monday 2031');
+  assert.ok(!R.isWorkday(st, '2030-08-26'));
+  st.settings.bankHolidayExtra = ['2030-06-03']; st.settings.bankHolidayRemoved = ['2030-05-06'];
+  assert.ok(R.isBankHoliday(st, '2030-06-03'));
+  assert.ok(!R.isBankHoliday(st, '2030-05-06'));
+  // an old saved list becomes "differences from the rules"
+  const old = S.demoState(TODAY);
+  old.settings.schema = 3; old.settings.bankHolidays = R.BANK_HOLIDAYS.filter((x) => x !== '2027-05-03').concat(['2026-06-08']);
+  delete old.settings.bankHolidayExtra; delete old.settings.bankHolidayRemoved;
+  S.upgrade(old);
+  assert.deepEqual(old.settings.bankHolidayExtra, ['2026-06-08']);
+  assert.deepEqual(old.settings.bankHolidayRemoved, ['2027-05-03']);
+  assert.equal(old.settings.bankHolidays, undefined);
 });
 
 test('a group of doctors can be put at a location for a block of dates', () => {
@@ -500,6 +521,29 @@ test('Update the rota: only ticked cells change, newer website changes are flagg
   assert.match(st.audit[0].detail, /1 cells put back, 1 left as they are/);
   assert.throws(() => S.ops.undoImport(st, 'J. Hale', imp.id), /already been undone/);
   assert.equal(S.publicView(st).imports, undefined);
+});
+
+test('calendar feed: a secret link per doctor, built only from what the public rota shows', () => {
+  const st = S.demoState(TODAY);
+  S.ops.calendarLink(st, 'J. Hale', 'm1');
+  const tok = R.doctorById(st, 'm1').calToken;
+  assert.match(tok, /^[0-9a-f]{48}$/);
+  S.ops.calendarLink(st, 'J. Hale', 'm1');
+  assert.equal(R.doctorById(st, 'm1').calToken, tok, 'kept unless replaced');
+  S.ops.calendarLink(st, 'J. Hale', 'm1', true);
+  assert.notEqual(R.doctorById(st, 'm1').calToken, tok, 'replaced');
+  assert.equal(S.publicView(st).doctors.find((d) => d.id === 'm1').calToken, undefined, 'never public');
+  const m1 = R.doctorById(st, 'm1');
+  assert.equal(S.myRequests(st, 'm1', m1.email).calToken, m1.calToken);
+  // a sick day shows only as Unavailable
+  const day = R.dateRange(R.addDays(TODAY, 2), R.addDays(TODAY, 20)).find((d) => R.isWorkday(st, d) && !R.resolveCell(st, m1, d).leave);
+  st.requests.push({ id: 'q-sick', doctorId: 'm1', type: 'SICK', start: day, end: day, part: 'FULL', status: 'authorised', note: 'private reason', days: 1 });
+  const ics = S.icsFor(st, 'm1', TODAY, '2026-10-17T09:00:00Z');
+  assert.match(ics, /^BEGIN:VCALENDAR\r\n/);
+  assert.match(ics, new RegExp(`DTSTART;VALUE=DATE:${day.replace(/-/g, '')}\\r\\nDTEND;VALUE=DATE:\\d{8}\\r\\nSUMMARY:Unavailable`));
+  assert.ok(!/private reason/.test(ics));
+  assert.ok(ics.split('\r\n').every((l) => l.length <= 75), 'lines folded');
+  assert.equal(S.icsFor(st, 'nobody', TODAY), null);
 });
 
 test('CSV: quotes, commas and formula-looking cells survive', () => {

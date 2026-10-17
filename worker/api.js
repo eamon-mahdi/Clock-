@@ -1,6 +1,7 @@
 /* The rota server: a small JSON API on Cloudflare (Workers or Pages Functions) with a D1 database.
  * Anyone with the link can read the public roster and send a leave request.
- * Authorisers sign in with the shared password (stored only as a salted PBKDF2 hash) and can change everything. */
+ * Authorisers sign in with their own password (or the shared one, until it is turned off). Passwords are stored only
+ * as salted PBKDF2 hashes. Authorisers can change everything. */
 import R from '../app/js/rules.js';
 import S from '../app/js/store.js';
 import E from '../app/js/excel.js';
@@ -52,6 +53,7 @@ async function ensureSchema(db) {
     db.prepare('CREATE INDEX IF NOT EXISTS hits_key ON hits (key, at)'),
     db.prepare('CREATE TABLE IF NOT EXISTS backups (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, kind TEXT NOT NULL, by TEXT, note TEXT, version INTEGER, bytes INTEGER, data BLOB NOT NULL)'),
     db.prepare('CREATE INDEX IF NOT EXISTS backups_kind ON backups (kind, id)'),
+    db.prepare('CREATE TABLE IF NOT EXISTS users (name TEXT PRIMARY KEY, salt TEXT NOT NULL, hash TEXT NOT NULL, temp INTEGER NOT NULL DEFAULT 0, set_at TEXT NOT NULL, created_by TEXT)'),
     db.prepare('CREATE TABLE IF NOT EXISTS csv_backups (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, day TEXT NOT NULL, bytes INTEGER, data BLOB NOT NULL)')
   ]);
   schemaReady = true;
@@ -135,6 +137,22 @@ async function countHits(db, key, sinceMs) {
 }
 const addHit = (db, key) => db.prepare('INSERT INTO hits (key, at) VALUES (?, ?)').bind(key, Date.now()).run();
 
+// ---------- authoriser accounts ----------
+// Each authoriser can have their own password (users table). The shared password (auth row 'authoriser')
+// keeps working for names without their own, until an authoriser turns it off.
+const userRow = (db, name) => db.prepare('SELECT name, salt, hash, temp FROM users WHERE name = ?').bind(name).first();
+const sharedRow = (db) => db.prepare("SELECT salt, hash FROM auth WHERE id = 'authoriser'").first();
+async function anyPassword(db) {
+  if (await sharedRow(db)) return true;
+  return !!(await db.prepare('SELECT name FROM users LIMIT 1').first());
+}
+const cleanName = (n) => String(n || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+function checkNewPassword(pw) {
+  if (pw.length < 12) return 'Use at least 12 characters. A short phrase of 3 or 4 unrelated words is good.';
+  if (pw.length > 200) return 'That password is too long.';
+  return '';
+}
+
 // ---------- sessions ----------
 function cookieValue(request, name) {
   const raw = request.headers.get('Cookie') || '';
@@ -212,9 +230,9 @@ export async function handleApi(request, env) {
 
     if (path === '/api/state' && method === 'GET') {
       const { state, version } = await loadState(db);
-      const auth = await db.prepare("SELECT id FROM auth WHERE id = 'authoriser'").first();
+      const own = me ? await userRow(db, me) : null;
       return json({
-        mode: 'server', version, me, hasPassword: !!auth, emailOn: !!(env.RESEND_API_KEY && env.MAIL_FROM),
+        mode: 'server', version, me, hasPassword: await anyPassword(db), mustChange: !!(own && own.temp), ownPassword: !!own, emailOn: !!(env.RESEND_API_KEY && env.MAIL_FROM),
         setupCodeRequired: !!env.SETUP_CODE, state: me ? state : S.publicView(state)
       });
     }
@@ -224,11 +242,10 @@ export async function handleApi(request, env) {
     // First-time setup: choose the authoriser password (only while none is set).
     if (path === '/api/setup' && method === 'POST') {
       const body = await readJson(request);
-      const existing = await db.prepare("SELECT id FROM auth WHERE id = 'authoriser'").first();
-      if (existing) return fail(409, 'The authoriser password has already been set. Sign in instead.');
+      if (await anyPassword(db)) return fail(409, 'The authoriser password has already been set. Sign in instead.');
       if (env.SETUP_CODE && !sameText(await sha256(String(body.setupCode || '')), await sha256(env.SETUP_CODE))) return fail(403, 'The setup code is not right.');
       const pw = String(body.password || '');
-      if (pw.length < 12) return fail(400, 'Use at least 12 characters. A short phrase of 3 or 4 unrelated words is good.');
+      if (checkNewPassword(pw)) return fail(400, checkNewPassword(pw));
       const salt = randomHex(16);
       await db.prepare("INSERT INTO auth (id, salt, hash, set_at) VALUES ('authoriser', ?, ?, ?)").bind(salt, await pbkdf2(pw, salt), new Date().toISOString()).run();
       const names = Array.isArray(body.names) ? body.names.map((n) => String(n).trim().slice(0, 60)).filter(Boolean).slice(0, 10) : [];
@@ -243,14 +260,15 @@ export async function handleApi(request, env) {
       const body = await readJson(request);
       const key = 'login:' + ip;
       if ((await countHits(db, key, LOCK_MINUTES * 60000)) >= MAX_LOGIN_FAILS) return fail(429, `Too many wrong passwords. Try again in ${LOCK_MINUTES} minutes.`);
-      const row = await db.prepare("SELECT salt, hash FROM auth WHERE id = 'authoriser'").first();
-      if (!row) return fail(409, 'No authoriser password has been set yet. Use first-time setup.');
+      if (!(await anyPassword(db))) return fail(409, 'No authoriser password has been set yet. Use first-time setup.');
       const { state } = await loadState(db);
-      const name = String(body.name || '').trim();
+      const name = cleanName(body.name);
       if (!(state.settings.authorisers || []).includes(name)) return fail(400, 'Choose your name from the list of authorisers.');
-      if (!sameText(await pbkdf2(String(body.password || ''), row.salt), row.hash)) {
+      // Your own password if you have one; otherwise the shared password (if it is still on).
+      const row = (await userRow(db, name)) || (await sharedRow(db));
+      if (!row || !sameText(await pbkdf2(String(body.password || ''), row.salt), row.hash)) {
         await addHit(db, key);
-        return fail(401, 'That password is not right.');
+        return fail(401, row ? 'That password is not right.' : 'You do not have your own password yet, and the shared password is turned off. Ask another authoriser to set one for you.');
       }
       const token = randomHex(32);
       await db.batch([
@@ -258,7 +276,7 @@ export async function handleApi(request, env) {
         db.prepare('DELETE FROM hits WHERE at < ?').bind(Date.now() - 86400000),
         db.prepare('INSERT INTO sessions (token_hash, name, expires_at) VALUES (?, ?, ?)').bind(await sha256(token), name, Date.now() + SESSION_HOURS * 3600000)
       ]);
-      return json({ ok: true, me: name }, 200, { 'Set-Cookie': sessionCookie(token, SESSION_HOURS * 3600, secure) });
+      return json({ ok: true, me: name, mustChange: !!row.temp }, 200, { 'Set-Cookie': sessionCookie(token, SESSION_HOURS * 3600, secure) });
     }
 
     if (path === '/api/logout' && method === 'POST') {
@@ -267,20 +285,91 @@ export async function handleApi(request, env) {
       return json({ ok: true }, 200, { 'Set-Cookie': sessionCookie('', 0, secure) });
     }
 
+    // Change a password: your own (if you have one), otherwise the shared one (everyone is signed out).
     if (path === '/api/password' && method === 'POST') {
       if (!me) return fail(401, 'Sign in as an authoriser first.');
       const body = await readJson(request);
-      const row = await db.prepare("SELECT salt, hash FROM auth WHERE id = 'authoriser'").first();
-      if (!sameText(await pbkdf2(String(body.current || ''), row.salt), row.hash)) return fail(401, 'The current password is not right.');
+      const key = 'pw:' + ip;
+      if ((await countHits(db, key, LOCK_MINUTES * 60000)) >= MAX_LOGIN_FAILS) return fail(429, `Too many wrong passwords. Try again in ${LOCK_MINUTES} minutes.`);
+      const own = await userRow(db, me);
+      const row = own || (await sharedRow(db));
+      if (!row || !sameText(await pbkdf2(String(body.current || ''), row.salt), row.hash)) { await addHit(db, key); return fail(401, 'The current password is not right.'); }
       const pw = String(body.next || '');
-      if (pw.length < 12) return fail(400, 'Use at least 12 characters.');
-      const salt = randomHex(16);
-      await db.batch([
-        db.prepare("UPDATE auth SET salt = ?, hash = ?, set_at = ? WHERE id = 'authoriser'").bind(salt, await pbkdf2(pw, salt), new Date().toISOString()),
-        db.prepare('DELETE FROM sessions')
-      ]);
-      await mutate(db, (state) => { state.audit.unshift({ at: new Date().toISOString(), by: me, action: 'Authoriser password changed', detail: 'Everyone was signed out' }); });
+      if (checkNewPassword(pw)) return fail(400, checkNewPassword(pw));
+      if (pw === String(body.current || '')) return fail(400, 'Choose a different password from the current one.');
+      const salt = randomHex(16), hash = await pbkdf2(pw, salt), at = new Date().toISOString();
+      if (own) {
+        await db.batch([
+          db.prepare('UPDATE users SET salt = ?, hash = ?, temp = 0, set_at = ? WHERE name = ?').bind(salt, hash, at, me),
+          db.prepare('DELETE FROM sessions WHERE name = ?').bind(me)
+        ]);
+        await mutate(db, (state) => { state.audit.unshift({ at, by: me, action: 'Own password changed', detail: `${me} chose a new password` }); });
+      } else {
+        await db.batch([
+          db.prepare("UPDATE auth SET salt = ?, hash = ?, set_at = ? WHERE id = 'authoriser'").bind(salt, hash, at),
+          db.prepare('DELETE FROM sessions')
+        ]);
+        await mutate(db, (state) => { state.audit.unshift({ at, by: me, action: 'Shared password changed', detail: 'Everyone was signed out' }); });
+      }
       return json({ ok: true }, 200, { 'Set-Cookie': sessionCookie('', 0, secure) });
+    }
+
+    // Authoriser accounts: list, add or reset (with a temporary password), remove; turn off the shared password.
+    if (path === '/api/users' && method === 'GET') {
+      if (!me) return fail(401, 'Sign in as an authoriser first.');
+      const list = await db.prepare('SELECT name, temp, set_at, created_by FROM users ORDER BY name').all();
+      return json({ users: list.results || [], sharedOn: !!(await sharedRow(db)) });
+    }
+    if (path === '/api/users' && method === 'POST') {
+      if (!me) return fail(401, 'Sign in as an authoriser first.');
+      const body = await readJson(request);
+      const name = cleanName(body.name);
+      if (!name) return fail(400, 'Type the authoriser’s name.');
+      const pw = String(body.password || '');
+      if (checkNewPassword(pw)) return fail(400, checkNewPassword(pw));
+      const salt = randomHex(16), at = new Date().toISOString();
+      const existed = !!(await userRow(db, name));
+      await db.batch([
+        db.prepare('INSERT INTO users (name, salt, hash, temp, set_at, created_by) VALUES (?, ?, ?, 1, ?, ?) ON CONFLICT(name) DO UPDATE SET salt = excluded.salt, hash = excluded.hash, temp = 1, set_at = excluded.set_at, created_by = excluded.created_by')
+          .bind(name, salt, await pbkdf2(pw, salt), at, me),
+        db.prepare('DELETE FROM sessions WHERE name = ?').bind(name)
+      ]);
+      await mutate(db, (state) => {
+        if (!(state.settings.authorisers || []).includes(name)) state.settings.authorisers = (state.settings.authorisers || []).concat([name]);
+        state.audit.unshift({ at, by: me, action: existed ? 'Authoriser password reset' : 'Authoriser account added', detail: `${name}: temporary password set; they choose their own when they first sign in` });
+      });
+      return json({ ok: true });
+    }
+    if (path === '/api/users/remove' && method === 'POST') {
+      if (!me) return fail(401, 'Sign in as an authoriser first.');
+      const name = cleanName((await readJson(request)).name);
+      const shared = await sharedRow(db);
+      const others = await db.prepare('SELECT COUNT(*) AS n FROM users WHERE name != ?').bind(name).first();
+      if (!shared && !(others && others.n)) return fail(400, 'This is the last way to sign in. Add another authoriser first.');
+      await db.batch([db.prepare('DELETE FROM users WHERE name = ?').bind(name), db.prepare('DELETE FROM sessions WHERE name = ?').bind(name)]);
+      await mutate(db, (state) => {
+        state.settings.authorisers = (state.settings.authorisers || []).filter((n) => n !== name);
+        state.audit.unshift({ at: new Date().toISOString(), by: me, action: 'Authoriser removed', detail: `${name} can no longer sign in` });
+      });
+      return json({ ok: true, signedOut: name === me }, 200, name === me ? { 'Set-Cookie': sessionCookie('', 0, secure) } : undefined);
+    }
+    if (path === '/api/shared-password/off' && method === 'POST') {
+      if (!me) return fail(401, 'Sign in as an authoriser first.');
+      const own = await userRow(db, me);
+      if (!own || own.temp) return fail(400, 'Set your own password first (sign in with it once), so you are not locked out.');
+      const { state } = await loadState(db);
+      const withOwn = await db.prepare('SELECT name FROM users').all();
+      const ownNames = new Set((withOwn.results || []).map((r) => r.name));
+      const left = (state.settings.authorisers || []).filter((n) => !ownNames.has(n));
+      await db.batch([
+        db.prepare("DELETE FROM auth WHERE id = 'authoriser'"),
+        db.prepare(`DELETE FROM sessions WHERE name NOT IN (SELECT name FROM users)`)
+      ]);
+      await mutate(db, (s) => {
+        s.settings.authorisers = (s.settings.authorisers || []).filter((n) => ownNames.has(n));
+        s.audit.unshift({ at: new Date().toISOString(), by: me, action: 'Shared password turned off', detail: `Everyone now signs in with their own password${left.length ? `. Removed (no own password): ${left.join(', ')}` : ''}` });
+      });
+      return json({ ok: true });
     }
 
     // A doctor sends a leave request or reports sickness (no password).
@@ -299,8 +388,25 @@ export async function handleApi(request, env) {
       if ((await countHits(db, key, 600000)) >= 30) return fail(429, 'Too many look-ups. Try again in a few minutes.');
       await addHit(db, key);
       const body = await readJson(request);
+      let { state } = await loadState(db);
+      const out = S.myRequests(state, body.doctorId, body.email);
+      if (!out.calToken) { // first look-up: make the doctor's calendar link
+        ({ state } = await mutate(db, (s) => S.ops.calendarLink(s, 'Calendar', body.doctorId, false)));
+        out.calToken = (R.doctorById(state, body.doctorId) || {}).calToken || '';
+      }
+      return json(out);
+    }
+
+    // A doctor's own rota as a calendar feed (secret link, no sign-in, so phones and Outlook can subscribe).
+    const mcal = path.match(/^\/api\/cal\/([0-9a-f]{48})(?:\.ics)?$/);
+    if (mcal && method === 'GET') {
+      const key = 'cal:' + ip;
+      if ((await countHits(db, key, 3600000)) >= 120) return fail(429, 'Too many calendar requests. Try again later.');
+      await addHit(db, key);
       const { state } = await loadState(db);
-      return json(S.myRequests(state, body.doctorId, body.email));
+      const doc = state.doctors.find((d) => d.calToken && sameText(d.calToken, mcal[1]));
+      if (!doc) return new Response('This calendar link is no longer valid. Get the new link from the rota website (My leave).', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+      return new Response(S.icsFor(state, doc.id, todayIso()), { headers: { 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': 'inline; filename="haematology-rota.ics"', 'Cache-Control': 'private, max-age=900', 'X-Robots-Tag': 'noindex' } });
     }
 
     const m = path.match(/^\/api\/requests\/([\w-]+)\/withdraw$/);

@@ -108,7 +108,35 @@
   const worse = (a, b) => (STATUS_RANK[b] > STATUS_RANK[a] ? b : a);
 
   // ---------- state helpers ----------
-  const isBankHoliday = (state, iso) => ((state.settings && state.settings.bankHolidays) || BANK_HOLIDAYS).includes(iso);
+  // England and Wales bank holidays for any year, worked out from the rules (with weekend substitute days).
+  const bhCache = {};
+  function bankHolidaysFor(year) {
+    if (bhCache[year]) return bhCache[year];
+    const pad = (n) => String(n).padStart(2, '0');
+    const iso = (m, d) => `${year}-${pad(m)}-${pad(d)}`;
+    // Easter Sunday (anonymous Gregorian algorithm)
+    const a = year % 19, b = Math.floor(year / 100), c = year % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const em = Math.floor((h + l - 7 * m + 114) / 31), ed = ((h + l - 7 * m + 114) % 31) + 1;
+    const easter = iso(em, ed);
+    const firstMon = (mo) => { let x = iso(mo, 1); while (dow(x) !== 0) x = addDays(x, 1); return x; };
+    const lastMon = (mo) => { let x = addDays(iso(mo + 1, 1), -1); while (dow(x) !== 0) x = addDays(x, -1); return x; };
+    const out = [addDays(easter, -2), addDays(easter, 1), firstMon(5), lastMon(5), lastMon(8)];
+    // New Year, Christmas and Boxing Day move to the next free weekday when they fall at a weekend.
+    const fixed = [iso(1, 1), iso(12, 25), iso(12, 26)];
+    fixed.filter((x) => !isWeekend(x)).forEach((x) => out.push(x));
+    for (const x of fixed.filter(isWeekend)) { let y = addDays(x, 1); while (isWeekend(y) || out.includes(y)) y = addDays(y, 1); out.push(y); }
+    bhCache[year] = out.sort();
+    return bhCache[year];
+  }
+  // Settings can add one-off extras (e.g. a coronation) or remove a date that the government has moved.
+  function isBankHoliday(state, iso) {
+    const st = (state && state.settings) || {};
+    if ((st.bankHolidayRemoved || []).includes(iso)) return false;
+    if ((st.bankHolidayExtra || []).includes(iso)) return true;
+    return bankHolidaysFor(Number(iso.slice(0, 4))).includes(iso);
+  }
+  const bankHolidaysBetween = (state, from, to) => dateRange(from, to).filter((x) => isBankHoliday(state, x));
   const isWorkday = (state, iso) => !isWeekend(iso) && !isBankHoliday(state, iso);
   const inPost = (doc, iso) => (!doc.start || iso >= doc.start) && (!doc.end || iso <= doc.end);
   const doctorById = (state, id) => state.doctors.find((d) => d.id === id);
@@ -558,7 +586,7 @@
   const api = {
     toDate, toIso, addDays, dow, isWeekend, isWorkday, mondayOf, daysBetween, dateRange, isIso, fmtShort, fmtLong, fmtUk, DOW_SHORT, DOW_LONG, halfRound,
     BANK_HOLIDAYS, SITE_CODES, ONCALL_CODES, LEAVE_TYPES, FORM_LEAVE_TYPES, LEAVE_CODES, COVER_RULES, STATUS_RANK, DEFAULT_RULES, ruleNum, groupLabel,
-    norm, siteOf, kindOf, canonicalCode, isBankHoliday, inPost, doctorById, planCode, resolveCell, coverFor, coverWithRisk, coverCode,
+    norm, siteOf, kindOf, canonicalCode, isBankHoliday, bankHolidaysFor, bankHolidaysBetween, inPost, doctorById, planCode, resolveCell, coverFor, coverWithRisk, coverCode,
     worstStatus, leaveDays, balance, restrictedIn, suggestCover, availability, coverRoleFor, staffingCheck, nearestDates,
     edtDefault, edtEntitlement, edtCheck, edtOn, alPerYear, alProRata, changeoversIn,
     slotOf, predecessorOf, columns, holderOn, programmeOf, PROGRAMMES, programmeStarts, firstWednesday, suggestDates, shortNotice, rotaHorizon, addMonths
