@@ -42,18 +42,26 @@ The first visit loads **example data with fictional doctors** so you can try eve
 4. **Set up → Rotations:** rotation dates and changeover bands.
 5. **Rules:** check the numbers and the text.
 
-## 4. Emails (optional)
+## 4. Emails
 
-Without this, decisions are shown in the app ("Check my request") only. To send emails:
+The rota emails each doctor **the decision on their leave**: approved (with which days), partly approved, declined, a question back to them, or approved leave cancelled. The authorisers' **alert emails** get new requests and sickness. Other doctor emails ("request received", "named as cover", EDT/SDT) stay off unless switched on under Set up → Settings.
 
-1. Create a free account at resend.com and verify a sending domain you control.
-2. In the Worker's Variables and Secrets add:
-   - `RESEND_API_KEY` (Secret): the API key from Resend
-   - `MAIL_FROM` (Text): for example `Haematology Rota <rota@your-domain>`
-   - `SITE_URL` (Text, optional): the website address, added to the end of each email
-3. Sign in → **Set up → Settings → Alert emails**: who is emailed about new requests and sickness.
+Emails need a sending service. The rota uses **Resend** (free: 3,000 emails a month, 100 a day). Resend only sends to other people's addresses from a **domain you own**, so you need one. A domain also gives the rota a cleaner link without the year, for example `rota.yourdomain.uk`.
 
-Emails only go to addresses already in the rota (doctors, requesters and alert emails).
+1. **Get a domain (about £5–10 a year).** In Cloudflare, go to **Domain Registration → Register Domains** and buy one, e.g. `haemrota.uk`. It's then already set up in your Cloudflare account.
+2. **Create a Resend account** at resend.com (free).
+3. **In Resend → Domains → Add domain**, type the domain. Choose **Cloudflare** when asked, or click **Auto configure**, so Resend adds its DNS records for you. Wait until it says **Verified**; this is usually a few minutes.
+4. **In Resend → API Keys → Create API key**, choose "Sending access" and copy the key (it starts with `re_`).
+5. **In Cloudflare → Workers & Pages → roster → Settings → Variables and Secrets → Add**, add:
+   - `RESEND_API_KEY` (type **Secret**): the key from step 4.
+   - `MAIL_FROM` (type **Text**): for example `Haematology Rota <rota@haemrota.uk>`.
+   - `SITE_URL` (type **Text**, optional): the rota's address, added to the end of each email.
+
+   Then click **Deploy** (or save, which redeploys).
+6. **On the rota:** sign in, go to **Set up → Settings**, add the authorisers' addresses under **Alert emails**, click **Save**, then **Send a test email**. Check the inbox and the junk folder.
+7. Tell doctors to add the sender address to their safe senders, as NHS mail can be strict with new senders.
+
+Optional: use the domain for the rota's own link too. Go to **roster → Settings → Domains & Routes → Add → Custom domain** and enter `rota.haemrota.uk`.
 
 ## 5. Before sharing the link
 

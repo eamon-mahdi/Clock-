@@ -143,28 +143,35 @@ function sessionCookie(token, maxAgeSeconds, secure) {
 }
 
 // ---------- email (optional, via Resend) ----------
-function allowedRecipients(state) {
+// Who may be emailed: the authorisers' alert emails always; doctors (their staff-list or request email) only for
+// leave decisions when that is switched on, or for everything when "other messages" is switched on.
+function allowedRecipients(state, kind) {
   const set = new Set();
   const add = (e) => { if (e && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) set.add(String(e).trim().toLowerCase()); };
-  // Doctors are emailed only if the authorisers switch it on (Set up → Settings); otherwise only alert emails go out.
-  if (state.settings && state.settings.emailDoctors) {
+  const st = state.settings || {};
+  if (st.emailDoctors || (kind === 'decision' && st.emailDecisions)) {
     (state.doctors || []).forEach((d) => add(d.email));
     (state.requests || []).forEach((r) => add(r.email));
   }
-  ((state.settings && state.settings.authoriserEmails) || []).forEach(add);
+  (st.authoriserEmails || []).forEach(add);
   return set;
 }
-async function sendEmails(env, state, emails) {
-  if (!env.RESEND_API_KEY || !env.MAIL_FROM || !emails || !emails.length) return 0;
-  const ok = allowedRecipients(state);
-  const list = emails.filter((m) => m && m.to && ok.has(String(m.to).trim().toLowerCase())).slice(0, MAX_EMAILS_PER_CALL);
+async function sendOne(env, m) {
   const link = env.SITE_URL ? `\n\nOpen the rota: ${env.SITE_URL}` : '';
-  const results = await Promise.allSettled(list.map((m) => fetch('https://api.resend.com/emails', {
+  let res;
+  try { res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ from: env.MAIL_FROM, to: [m.to], subject: String(m.subject).slice(0, 200), text: String(m.text).slice(0, 5000) + link + '\n\n(Haematology rota. Please do not reply all.)' })
-  })));
-  return results.filter((r) => r.status === 'fulfilled' && r.value.ok).length;
+  }); } catch (e) { throw new Error('Could not reach the email service (Resend). Try again in a few minutes.'); }
+  if (!res.ok) { let why = ''; try { why = (await res.json()).message || ''; } catch (e) { /* not json */ } throw new Error(`Resend said ${res.status}${why ? ': ' + why : ''}`); }
+}
+async function sendEmails(env, state, emails) {
+  if (!env.RESEND_API_KEY || !env.MAIL_FROM || !emails || !emails.length) return 0;
+  const list = emails.filter((m) => m && m.to && allowedRecipients(state, m.kind).has(String(m.to).trim().toLowerCase())).slice(0, MAX_EMAILS_PER_CALL);
+  const results = await Promise.allSettled(list.map((m) => sendOne(env, m)));
+  results.filter((r) => r.status === 'rejected').forEach((r) => console.error('email failed', r.reason && r.reason.message));
+  return results.filter((r) => r.status === 'fulfilled').length;
 }
 
 // ---------- shape checks for a state sent by an authoriser ----------
@@ -324,6 +331,17 @@ export async function handleApi(request, env) {
       const body = await readJson(request);
       await mutate(db, (s) => S.cancelEdtSelf(s, me2[1], body.doctorId, body.email));
       return json({ ok: true });
+    }
+
+    // Authorisers: send a test email to the alert emails (to check the email set-up).
+    if (path === '/api/test-email' && method === 'POST') {
+      if (!me) return fail(401, 'Sign in as an authoriser first.');
+      if (!env.RESEND_API_KEY || !env.MAIL_FROM) return fail(400, 'Email is not connected yet: add RESEND_API_KEY and MAIL_FROM in Cloudflare (Workers & Pages → roster → Settings → Variables and Secrets), then try again.');
+      const { state } = await loadState(db);
+      const to = (state.settings.authoriserEmails || []).filter(Boolean);
+      if (!to.length) return fail(400, 'Add at least one alert email under Set up → Settings first.');
+      for (const addr of to.slice(0, 5)) await sendOne(env, { to: addr, subject: 'Haematology rota: test email', text: `This is a test from the haematology rota, sent by ${me}. If you can read this, emails are working.` });
+      return json({ ok: true, sent: Math.min(5, to.length) });
     }
 
     // Backups (authorisers only): list, and fetch one to download or restore.

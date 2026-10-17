@@ -430,7 +430,7 @@
     const typeOpt = (v, l) => `<label class="opt"><input type="radio" name="ltype" data-form="type" value="${v}"${f.type === v ? ' checked' : ''}> <span>${l}</span></label>`;
     const coverSel = (field, id) => `<select id="${id}" data-form="${field}"><option value="">${sick ? 'Not known' : 'Nobody needed / not arranged'}</option>${docOptions(f[field], (d) => d.id !== f.doctorId && (!okDates || R.inPost(d, f.start) || R.inPost(d, f.end)))}</select>`;
     return `
-    <div class="page-head"><div><h1>${sick ? 'Report sickness' : 'Request leave'}</h1><p class="muted">No password needed. ${sick ? 'Sickness is recorded straight away and the authorisers are told. It shows on the rota only as "Unavailable".' : `Leave is not on the rota until an authoriser approves it. See the decision under "Check my request"${st().settings.emailDoctors ? ' (you\'ll also get an email)' : ''}.`}</p></div></div>
+    <div class="page-head"><div><h1>${sick ? 'Report sickness' : 'Request leave'}</h1><p class="muted">No password needed. ${sick ? 'Sickness is recorded straight away and the authorisers are told. It shows on the rota only as "Unavailable".' : `Leave is not on the rota until an authoriser approves it. You'll get an email with the decision${st().settings.emailDecisions ? '' : ' (if switched on)'}, and can check it any time under "My leave".`}</p></div></div>
     <form id="leave-form" class="split" novalidate>
       <div class="main card qform">
         ${q(1, 'Date of request', `<p class="tabular"><strong>${esc(R.fmtLong(TODAY))}</strong></p>`)}
@@ -578,7 +578,7 @@
         ${chk && chk.bad ? `<span class="cv gap">✕ ${chk.bad}</span>` : chk && chk.warn ? `<span class="cv exception">! ${chk.warn}</span>` : ''}
         <span class="pill ${r.status}">${esc(reqStatus[r.status])}</span></button>`;
     };
-    return `<div class="page-head"><div><h1>Requests</h1><p class="muted">Approve, part-approve, ask a question or decline. The doctor sees the decision under "Check my request"${st().settings.emailDoctors ? ' and by email' : ''}.</p></div>
+    return `<div class="page-head"><div><h1>Requests</h1><p class="muted">Approve, part-approve, ask a question or decline. The doctor ${st().settings.emailDecisions ? 'is emailed the decision and ' : ''}sees it under "My leave".</p></div>
       <div class="seg">${[['open', 'Waiting'], ['all', 'All']].map(([v, l]) => `<button type="button" class="chip" data-act="req-filter" data-val="${v}" aria-pressed="${ui.reqFilter === v}">${l}</button>`).join('')}</div></div>
       ${unread.length ? `<section class="notice info stack"><div class="row" style="justify-content:space-between"><strong>${plural(unread.length, 'new alert')}</strong><button type="button" class="btn small-btn" data-act="mark-read">Mark as read</button></div>${unread.slice(0, 8).map((n) => `<div class="small"><span class="muted tabular">${esc(n.at.slice(0, 16).replace('T', ' '))}</span> ${esc(n.text)}</div>`).join('')}</section>` : ''}
       <div class="split"><section class="side card" style="padding:0;gap:0;overflow:hidden"><div class="list">${list.map(item).join('') || '<p class="muted" style="padding:14px">Nothing waiting.</p>'}</div></section>
@@ -962,9 +962,12 @@
     return `<div class="grid-2">
       <section class="card"><h2>Authorisers</h2><p class="small muted">The names that can sign in (they share one password). Shown in the change log next to every change.</p>
         <label class="field" for="set-auth">Names <span class="hint">One per line</span><textarea id="set-auth" rows="4">${esc((s.authorisers || []).join('\n'))}</textarea></label>
-        <label class="opt small"><input type="checkbox" id="set-email-docs"${s.emailDoctors ? ' checked' : ''}> <span>Also email doctors (decisions and cover). Off: doctors check "Check my request" instead, and only the alert emails below are sent.</span></label>
+        <h3>Emails</h3>
+        ${store.mode === 'remote' && !store.emailOn ? '<p class="notice warn small"><strong>Email is not connected yet</strong>, so nothing is being sent. See the email set-up steps in docs/cloudflare-setup.md (a free Resend account and two settings in Cloudflare).</p>' : ''}
+        <label class="opt small"><input type="checkbox" id="set-email-decisions"${s.emailDecisions ? ' checked' : ''}> <span><strong>Email doctors the decision on their leave</strong>: approved (with which days), partly approved, declined, a question, or approved leave cancelled.</span></label>
+        <label class="opt small"><input type="checkbox" id="set-email-docs"${s.emailDoctors ? ' checked' : ''}> <span>Also email doctors other messages: "request received", "you've been named as cover" and EDT/SDT bookings.</span></label>
         <label class="field" for="set-mail">Alert emails <span class="hint">Who is emailed about new requests and sickness. One per line.</span><textarea id="set-mail" rows="3">${esc((s.authoriserEmails || []).join('\n'))}</textarea></label>
-        <div class="row"><button type="button" class="btn primary" data-act="save-authorisers">Save</button><span class="small muted">Emails: ${store.emailOn ? '<strong style="color:var(--ok-fg)">switched on</strong>' : store.mode === 'local' ? 'not available in demo mode' : 'not switched on yet (in-app messages only). See the README to add an email key.'}</span></div></section>
+        <div class="row"><button type="button" class="btn primary" data-act="save-authorisers">Save</button>${store.mode === 'remote' ? '<button type="button" class="btn" data-act="test-email">Send a test email</button>' : ''}<span class="small muted">Email: ${store.emailOn ? '<strong style="color:var(--ok-fg)">connected</strong>' : store.mode === 'local' ? 'not available in demo mode' : '<strong style="color:var(--bad-text)">not connected</strong>'}</span></div></section>
       ${store.mode === 'remote' ? `<section class="card"><h2>Change the authoriser password</h2><p class="small muted">Everyone is signed out afterwards. Share the new password in person or by phone, never by email.</p>
         <label class="field" for="pw-cur">Current password<input type="password" id="pw-cur" autocomplete="current-password"></label>
         <label class="field" for="pw-new">New password <span class="hint">At least 12 characters</span><input type="password" id="pw-new" autocomplete="new-password"></label>
@@ -1218,7 +1221,7 @@
           s.audit.unshift({ at: new Date().toISOString(), by, action: 'Approved leave cancelled', detail: `${docName(r.doctorId)}: ${R.fmtUk(r.start)} to ${R.fmtUk(r.end)}` });
           s.notifications.unshift({ id: 'n-' + Date.now(), to: 'd:' + r.doctorId, at: new Date().toISOString(), text: `Your leave ${rangeText(r.start, r.end)} was cancelled by ${by}.`, read: false });
           const d = R.doctorById(s, r.doctorId);
-          return r.email || (d && d.email) ? [{ to: r.email || d.email, subject: `Leave cancelled: ${rangeText(r.start, r.end)}`, text: `Your approved leave (${rangeText(r.start, r.end)}) was cancelled by ${by}. Please contact the rota authorisers.` }] : [];
+          return r.email || (d && d.email) ? [{ to: r.email || d.email, kind: 'decision', subject: `Leave cancelled: ${rangeText(r.start, r.end)}`, text: `Your approved leave (${rangeText(r.start, r.end)}) was cancelled by ${by}. Please contact the rota authorisers.` }] : [];
         }, 'Leave cancelled. The doctor has been told.');
         break;
       }
@@ -1347,11 +1350,16 @@
         const names = $('#set-auth').value.split('\n').map((x) => x.trim()).filter(Boolean);
         const mails = $('#set-mail').value.split('\n').map((x) => x.trim()).filter(Boolean);
         const emailDocs = $('#set-email-docs').checked;
+        const emailDec = $('#set-email-decisions').checked;
         if (!names.length) { toast('Keep at least one authoriser name.', true); return; }
         if (!names.includes(store.me)) { toast(`Keep your own name (${store.me}) in the list, or you will be locked out of signing in by name.`, true); return; }
         if (mails.some((m) => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m))) { toast('One of the alert emails does not look right.', true); return; }
-        await change((s, by) => { S.ops.setSetting(s, by, 'authorisers', names, `Authorisers: ${names.join(', ')}`); S.ops.setSetting(s, by, 'authoriserEmails', mails, `Alert emails: ${mails.length}`); S.ops.setSetting(s, by, 'emailDoctors', emailDocs, `Email doctors: ${emailDocs ? 'on' : 'off'}`); return []; }, 'Saved.');
+        await change((s, by) => { S.ops.setSetting(s, by, 'authorisers', names, `Authorisers: ${names.join(', ')}`); S.ops.setSetting(s, by, 'authoriserEmails', mails, `Alert emails: ${mails.length}`); S.ops.setSetting(s, by, 'emailDoctors', emailDocs, `Email doctors other messages: ${emailDocs ? 'on' : 'off'}`); S.ops.setSetting(s, by, 'emailDecisions', emailDec, `Email doctors their leave decisions: ${emailDec ? 'on' : 'off'}`); return []; }, 'Saved.');
         break;
+      }
+      case 'test-email': {
+        try { const out = await store.testEmail(); toast(`Test email sent to ${plural(out.sent, 'alert address')}. Check the inbox (and junk folder).`); } catch (e) { toast(e.message, true); }
+        return;
       }
       case 'save-bh': {
         const list = $('#set-bh').value.split(/\s+/).map((x) => x.trim()).filter(Boolean);

@@ -355,7 +355,7 @@ test('older saved rotas are upgraded', () => {
   S.upgrade(st);
   assert.equal(st.settings.rules.minSenRGH, 0);
   assert.equal(st.settings.rotation.end, undefined);
-  assert.equal(st.settings.schema, 3);
+  assert.equal(st.settings.schema, 4);
 });
 
 test('a group of doctors can be put at a location for a block of dates', () => {
@@ -434,4 +434,17 @@ test('restore puts an earlier copy back but keeps the change log', () => {
   assert.ok(R.doctorById(st, 'm1'));
   assert.equal(st.audit[0].action, 'Rota restored from a backup');
   assert.ok(st.audit.some((a) => a.action === 'Doctor removed'));
+});
+
+test('leave decisions are marked for emailing the doctor, and older rotas switch them on', () => {
+  const st = S.demoState(TODAY);
+  assert.equal(st.settings.emailDecisions, true);
+  const r = st.requests.find((x) => x.doctorId === 'r2' && x.status === 'pending');
+  const emails = S.ops.decide(st, 'J. Hale', r.id, 'approve', '');
+  assert.equal(emails[0].to, 'p.nair@example.nhs.uk');
+  assert.equal(emails[0].kind, 'decision');
+  assert.match(emails[0].subject, /Leave approved/);
+  const old = S.demoState(TODAY); old.settings.schema = 3; delete old.settings.emailDecisions;
+  S.upgrade(old);
+  assert.equal(old.settings.emailDecisions, true);
 });

@@ -99,13 +99,18 @@
       st.consultantOfWeek = st.consultantOfWeek || {};
       st.schema = 3;
     }
+    if (st.schema < 4) {
+      // Doctors get an email with the decision on their leave (other doctor emails stay off unless switched on).
+      if (st.emailDecisions === undefined) st.emailDecisions = true;
+      st.schema = 4;
+    }
     return state;
   }
 
   function baseSettings() {
     return {
       bankHolidays: R.BANK_HOLIDAYS.slice(), restricted: [], consultantOfWeek: {}, rules: Object.assign({}, R.DEFAULT_RULES),
-      rulesText: clone(DEFAULT_RULES_TEXT), changeovers: [], rotation: { start: '2026-08-05' }, schema: 3,
+      rulesText: clone(DEFAULT_RULES_TEXT), changeovers: [], rotation: { start: '2026-08-05' }, schema: 4, emailDecisions: true,
       authorisers: ['Authoriser 1', 'Authoriser 2', 'Authoriser 3'], authoriserEmails: [], demo: false
     };
   }
@@ -400,7 +405,7 @@
       log(state, by, status, `${doc.name}: ${label}, ${R.fmtUk(r.start)} to ${R.fmtUk(r.end)}${(r.excludedDates || []).length ? `; not approved ${r.excludedDates.map(R.fmtUk).join(', ')}` : ''}${msg ? `; "${msg}"` : ''}`);
       const emails = [];
       const to = r.email || doc.email;
-      if (to) emails.push({ to, subject, text });
+      if (to) emails.push({ to, subject, text, kind: 'decision' });
       if (r.status === 'authorised') new Set(r.cover.map((c) => c.doctorId)).forEach((cid) => { const cd = R.doctorById(state, cid); if (cd && cd.email) emails.push({ to: cd.email, subject: `You're covering for ${doc.name}`, text: r.cover.filter((c) => c.doctorId === cid).map((c) => c.text).join('\n') }); });
       return emails;
     },
@@ -705,6 +710,7 @@
         if (store.mode === 'local') return myEdt(store.state, doctorId, email);
         return api('POST', '/api/my-edt', { doctorId, email });
       },
+      async testEmail() { return api('POST', '/api/test-email', {}); },
       async listBackups() {
         if (store.mode === 'local') return { backups: [], local: true };
         return api('GET', '/api/backups');
