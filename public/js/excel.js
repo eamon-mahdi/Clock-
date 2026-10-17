@@ -252,11 +252,16 @@
 
 
   // ---------- master workbook (doctors + consultant of the week + leave restrictions) ----------
-  const MASTER_COLS = ['Name', 'Grade', 'Category (Resident or Senior)', 'Starts', 'Finishes', 'Finish date confirmed (Yes/No)', 'Takes over the column of (name)', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'NHS email', 'Annual leave days', 'Carried over / extra days', 'Study leave days', 'Other spellings (comma separated)'];
+  const MASTER_COLS = ['Name', 'Grade', 'Category (Resident or Senior)', 'Starts', 'Finishes', 'Finish date confirmed (Yes/No)', 'Takes over the column of (name)', 'NHS email', 'Annual leave days', 'Carried over / extra days', 'Study leave days', 'Other spellings (comma separated)'];
   const MASTER_HELP = [
     'How to fill in the rota master workbook',
     '',
     'This one file sets up the rota. Fill in the tabs you need and upload it under Set up → Data file. You can import it again at any time: doctors are matched by name and updated, new ones are added. Nobody is deleted by an import.',
+    '',
+    'Rota tab: the whole rota, laid out like the rota on the website (dates down the side, one column per doctor, "Changeover" rows where a new doctor takes over a column).',
+    '  • Type over any cell to change where that doctor is that day, using the codes on the Codes tab (GUH, RGH - DAY UNIT, NHH - DAY UNIT, GUH LAB, OFF, TEACHING …) or an on-call shift code (LONG DAY, NIGHTS …).',
+    '  • Only cells you change are imported. Blank cells, leave and NOT IN POST are left as they are: leave is added through leave requests, and to clear a day type OFF.',
+    '  • You can add more dates at the bottom (one row per date, dd/mm/yyyy). Do not change the column headings: they are how each column is matched to a doctor.',
     '',
     'Doctors tab: one row per doctor (or per post, for placeholders).',
     '  • Grade: e.g. F1, F2, IMT1, IMT2, IMT3, JCF, Registrar ST3–ST8, Specialty doctor, Specialist grade, Senior clinical fellow, or anything else.',
@@ -265,7 +270,6 @@
     '  • Finish date confirmed: No if the finish date may change (e.g. a registrar who may stay 6 or 12 months).',
     '  • Takes over the column of: the name of the doctor they replace, so the rota continues in the same column at the changeover.',
     '  • Name not known yet: write "New F1" (or New + grade). It shows as TBC until you type the real name over it.',
-    '  • Mon–Fri: usual location each weekday, using the codes on the Codes tab (GUH, RGH - DAY UNIT, NHH - DAY UNIT, GUH LAB, OFF …).',
     '  • Annual leave days: left blank, the Wales default for the grade and time in post is used. Carried over / extra: accrued or carried-over days.',
     '',
     'Consultant of the week tab: the Monday of each week and the consultant. Add as many weeks as you like.',
@@ -274,7 +278,7 @@
     'Rotation dates tab: reference only. The changeover dates worked out from the programme rules for the next few years.',
     '',
     'This one file is also the backup: Set up → Backups downloads the same file with extra read-only tabs (leave, changes, EDT/SDT, change log).',
-    'CSV files cannot have tabs, so a CSV holds one tab only (for example the Doctors tab). The Excel file is the one file that holds everything.'
+    'CSV files cannot have tabs, so a CSV holds one tab only (for example the Rota tab or the Doctors tab). The Excel file is the one file that holds everything.'
   ];
   const yesNo = (b) => (b ? 'Yes' : 'No');
   function doctorRows(state) {
@@ -284,9 +288,8 @@
     for (const g of ['res', 'mg']) for (const c of cols) if (c.docs[0].group === g) order.push(...c.docs);
     for (const d of order) {
       const prev = R.predecessorOf(state, d);
-      const plan = (d.plan && d.plan.A) || ['', '', '', '', ''];
       rows.push([d.name, d.grade, d.group === 'mg' ? 'Senior' : 'Resident', d.start ? { v: d.start, date: true } : '', d.end ? { v: d.end, date: true } : '',
-        d.end ? yesNo(!d.endProvisional) : '', prev ? prev.name : ''].concat(plan.map((x) => x || '')).concat([d.email || '', d.alEntitlement === undefined ? '' : d.alEntitlement, d.alExtra || '', d.slEntitlement === undefined ? '' : d.slEntitlement, (d.aliases || []).join(', ')]));
+        d.end ? yesNo(!d.endProvisional) : '', prev ? prev.name : ''].concat([d.email || '', d.alEntitlement === undefined ? '' : d.alEntitlement, d.alExtra || '', d.slEntitlement === undefined ? '' : d.slEntitlement, (d.aliases || []).join(', ')]));
     }
     return rows;
   }
@@ -322,8 +325,8 @@
     return rows;
   }
   function codesRows() {
-    const rows = [[head('Location code (Mon–Fri columns)'), head('Meaning')]].concat(R.SITE_CODES.map((c) => [c, CODE_MEANINGS[c] || '']));
-    rows.push(['', ''], [head('On-call shift code (On-calls tab)'), head('Meaning')]);
+    const rows = [[head('Location code (Rota tab)'), head('Meaning')]].concat(R.SITE_CODES.map((c) => [c, CODE_MEANINGS[c] || '']));
+    rows.push(['', ''], [head('On-call shift code (Rota or On-calls tab)'), head('Meaning')]);
     R.ONCALL_CODES.forEach((c) => rows.push([c, CODE_MEANINGS[c] || '']));
     rows.push(['', ''], [head('Grades'), head('Category')]);
     ['F1', 'F2', 'IMT1', 'IMT2', 'IMT3', 'JCF'].forEach((g) => rows.push([g, 'Resident']));
@@ -331,10 +334,89 @@
     return rows;
   }
   const helpSheet = (lines) => ({ name: 'How to use', rows: lines.map((t, i) => [i === 0 ? { v: t, style: { bold: true, size: 12 } } : note(t)]), widths: [130] });
-  const MASTER_WIDTHS = [20, 20, 14, 13, 13, 13, 22, 15, 15, 15, 15, 15, 30, 10, 10, 10, 30];
+  const MASTER_WIDTHS = [20, 20, 14, 13, 13, 13, 22, 30, 10, 10, 10, 30];
+
+  // ---------- Rota tab: the whole rota as a grid, like the rota view ----------
+  const rotaRange = (state, todayIso) => ({ from: R.addDays(todayIso, -14), to: R.addMonths(todayIso, 6) < R.rotaHorizon(state, todayIso) ? R.addMonths(todayIso, 6) : R.rotaHorizon(state, todayIso) });
+  const colHead = (d) => `${d.grade}\n${d.name}`;
+  function rotaRows(state, from, to) {
+    const cols = [];
+    for (const g of ['res', 'mg']) for (const c of R.columns(state, from, to)) if (c.group === g) cols.push(c);
+    const base = { border: true, center: true, wrap: true };
+    const rows = [[head('Date'), head('Day'), head('Consultant')].concat(cols.map((c) => head(colHead(R.holderOn(c, from)))))];
+    let prev = null;
+    for (const iso of R.dateRange(from, to)) {
+      const holders = cols.map((c) => R.holderOn(c, iso));
+      if (prev && holders.some((d, i) => d !== prev[i] && R.inPost(d, iso))) {
+        rows.push([{ v: 'Changeover', style: Object.assign({ bold: true, fill: FILL.HEAD }, base) }, { v: R.fmtUk(iso), style: Object.assign({ fill: FILL.HEAD }, base) }, { v: '', style: { fill: FILL.HEAD } }]
+          .concat(holders.map((d, i) => ({ v: colHead(d), style: Object.assign({ bold: d !== prev[i], fill: FILL.HEAD }, base) }))));
+      }
+      prev = holders;
+      const wk = R.isWeekend(iso);
+      const dark = wk ? { fill: FILL.WEEKEND, color: 'FFFFFF' } : {};
+      const row = [{ v: iso, date: true, style: Object.assign({}, base, dark) }, { v: R.DOW_SHORT[R.dow(iso)], style: Object.assign({}, base, dark) },
+        { v: wk ? '' : ((state.settings.consultantOfWeek || {})[R.mondayOf(iso)] || ''), style: Object.assign({}, base, dark) }];
+      for (const d of holders) {
+        const cell = R.resolveCell(state, d, iso);
+        const fill = fillFor(cell) || (wk ? FILL.WEEKEND : null);
+        row.push({ v: cell.code, style: Object.assign({}, base, fill ? { fill } : {}, cell.kind === 'gone' || (wk && !fill) ? { color: 'FFFFFF' } : {}) });
+      }
+      rows.push(row);
+    }
+    return { rows, widths: [12, 6, 14].concat(cols.map(() => 15)) };
+  }
+  function rotaSheet(state, todayIso) {
+    const r = rotaRange(state, todayIso);
+    const x = rotaRows(state, r.from, r.to);
+    return { name: 'Rota', rows: x.rows, widths: x.widths, freeze: { row: 1, col: 2 }, heights: { 0: 42 } };
+  }
+  const rotaCsv = (state, todayIso) => { const r = rotaRange(state, todayIso); return toCsv(rotaRows(state, r.from, r.to).rows.map((row) => row.map((v) => (v && typeof v.v === 'string' ? Object.assign({}, v, { v: v.v.replace(/\n/g, ' ') }) : v)))); };
+
+  // Reads a Rota tab. Only cells that differ from the rota now are returned. Leave, NOT IN POST and blanks are left alone.
+  function parseRota(state, sh, h, colIndex) {
+    const out = { from: '', to: '', changes: [], ignored: [], unmatched: [], columns: 0 };
+    const all = R.columns(state, '1900-01-01', '2999-12-31');
+    const named = [];
+    for (const c of all) for (const d of c.docs) named.push({ name: d.name.toLowerCase(), col: c });
+    named.sort((a, b) => b.name.length - a.name.length);
+    const header = sh.rows[h] || [];
+    const map = [];
+    header.forEach((v, i) => {
+      if (i === colIndex.date || i === colIndex.day || i === colIndex.cons) return;
+      const t = cellText(v).toLowerCase();
+      if (!t) return;
+      const hit = named.find((n) => t.includes(n.name));
+      if (hit) { map.push({ i, col: hit.col }); out.columns++; } else out.unmatched.push(cellText(v).replace(/\s+/g, ' '));
+    });
+    for (let r = h + 1; r < sh.rows.length; r++) {
+      const row = sh.rows[r] || [];
+      const iso = parseDate(row[colIndex.date]);
+      if (!iso) continue;
+      if (!out.from || iso < out.from) out.from = iso;
+      if (!out.to || iso > out.to) out.to = iso;
+      for (const { i, col } of map) {
+        const raw = cellText(row[i]);
+        if (!raw) continue;
+        const doc = R.holderOn(col, iso);
+        if (!R.inPost(doc, iso)) continue;
+        const code = R.canonicalCode(raw);
+        const cell = R.resolveCell(state, doc, iso);
+        if (code === R.canonicalCode(cell.code || '')) continue;
+        const kind = R.kindOf(code);
+        if (cell.leave) { out.ignored.push(`${doc.name}, ${R.fmtUk(iso)}: has approved leave, so "${raw}" was not used. Change leave through the request.`); continue; }
+        if (kind === 'oncall') out.changes.push({ doctorId: doc.id, name: doc.name, date: iso, code, kind });
+        else if (['site', 'lab', 'off', 'bh'].includes(kind) || code === 'TEACHING' || code === 'INDUCTION' || code === 'SPR TRAINING DAY') out.changes.push({ doctorId: doc.id, name: doc.name, date: iso, code, kind: 'site' });
+        else if (kind === 'gone') continue;
+        else out.ignored.push(`${doc.name}, ${R.fmtUk(iso)}: "${raw}" is not a location or on-call code${kind === 'leave' || kind === 'sick' ? ' (leave is added through leave requests)' : ''}.`);
+      }
+    }
+    return out;
+  }
+
   function masterTemplate(state, todayIso) {
     return X.write([
       helpSheet(MASTER_HELP),
+      rotaSheet(state, todayIso),
       { name: 'Doctors', rows: doctorRows(state), widths: MASTER_WIDTHS, freeze: { row: 1, col: 1 }, heights: { 0: 42 } },
       { name: 'Consultant of the week', rows: consultantRows(state, todayIso), widths: [24, 30], freeze: { row: 1 } },
       { name: 'Leave restrictions', rows: restrictionRows(state), widths: [13, 13, 20, 50], freeze: { row: 1 } },
@@ -374,7 +456,14 @@
     for (const sh of sheets) {
       const { h, cols } = headerOf(sh);
       const idx = (re) => cols.findIndex((x) => re.test(x));
-      if (idx(/^name$|^name\b/) >= 0 && idx(/^grade/) >= 0) {
+      if (idx(/^date/) >= 0 && idx(/^day$/) >= 0 && !(/on-?call|change/i.test(sh.name || ''))) {
+        if (out.rota) continue;
+        const rota = parseRota(state, sh, h, { date: idx(/^date/), day: idx(/^day$/), cons: idx(/^consultant/) });
+        if (!rota.columns) continue;
+        out.found.push(sh.name || 'Rota');
+        out.rota = rota;
+        if (rota.unmatched.length) out.problems.push(`Rota tab: column${rota.unmatched.length > 1 ? 's' : ''} not matched to a doctor (skipped): ${rota.unmatched.slice(0, 6).join(', ')}. Add the doctor on the Doctors tab first.`);
+      } else if (idx(/^name$|^name\b/) >= 0 && idx(/^grade/) >= 0) {
         out.found.push(sh.name || 'Doctors');
         const c = { name: idx(/^name/), grade: idx(/^grade/), cat: idx(/^categ|^group/), start: idx(/^start/), end: idx(/^finish(es)?$|^finishes|^end/), conf: idx(/confirm/), rep: idx(/takes over|replac/),
           email: idx(/email/), al: idx(/^annual/), extra: idx(/carried|extra/), sl: idx(/^study/), alias: idx(/spelling|alias/), days: ['mon', 'tue', 'wed', 'thu', 'fri'].map((d) => idx(new RegExp('^' + d))) };
@@ -427,7 +516,7 @@
         }
       }
     }
-    if (!out.found.length) out.problems.push('No Doctors, Consultant of the week, Leave restrictions or On-calls tab was found. Use the rota data file template.');
+    if (!out.found.length) out.problems.push('No Rota, Doctors, Consultant of the week, Leave restrictions or On-calls tab was found. Use the rota data file template.');
     return out;
   }
   function findHeaderRowAny(rows) {
@@ -446,7 +535,8 @@
     const edt = [[head('Date'), head('Session'), head('Doctor'), head('Type'), head('Booked by')]].concat((state.edt || []).map((e) => [{ v: e.date, date: true }, e.session, docName(e.doctorId), e.type, e.bookedBy || '']));
     const audit = [[head('When'), head('Who'), head('What'), head('Details')]].concat((state.audit || []).map((a) => [a.at.slice(0, 16).replace('T', ' '), a.by, a.action, a.detail]));
     return X.write([
-      helpSheet([`Haematology rota data file and backup, ${R.fmtLong(todayIso)}`, '', 'This is the same file as Set up → Data file. The Doctors, Consultant of the week, Leave restrictions and On-calls tabs can be uploaded again there.', 'The other tabs (Leave, Rota changes, EDT SDT, Change log) are a read-only record.', 'For an exact restore of everything, use Set up → Backups on the website.']),
+      helpSheet([`Haematology rota data file and backup, ${R.fmtLong(todayIso)}`, '', 'This is the same file as Set up → Data file. The Rota, Doctors, Consultant of the week, Leave restrictions and On-calls tabs can be uploaded again there.', 'The other tabs (Leave, Rota changes, EDT SDT, Change log) are a read-only record.', 'For an exact restore of everything, use Set up → Backups on the website.']),
+      rotaSheet(state, todayIso),
       { name: 'Doctors', rows: doctorRows(state), widths: MASTER_WIDTHS, freeze: { row: 1, col: 1 }, heights: { 0: 42 } },
       { name: 'Consultant of the week', rows: consultantRows(state, todayIso), widths: [24, 30], freeze: { row: 1 } },
       { name: 'Leave restrictions', rows: restrictionRows(state), widths: [13, 13, 20, 50], freeze: { row: 1 } },
@@ -506,7 +596,7 @@
   }
 
   const api = { oncallTemplate, planTemplate, staffTemplate, parseOncall, parsePlans, parseStaff, matchDoctor, parseDate, rosterWorkbook, FILL,
-    masterTemplate, doctorsCsvTemplate, parseMaster, parseCsv, toCsv, backupWorkbook };
+    masterTemplate, doctorsCsvTemplate, rotaCsv, parseMaster, parseCsv, toCsv, backupWorkbook };
   root.RotaExcel = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

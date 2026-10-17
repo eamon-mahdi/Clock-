@@ -301,31 +301,6 @@ export async function handleApi(request, env) {
       return json({ ok: true });
     }
 
-    // A doctor books or cancels their own EDT/SDT (all rota rules must be met).
-    if (path === '/api/edt' && method === 'POST') {
-      const key = 'edt:' + ip;
-      if ((await countHits(db, key, 3600000)) >= MAX_REQUESTS_PER_HOUR) return fail(429, 'Too many bookings from this connection. Try again later.');
-      const body = await readJson(request);
-      await addHit(db, key);
-      const { out, state } = await mutate(db, (s) => S.bookEdtSelf(s, body));
-      await sendEmails(env, state, out.emails);
-      return json({ ok: true, booking: out.booking });
-    }
-    if (path === '/api/my-edt' && method === 'POST') {
-      const key = 'look:' + ip;
-      if ((await countHits(db, key, 600000)) >= 30) return fail(429, 'Too many look-ups. Try again in a few minutes.');
-      await addHit(db, key);
-      const body = await readJson(request);
-      const { state } = await loadState(db);
-      return json(S.myEdt(state, body.doctorId, body.email));
-    }
-    const me2 = path.match(/^\/api\/edt\/([\w-]+)\/cancel$/);
-    if (me2 && method === 'POST') {
-      const body = await readJson(request);
-      await mutate(db, (s) => S.cancelEdtSelf(s, me2[1], body.doctorId, body.email));
-      return json({ ok: true });
-    }
-
     // Backups (authorisers only): list, and fetch one to download or restore.
     if (path === '/api/backups' && method === 'GET') {
       if (!me) return fail(401, 'Sign in as an authoriser first.');

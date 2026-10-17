@@ -36,9 +36,9 @@ Good password: long and unguessable, for example 3 or 4 unrelated words mixed wi
 
 The first visit loads **example data with fictional doctors** so you can try everything. When ready: sign in → **Set up → Settings → Start fresh**. This keeps the rules, authoriser names and alert emails. Then:
 
-1. **Set up → Data file:** download the rota data file, fill in the Doctors tab (with NHS emails: leave requests must use the same email), Consultant of the week, Leave restrictions and On-calls, and upload it.
+1. **Set up → Data file:** download the rota data file, fill in the Rota tab (where everyone is each day), the Doctors tab (with NHS emails: leave requests must use the same email), Consultant of the week, Leave restrictions and On-calls, and upload it.
 2. **Each week:** paste the trust on-calls into the On-calls tab and upload the file again.
-3. **Set up → Master sheet / People & leave:** small changes can also be made by hand there.
+3. **Set up → Master sheet / People & leave:** small changes can also be made by hand there. People & leave also has an annual leave dashboard for every doctor.
 4. **Set up → Rotations:** rotation dates and changeover bands.
 5. **Rules:** check the numbers and the text.
 
@@ -77,10 +77,11 @@ For a full database export from your computer: `npx wrangler d1 export haematolo
 
 **Set up → Data file** downloads the **rota data file**, one Excel workbook filled in with what is on the rota now. Its tabs:
 
-- **Doctors:** name, grade, category, start and finish dates, whose column they take over, usual Mon–Fri locations and leave allowances.
+- **Rota:** the whole rota laid out like the rota page: dates down the side, one column per doctor, and a "Changeover" row wherever a new doctor takes over a column. Type over a cell to change where someone is that day or to add an on-call shift. Only changed cells are imported; leave, blanks and NOT IN POST are left alone.
+- **Doctors:** name, grade, category, start and finish dates, whose column they take over and leave allowances.
 - **Consultant of the week**
 - **Leave restrictions**
 - **On-calls:** the trust on-calls (Date, Doctor, Shift).
 - **Rotation dates** and **Codes:** reference only.
 
-Edit it in Excel and upload it on the same page. Doctors are matched by name, so nobody is deleted. On-calls already on the rota for the dates in the On-calls tab are replaced. The Backups page downloads the same file with extra read-only tabs. A CSV holds only one tab (for example the Doctors tab); the Excel file is the one file that holds everything.
+Edit it in Excel and upload it on the same page. Doctors are matched by name, so nobody is deleted. On-calls already on the rota for the dates in the On-calls tab are replaced. The Backups page downloads the same file with extra read-only tabs. A CSV holds only one tab (the Rota tab or the Doctors tab can be downloaded and uploaded as CSV); the Excel file is the one file that holds everything.
