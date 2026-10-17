@@ -380,7 +380,8 @@ export async function handleApi(request, env) {
       await addHit(db, key);
       const { out, state } = await mutate(db, (s) => S.submitLeave(s, body));
       const sent = await sendEmails(env, state, out.emails);
-      return json({ ok: true, request: S.publicView({ ...state, requests: [out.request] }).requests[0], check: out.check, emailed: sent > 0 });
+      const r = out.request; // only what the sender needs back; waiting requests are never in the public view
+      return json({ ok: true, request: { id: r.id, type: r.type === 'SICK' ? 'UNAVAIL' : r.type, start: r.start, end: r.end, part: r.part, status: r.status, days: r.days }, emailed: sent > 0 });
     }
 
     if (path === '/api/my-requests' && method === 'POST') {

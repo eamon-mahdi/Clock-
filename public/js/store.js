@@ -322,7 +322,7 @@
     return lines.filter(Boolean).map(fold).join('\r\n') + '\r\n';
   }
 
-  // What anyone with the link can see (no emails, notes, reasons, sickness or audit).
+  // What anyone with the link can see (no emails, notes, reasons, sickness, pending requests or audit).
   // Sets rota cells from a file and records what each was before, so the whole upload can be undone.
   function applyCells(state, by, changes, fileName, reason) {
     const rec = { id: uid('u'), at: nowIso(), by, fileName: fileName || '', cells: [] };
@@ -349,7 +349,9 @@
   function publicView(state) {
     const s = clone(state);
     s.doctors.forEach((d) => { delete d.calToken; delete d.email; delete d.alEntitlement; delete d.slEntitlement; delete d.alExtra; delete d.slExtra; delete d.note; });
-    s.requests = s.requests.filter((r) => ['pending', 'hold', 'authorised'].includes(r.status)).map((r) => ({
+    // Only approved leave is public. Requests still waiting are seen only by the authorisers and, under
+    // My leave, by the doctor who sent them (name + NHS email).
+    s.requests = s.requests.filter((r) => r.status === 'authorised').map((r) => ({
       id: r.id, doctorId: r.doctorId, type: r.type === 'SICK' ? 'UNAVAIL' : (['AL', 'SL'].includes(r.type) ? r.type : 'OTHER'),
       start: r.start, end: r.end, part: r.part, status: r.status, excludedDates: r.excludedDates || [], days: r.days, cover: (r.cover || []).map((c) => ({ date: c.date, doctorId: c.doctorId, to: c.to }))
     }));

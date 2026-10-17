@@ -18,7 +18,13 @@
   // ---------- helpers ----------
   const esc = (s) => String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const $ = (sel) => document.querySelector(sel);
-  const st = () => store.state;
+  // Viewers who are not signed in see the public rota only (as the server sends it), also in the demo copy.
+  let pubCache = null; // rebuilt on every render
+  const st = () => {
+    if (!store.state || store.isAuth() || store.state.public) return store.state;
+    if (!pubCache || pubCache.src !== store.state) pubCache = { src: store.state, view: S.publicView(store.state) };
+    return pubCache.view;
+  };
   const isAuth = () => !!store.me;
   const docName = (id) => (R.doctorById(st(), id) || { name: '?' }).name;
   const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -390,7 +396,7 @@
       <span><span class="sw k-site s-GUH"></span>GUH</span><span><span class="sw k-site s-RGH"></span>RGH (incl. day unit, MDCU)</span><span><span class="sw k-site s-NHH"></span>NHH (incl. day unit)</span>
       <span><span class="sw k-lab"></span>GUH lab (not ward cover)</span><span><span class="sw k-oncall"></span>Leave, unavailable, ⇣ on call and anything not at GUH, RGH or NHH</span><span><span class="emb">EDT PM</span> EDT/SDT session</span>
       <span><span class="sw pending"></span>Leave requested, not approved</span><span><span class="sw k-gone"></span>Not in post</span>
-      <span><span class="cv ok">✓</span>covered <span class="cv exception">res</span>resident only <span class="cv risk">!</span>at risk <span class="cv gap">✕</span>not covered</span>
+      <span><span class="cv ok">✓</span>covered <span class="cv exception">res</span>resident only ${isAuth() ? '<span class="cv risk">!</span>at risk ' : ''}<span class="cv gap">✕</span>not covered</span>
     </div>`;
   }
 
@@ -1246,6 +1252,7 @@
 
   // ---------- render ----------
   function render() {
+    pubCache = null;
     if (!st()) return;
     const active = document.activeElement;
     const focusId = active && active.id;
