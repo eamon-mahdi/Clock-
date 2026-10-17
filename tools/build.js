@@ -58,5 +58,6 @@ fs.mkdirSync(path.join(root, 'templates'), { recursive: true });
 fs.writeFileSync(path.join(root, 'templates/rota-data-file.xlsx'), E.masterTemplate(demo, today));
 fs.writeFileSync(path.join(root, 'templates/rota-doctors.csv'), E.doctorsCsvTemplate(demo));
 fs.writeFileSync(path.join(root, 'templates/rota.csv'), E.rotaCsv(demo, today));
+fs.writeFileSync(path.join(root, 'templates/rota-changes-list.csv'), E.updatesListCsv());
 for (const old of ['weekly-plan-template.xlsx', 'staff-list-template.xlsx', 'rota-master-workbook.xlsx', 'oncall-import-template.xlsx']) fs.rmSync(path.join(root, 'templates', old), { force: true });
 console.log('Built public/ (Cloudflare), dist/haematology-rota.html (' + Math.round(single.length / 1024) + ' KB) and the templates');

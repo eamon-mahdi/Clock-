@@ -873,12 +873,47 @@
       ${oc && oc.badDates ? `<p class="small" style="color:var(--bad-text)">${plural(oc.badDates, 'on-call row')} skipped because the date could not be read. Use dd/mm/yyyy.</p>` : ''}
       ${sample ? `<details><summary class="small">Doctors in the file (${x.doctors.length})</summary><div class="scroll-x"><table class="plain small"><thead><tr><th>Name</th><th>Grade</th><th>Category</th><th>Starts</th><th>Finishes</th><th>Takes over from</th></tr></thead><tbody>${sample}</tbody></table></div></details>` : ''}`;
   }
+  // Set up → Data file → Update the rota: the safe, everyday way. Only ticked cells change; it can be undone.
+  function renderUpdate() {
+    const u = ui.update;
+    const when = (at) => `${R.fmtShort(at.slice(0, 10))} ${at.slice(11, 16)}`;
+    let preview = '';
+    if (u) {
+      const x = u.parsed;
+      const n = u.ticked.size;
+      const recent = x.changes.filter((c) => c.recent).length;
+      const rows = x.changes.slice(0, 1000).map((c, i) => `<tr${c.recent ? ' class="warn"' : ''}><td><input type="checkbox" data-upd-i="${i}"${u.ticked.has(i) ? ' checked' : ''} aria-label="Apply ${esc(c.name)} ${esc(R.fmtShort(c.date))}"></td>
+        <td class="tabular">${esc(R.fmtShort(c.date))}</td><td>${esc(c.name)}</td><td>${esc(c.was || '(blank)')}</td><td><strong>${esc(c.code)}</strong>${c.kind === 'oncall' ? ' <span class="muted small">on-call</span>' : ''}${c.recent ? '<br><span class="small warn-text">Changed on the website after this file was downloaded. Left unticked so it is not overwritten.</span>' : ''}</td></tr>`).join('');
+      preview = `<div class="notice info stack"><strong>${esc(u.fileName)}</strong>
+        <p class="small">${x.format === 'grid' ? `Rota grid${x.stamp ? `, downloaded ${esc(when(x.stamp))} UTC` : ' (no download time in the file, so changes made on the website since cannot be spotted: check the list)'}` : 'List of changes'}${x.from ? `, ${esc(R.fmtUk(x.from))} to ${esc(R.fmtUk(x.to))}` : ''}.
+          <strong>${plural(x.changes.length, 'cell')}</strong> differ from the rota now${recent ? `, ${recent} of them changed on the website since the download` : ''}. Everything else is left exactly as it is.</p>
+        ${x.unmatched.length ? `<p class="small warn-text">Not matched to a doctor (skipped): ${esc(x.unmatched.slice(0, 8).join(', '))}. Add them on the Master sheet first, or check the spelling.</p>` : ''}
+        ${x.ignored.length ? `<details><summary class="small warn-text">${plural(x.ignored.length, 'cell')} not used</summary><ul class="small">${x.ignored.slice(0, 80).map((m) => `<li>${esc(m)}</li>`).join('')}</ul></details>` : ''}
+        ${x.changes.length ? `<div class="row small"><button type="button" class="btn ghost small-btn" data-act="upd-all">Tick all</button><button type="button" class="btn ghost small-btn" data-act="upd-none">Untick all</button></div>
+        <div class="scroll-x" style="max-height:420px;overflow:auto"><table class="plain small"><thead><tr><th></th><th>Date</th><th>Doctor</th><th>Now</th><th>Becomes</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="small">Nothing to change: the file matches the rota.</p>'}
+        <div class="row"><button type="button" class="btn primary" data-act="apply-updates"${n ? '' : ' disabled'}>Apply ${plural(n, 'change')}</button><button type="button" class="btn ghost" data-act="cancel-update">Cancel</button></div></div>`;
+    }
+    const imps = (st().imports || []).slice(0, 10);
+    const history = imps.length ? `<h3>Recent file updates</h3><div class="scroll-x"><table class="plain small"><thead><tr><th>When (UTC)</th><th>By</th><th>File</th><th>Cells</th><th></th></tr></thead><tbody>${imps.map((m) => `<tr><td class="tabular">${esc(when(m.at))}</td><td>${esc(m.by || '')}</td><td>${esc(m.fileName)}</td><td class="tabular">${m.cells.length}</td>
+      <td>${m.undoneAt ? `<span class="muted">Undone ${esc(when(m.undoneAt))}</span>` : `<button type="button" class="btn ghost small-btn" data-act="undo-import" data-id="${m.id}">${ui.confirm === 'undo:' + m.id ? 'Confirm: undo' : 'Undo'}</button>`}</td></tr>`).join('')}</tbody></table></div>` : '';
+    return `<section class="card"><h2>Update the rota</h2>
+      <p class="small muted">The everyday way to make changes from a spreadsheet. It only changes the cells you edited. It never deletes doctors, leave, on-calls or anything else, and every update can be undone.</p>
+      <ol class="small">
+        <li>Download the rota as it is now (CSV or Excel).</li>
+        <li>Type over the cells that need to change: a location (GUH, RGH - DAY UNIT, NHH - DAY UNIT, OFF …) or an on-call shift (LONG DAY, NIGHTS …). Leave blank cells blank.</li>
+        <li>Upload it here. You see every change (now → becomes) and can untick any before applying.</li>
+      </ol>
+      <p class="small muted">Safety checks: blank cells, leave and NOT IN POST are never changed; cells changed on the website after you downloaded the file are flagged and left unticked; if someone else saves at the same moment, nothing is lost (you are asked to try again). A copy of the whole rota is also kept after every change (Backups). For a few changes you can upload a short list instead (Date, Doctor, Change to).</p>
+      <div class="drop"><div class="row"><button type="button" class="btn primary" data-act="template" data-kind="rota-csv">Download the rota (CSV)</button><button type="button" class="btn ghost" data-act="template" data-kind="master">Download as Excel</button><button type="button" class="btn ghost" data-act="template" data-kind="updates-csv">Short list template (CSV)</button></div>
+        <label class="field" for="file-update">Upload your changes (.csv or .xlsx)<input type="file" id="file-update" accept=".csv,.xlsx" data-act="import-file" data-kind="update"></label></div>
+      ${preview}${history}</section>`;
+  }
   // Set up → Data file: one Excel file holds everything that is imported, and is also the backup.
   function renderImport() {
     const p = ui.importPreview;
     const preview = p ? `<div class="notice info stack"><strong>${esc(p.fileName)}</strong>${masterPreview(p)}
       <div class="row"><button type="button" class="btn primary" data-act="confirm-import"${p.count ? '' : ' disabled'}>Import</button><button type="button" class="btn ghost" data-act="cancel-import">Cancel</button></div></div>` : '';
-    return `<section class="card"><h2>Rota data file</h2>
+    return `${renderUpdate()}<section class="card"><h2>Full data file (setting up, new doctors, rotations)</h2>
       <p class="small muted">One Excel file holds everything the rota is built from. Download it (it comes filled in with what is on the rota now), change it in Excel, and upload it again. You can do this as often as you like.</p>
       <ul class="small">
         <li><strong>Rota:</strong> the whole rota, laid out like the rota page (dates down, one column per doctor, changeover rows). Type over a cell to change where someone is that day, or to add an on-call shift. Only changed cells are imported; leave stays as it is.</li>
@@ -888,7 +923,7 @@
         <li><strong>On-calls:</strong> paste in the trust on-calls each week (Date, Doctor, Shift).</li>
         <li><strong>Rotation dates</strong> and <strong>Codes</strong>, for reference.</li>
       </ul>
-      <p class="small muted">Doctors are matched by name: existing ones are updated, new ones added, nobody is deleted. You see what will change before anything is saved. The same file (with extra read-only tabs) is what Backups downloads. A CSV holds one tab only, so the Excel file is the one to use; a CSV of a single tab (Rota or Doctors) is also accepted.</p>
+      <p class="small muted">Doctors are matched by name: existing ones are updated, new ones added, nobody is deleted. <strong>Note:</strong> on-calls in its On-calls tab replace the on-calls already on the rota for those dates, so for everyday changes use "Update the rota" above. You see what will change before anything is saved. The same file (with extra read-only tabs) is what Backups downloads. A CSV holds one tab only, so the Excel file is the one to use; a CSV of a single tab (Rota or Doctors) is also accepted.</p>
       <div class="drop"><div class="row"><button type="button" class="btn primary" data-act="template" data-kind="master">Download the rota data file</button><button type="button" class="btn ghost" data-act="template" data-kind="rota-csv">Rota tab as CSV</button><button type="button" class="btn ghost" data-act="template" data-kind="master-csv">Doctors tab as CSV</button></div>
         <label class="field" for="file-master">Upload the filled-in file (.xlsx, or a .csv of one tab)<input type="file" id="file-master" accept=".xlsx,.csv" data-act="import-file" data-kind="master"></label></div>
       ${preview}</section>`;
@@ -1185,7 +1220,7 @@
     if (!t || t.tagName === 'SELECT' || (t.tagName === 'INPUT' && t.type !== 'button')) return;
     const act = t.dataset.act, val = t.dataset.val;
     const confirmStep = (key) => { if (ui.confirm === key) { ui.confirm = null; return true; } ui.confirm = key; render(); return false; };
-    if (!['remove-doc', 'start-fresh', 'withdraw', 'revoke', 'restore-backup'].includes(act)) ui.confirm = null;
+    if (!['remove-doc', 'start-fresh', 'withdraw', 'revoke', 'restore-backup', 'undo-import'].includes(act)) ui.confirm = null;
     switch (act) {
       case 'nav': go(t.dataset.view); return;
       case 'open-rota-at': resetRange(R.addDays(val, -3)); ui.layout = 'grid'; go('rota'); ui.scrollToToday = false; return;
@@ -1327,13 +1362,28 @@
       case 'remove-doc': if (!confirmStep('remove:' + t.dataset.doc)) return; await change(op('removeDoctor', t.dataset.doc), 'Doctor removed.'); break;
       case 'template': {
         const kind = t.dataset.kind;
-        if (kind === 'rota-csv') { saveFile('rota.csv', E.rotaCsv(st(), TODAY), 'text/csv;charset=utf-8'); return; }
+        if (kind === 'updates-csv') { saveFile('rota-changes-list.csv', E.updatesListCsv(), 'text/csv;charset=utf-8'); return; }
+        if (kind === 'rota-csv') { saveFile(`rota-${TODAY}.csv`, E.rotaCsv(st(), TODAY), 'text/csv;charset=utf-8'); return; }
         if (kind === 'master-csv') { saveFile('rota-doctors.csv', E.doctorsCsvTemplate(st()), 'text/csv;charset=utf-8'); return; }
         const bytes = kind === 'oncall' ? E.oncallTemplate(TODAY) : E.masterTemplate(st(), TODAY);
         saveFile(kind === 'oncall' ? 'oncall-import-template.xlsx' : 'rota-data-file.xlsx', bytes);
         return;
       }
       case 'cancel-import': ui.importPreview = null; break;
+      case 'cancel-update': ui.update = null; break;
+      case 'upd-all': ui.update.parsed.changes.forEach((c, i) => ui.update.ticked.add(i)); break;
+      case 'upd-none': ui.update.ticked.clear(); break;
+      case 'apply-updates': {
+        const u = ui.update;
+        const list = u.parsed.changes.filter((c, i) => u.ticked.has(i));
+        if (await change(op('applyUpdates', list, u.fileName), `${plural(list.length, 'change')} applied. You can undo this below.`)) ui.update = null;
+        break;
+      }
+      case 'undo-import': {
+        if (!confirmStep('undo:' + t.dataset.id)) return;
+        await change(op('undoImport', t.dataset.id), 'Update undone.');
+        break;
+      }
       case 'confirm-import': await confirmImport(); break;
       case 'save-rotation': await change(op('setSetting', 'rotation', { start: $('#rot-start').value }, `Rotation started ${$('#rot-start').value}`), 'Saved.'); break;
       case 'backup-excel': saveFile(`haematology-rota-backup-${TODAY}.xlsx`, E.backupWorkbook(st(), TODAY)); return;
@@ -1415,6 +1465,7 @@
     if (t.dataset.bulk && ui.bulk) { ui.bulk[t.dataset.bulk] = t.value; return; }
     if (t.dataset.bulkId && ui.bulk) { const id = t.dataset.bulkId; ui.bulk.ids = ui.bulk.ids.filter((x) => x !== id).concat(t.checked ? [id] : []); return; }
     if (t.dataset.bulkDay && ui.bulk) { const k = Number(t.dataset.bulkDay); ui.bulk.days = ui.bulk.days.filter((x) => x !== k).concat(t.checked ? [k] : []); return; }
+    if (t.dataset.updI !== undefined && ui.update) { const i = Number(t.dataset.updI); if (t.checked) ui.update.ticked.add(i); else ui.update.ticked.delete(i); const b = document.querySelector('[data-act="apply-updates"]'); if (b) { b.textContent = `Apply ${plural(ui.update.ticked.size, 'change')}`; b.disabled = !ui.update.ticked.size; } return; }
     if (t.dataset.rule && ui.rulesDraft) { ui.rulesDraft.rules[t.dataset.rule] = t.value; return; }
     const act = t.dataset.act;
     switch (act) {
@@ -1460,9 +1511,16 @@
         if (!file) return;
         const kind = t.dataset.kind;
         const isCsv = /\.csv$/i.test(file.name);
-        if (!/\.xlsx$/i.test(file.name) && !(isCsv && kind === 'master')) { toast('Save the file as an Excel Workbook (.xlsx)' + (kind === 'master' ? ' or CSV' : '') + ' and choose it again.', true); return; }
+        if (!/\.xlsx$/i.test(file.name) && !(isCsv && (kind === 'master' || kind === 'update'))) { toast('Save the file as an Excel Workbook (.xlsx)' + (kind === 'master' ? ' or CSV' : '') + ' and choose it again.', true); return; }
         try {
           const sheets = isCsv ? [{ name: file.name.replace(/\.csv$/i, ''), rows: E.parseCsv(await file.text()) }] : await X.read(await file.arrayBuffer());
+          if (kind === 'update') {
+            const parsed = E.parseUpdates(st(), sheets);
+            t.value = '';
+            if (!parsed) { toast(`${file.name} has no rota grid (Date, Day, doctors…) or list (Date, Doctor, Change to). Download the rota here and edit that.`, true); return; }
+            ui.update = { fileName: file.name, parsed, ticked: new Set(parsed.changes.map((c, i) => (c.recent ? -1 : i)).filter((i) => i >= 0)) };
+            break;
+          }
           const parsed = kind === 'oncall' ? E.parseOncall(st(), sheets) : E.parseMaster(st(), sheets);
           ui.importPreview = { kind, fileName: file.name, parsed, mapping: {} };
         } catch (e) { toast(`Could not read ${file.name}: ${e.message}`, true); }

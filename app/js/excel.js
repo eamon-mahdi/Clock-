@@ -116,13 +116,14 @@
     if (typeof v === 'object' && v.date) return v.date;
     if (typeof v === 'number' && v > 20000 && v < 80000) return X.serialToIso(v);
     const s = String(v).trim();
+    const real = (iso) => (R.toIso(R.toDate(iso)) === iso ? iso : null); // rejects 31/02 and the like
     let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
-    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    if (m) return real(`${m[1]}-${m[2]}-${m[3]}`);
     m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$/.exec(s);
     if (m) {
       const y = m[3].length === 2 ? '20' + m[3] : m[3];
       const iso = `${y}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
-      return isNaN(R.toDate(iso)) ? null : iso;
+      return isNaN(R.toDate(iso)) ? null : real(iso);
     }
     return null;
   }
@@ -339,11 +340,14 @@
   // ---------- Rota tab: the whole rota as a grid, like the rota view ----------
   const rotaRange = (state, todayIso) => ({ from: R.addDays(todayIso, -14), to: R.addMonths(todayIso, 6) < R.rotaHorizon(state, todayIso) ? R.addMonths(todayIso, 6) : R.rotaHorizon(state, todayIso) });
   const colHead = (d) => `${d.grade}\n${d.name}`;
-  function rotaRows(state, from, to) {
+  // The first line of a downloaded rota says when it was downloaded, so an upload can spot cells changed on the website since.
+  const STAMP_RE = /downloaded (\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d)?)/i;
+  const stampLine = (at) => `Rota downloaded ${String(at).slice(0, 16)} UTC. Keep this line and the column headings as they are; change the cells you need and upload the file under Set up → Data file → Update the rota.`;
+  function rotaRows(state, from, to, at) {
     const cols = [];
     for (const g of ['res', 'mg']) for (const c of R.columns(state, from, to)) if (c.group === g) cols.push(c);
     const base = { border: true, center: true, wrap: true };
-    const rows = [[head('Date'), head('Day'), head('Consultant')].concat(cols.map((c) => head(colHead(R.holderOn(c, from)))))];
+    const rows = [[note(stampLine(at || new Date().toISOString()))], [head('Date'), head('Day'), head('Consultant')].concat(cols.map((c) => head(colHead(R.holderOn(c, from)))))];
     let prev = null;
     for (const iso of R.dateRange(from, to)) {
       const holders = cols.map((c) => R.holderOn(c, iso));
@@ -365,16 +369,35 @@
     }
     return { rows, widths: [12, 6, 14].concat(cols.map(() => 15)) };
   }
-  function rotaSheet(state, todayIso) {
+  function rotaSheet(state, todayIso, at) {
     const r = rotaRange(state, todayIso);
-    const x = rotaRows(state, r.from, r.to);
-    return { name: 'Rota', rows: x.rows, widths: x.widths, freeze: { row: 1, col: 2 }, heights: { 0: 42 } };
+    const x = rotaRows(state, r.from, r.to, at);
+    return { name: 'Rota', rows: x.rows, widths: x.widths, freeze: { row: 2, col: 2 }, heights: { 1: 42 } };
   }
-  const rotaCsv = (state, todayIso) => { const r = rotaRange(state, todayIso); return toCsv(rotaRows(state, r.from, r.to).rows.map((row) => row.map((v) => (v && typeof v.v === 'string' ? Object.assign({}, v, { v: v.v.replace(/\n/g, ' ') }) : v)))); };
+  const rotaCsv = (state, todayIso, at) => { const r = rotaRange(state, todayIso); return toCsv(rotaRows(state, r.from, r.to, at).rows.map((row) => row.map((v) => (v && typeof v.v === 'string' ? Object.assign({}, v, { v: v.v.replace(/\n/g, ' ') }) : v)))); };
+
+  // One uploaded cell against the rota now: null (no change or nothing to do), { change } or { ignored }.
+  // Never touches leave, NOT IN POST or blanks. "recent" = changed on the website after the file was downloaded.
+  function classifyCell(state, doc, iso, raw, stamp) {
+    if (!raw || !R.inPost(doc, iso)) return null;
+    const code = R.canonicalCode(raw);
+    const cell = R.resolveCell(state, doc, iso);
+    if (code === R.canonicalCode(cell.code || '')) return null;
+    const kind = R.kindOf(code);
+    if (cell.leave) return { ignored: `${doc.name}, ${R.fmtUk(iso)}: has approved leave, so "${raw}" was not used. Change leave through the request.` };
+    const ov = (state.overrides[doc.id] || {})[iso];
+    const recent = !!(stamp && ov && ov.at && ov.at.slice(0, 16) > stamp.slice(0, 16));
+    const base = { doctorId: doc.id, name: doc.name, date: iso, code, was: cell.code || '', recent };
+    if (kind === 'oncall') return { change: Object.assign(base, { kind }) };
+    if (['site', 'lab', 'off'].includes(kind) || code === 'TEACHING' || code === 'INDUCTION' || code === 'SPR TRAINING DAY') return { change: Object.assign(base, { kind: 'site' }) };
+    if (kind === 'gone') return null;
+    return { ignored: `${doc.name}, ${R.fmtUk(iso)}: "${raw}" is not a location or on-call code${kind === 'leave' || kind === 'sick' ? ' (leave is added through leave requests)' : ''}.` };
+  }
+  const stampOf = (sh, h) => { for (let r = 0; r < h; r++) for (const v of sh.rows[r] || []) { const m = STAMP_RE.exec(cellText(v)); if (m) return m[1]; } return ''; };
 
   // Reads a Rota tab. Only cells that differ from the rota now are returned. Leave, NOT IN POST and blanks are left alone.
   function parseRota(state, sh, h, colIndex) {
-    const out = { from: '', to: '', changes: [], ignored: [], unmatched: [], columns: 0 };
+    const out = { format: 'grid', stamp: stampOf(sh, h), from: '', to: '', changes: [], ignored: [], unmatched: [], columns: 0 };
     const all = R.columns(state, '1900-01-01', '2999-12-31');
     const named = [];
     for (const c of all) for (const d of c.docs) named.push({ name: d.name.toLowerCase(), col: c });
@@ -395,22 +418,55 @@
       if (!out.from || iso < out.from) out.from = iso;
       if (!out.to || iso > out.to) out.to = iso;
       for (const { i, col } of map) {
-        const raw = cellText(row[i]);
-        if (!raw) continue;
-        const doc = R.holderOn(col, iso);
-        if (!R.inPost(doc, iso)) continue;
-        const code = R.canonicalCode(raw);
-        const cell = R.resolveCell(state, doc, iso);
-        if (code === R.canonicalCode(cell.code || '')) continue;
-        const kind = R.kindOf(code);
-        if (cell.leave) { out.ignored.push(`${doc.name}, ${R.fmtUk(iso)}: has approved leave, so "${raw}" was not used. Change leave through the request.`); continue; }
-        if (kind === 'oncall') out.changes.push({ doctorId: doc.id, name: doc.name, date: iso, code, kind });
-        else if (['site', 'lab', 'off', 'bh'].includes(kind) || code === 'TEACHING' || code === 'INDUCTION' || code === 'SPR TRAINING DAY') out.changes.push({ doctorId: doc.id, name: doc.name, date: iso, code, kind: 'site' });
-        else if (kind === 'gone') continue;
-        else out.ignored.push(`${doc.name}, ${R.fmtUk(iso)}: "${raw}" is not a location or on-call code${kind === 'leave' || kind === 'sick' ? ' (leave is added through leave requests)' : ''}.`);
+        const x = classifyCell(state, R.holderOn(col, iso), iso, cellText(row[i]), out.stamp);
+        if (x && x.change) out.changes.push(x.change); else if (x && x.ignored) out.ignored.push(x.ignored);
       }
     }
     return out;
+  }
+
+  // A short list of changes: Date, Doctor, Change to (one row each). Same rules as the Rota tab.
+  function parseUpdateList(state, sh, h, ci) {
+    const out = { format: 'list', stamp: '', from: '', to: '', changes: [], ignored: [], unmatched: [], columns: 0 };
+    const seen = new Set();
+    for (let r = h + 1; r < sh.rows.length; r++) {
+      const row = sh.rows[r] || [];
+      const rawDate = cellText(row[ci.date]), name = cellText(row[ci.doc]), raw = cellText(row[ci.val]);
+      if (!rawDate && !name && !raw) continue;
+      const iso = parseDate(row[ci.date]);
+      if (!iso) { out.ignored.push(`Row ${r + 1}: could not read the date "${rawDate}". Use dd/mm/yyyy.`); continue; }
+      const doc = matchDoctor(state, name);
+      if (!doc) { if (name && !out.unmatched.includes(name)) out.unmatched.push(name); continue; }
+      if (!raw) continue;
+      if (!R.inPost(doc, iso)) { out.ignored.push(`Row ${r + 1}: ${doc.name} is not in post on ${R.fmtUk(iso)}.`); continue; }
+      if (seen.has(doc.id + iso)) { out.ignored.push(`Row ${r + 1}: ${doc.name} on ${R.fmtUk(iso)} is in the file twice; only the first row is used.`); continue; }
+      seen.add(doc.id + iso);
+      if (!out.from || iso < out.from) out.from = iso;
+      if (!out.to || iso > out.to) out.to = iso;
+      const x = classifyCell(state, doc, iso, raw, '');
+      if (x && x.change) out.changes.push(x.change); else if (x && x.ignored) out.ignored.push(`Row ${r + 1}: ${x.ignored}`);
+    }
+    out.columns = 1;
+    return out;
+  }
+  const updatesListCsv = () => toCsv([[head('Date'), head('Doctor'), head('Change to')], ['01/12/2026', 'Omar', 'NHH - DAY UNIT'], ['02/12/2026', 'Omar', 'LONG DAY']]);
+
+  // Reads an upload for "Update the rota": a Rota tab (grid) or a list (Date, Doctor, Change to). Nothing is applied here.
+  function parseUpdates(state, sheets) {
+    const ordered = sheets.slice().sort((a, b) => (/^rota$/i.test(b.name || '') ? 1 : 0) - (/^rota$/i.test(a.name || '') ? 1 : 0));
+    for (const sh of ordered) {
+      const h = findHeaderRowAny(sh.rows);
+      const cols = (sh.rows[h] || []).map((v) => cellText(v).toLowerCase());
+      const idx = (re) => cols.findIndex((x) => re.test(x));
+      if (idx(/^date/) >= 0 && idx(/^day$/) >= 0) {
+        const g = parseRota(state, sh, h, { date: idx(/^date/), day: idx(/^day$/), cons: idx(/^consultant/) });
+        if (g.columns) return Object.assign(g, { sheet: sh.name || '' });
+      }
+      if (idx(/^date/) >= 0 && idx(/^doctor|^name/) >= 0 && idx(/^change|^new|^code|^shift|^location|^value/) >= 0) {
+        return Object.assign(parseUpdateList(state, sh, h, { date: idx(/^date/), doc: idx(/^doctor|^name/), val: idx(/^change|^new|^code|^shift|^location|^value/) }), { sheet: sh.name || '' });
+      }
+    }
+    return null;
   }
 
   function masterTemplate(state, todayIso) {
@@ -613,7 +669,7 @@
   }
 
   const api = { oncallTemplate, planTemplate, staffTemplate, parseOncall, parsePlans, parseStaff, matchDoctor, parseDate, rosterWorkbook, FILL,
-    masterTemplate, doctorsCsvTemplate, rotaCsv, parseMaster, parseCsv, toCsv, backupWorkbook, csvBackupZip };
+    masterTemplate, doctorsCsvTemplate, rotaCsv, parseUpdates, updatesListCsv, parseMaster, parseCsv, toCsv, backupWorkbook, csvBackupZip };
   root.RotaExcel = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

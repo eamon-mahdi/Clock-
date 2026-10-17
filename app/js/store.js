@@ -283,6 +283,29 @@
   }
 
   // What anyone with the link can see (no emails, notes, reasons, sickness or audit).
+  // Sets rota cells from a file and records what each was before, so the whole upload can be undone.
+  function applyCells(state, by, changes, fileName, reason) {
+    const rec = { id: uid('u'), at: nowIso(), by, fileName: fileName || '', cells: [] };
+    let applied = 0, skipped = 0;
+    for (const c of changes) {
+      const d = R.doctorById(state, c.doctorId);
+      const code = R.canonicalCode(c.code || '');
+      const kind = R.kindOf(code);
+      const okCode = ['site', 'lab', 'off', 'oncall'].includes(kind) || ['TEACHING', 'INDUCTION', 'SPR TRAINING DAY'].includes(code);
+      if (!d || !R.isIso(c.date) || !okCode || !R.inPost(d, c.date)) { skipped++; continue; }
+      const cell = R.resolveCell(state, d, c.date);
+      if (cell.leave || R.canonicalCode(cell.code || '') === code) { skipped++; continue; }
+      state.overrides[d.id] = state.overrides[d.id] || {}; state.oncall[d.id] = state.oncall[d.id] || {};
+      const before = { override: state.overrides[d.id][c.date] || null, oncall: state.oncall[d.id][c.date] || null };
+      if (kind === 'oncall') { delete state.overrides[d.id][c.date]; state.oncall[d.id][c.date] = code; }
+      else { delete state.oncall[d.id][c.date]; state.overrides[d.id][c.date] = { code, reason, by, at: nowIso() }; }
+      rec.cells.push({ doctorId: d.id, date: c.date, before, after: { override: state.overrides[d.id][c.date] || null, oncall: state.oncall[d.id][c.date] || null } });
+      applied++;
+    }
+    if (rec.cells.length) { state.imports = [rec].concat(state.imports || []).slice(0, 30); }
+    return { applied, skipped };
+  }
+
   function publicView(state) {
     const s = clone(state);
     s.doctors.forEach((d) => { delete d.email; delete d.alEntitlement; delete d.slEntitlement; delete d.alExtra; delete d.slExtra; delete d.note; });
@@ -292,7 +315,7 @@
     }));
     Object.values(s.overrides || {}).forEach((m) => Object.values(m).forEach((o) => { delete o.reason; delete o.by; }));
     s.edt = (s.edt || []).map((e) => ({ id: e.id, doctorId: e.doctorId, date: e.date, session: e.session, type: e.type }));
-    s.audit = []; s.notifications = [];
+    s.audit = []; s.notifications = []; delete s.imports;
     s.settings.authoriserEmails = [];
     s.public = true;
     return s;
@@ -461,17 +484,33 @@
         for (const [alias, id] of Object.entries(parsed.mapping || {})) { const d = R.doctorById(state, id); if (id && d && !(d.aliases || []).includes(alias)) (d.aliases = d.aliases || []).push(alias); }
         shifts = entries.length;
       }
-      // Rota tab: only the cells that were changed. Applied last so it wins over the On-calls tab.
-      let cells = 0;
-      for (const c of (parsed.rota && parsed.rota.changes) || []) {
-        if (!R.doctorById(state, c.doctorId)) continue;
-        state.overrides[c.doctorId] = state.overrides[c.doctorId] || {};
-        state.oncall[c.doctorId] = state.oncall[c.doctorId] || {};
-        if (c.kind === 'oncall') { delete state.overrides[c.doctorId][c.date]; state.oncall[c.doctorId][c.date] = c.code; }
-        else { delete state.oncall[c.doctorId][c.date]; state.overrides[c.doctorId][c.date] = { code: c.code, reason: 'Rota tab of the data file', by, at: nowIso() }; }
-        cells++;
-      }
+      // Rota tab: only the cells that were changed. Applied last so it wins over the On-calls tab. Can be undone.
+      const cells = parsed.rota ? applyCells(state, by, parsed.rota.changes || [], fileName, 'Rota tab of the data file').applied : 0;
       log(state, by, 'Rota data file imported', `${fileName || 'file'}: ${parsed.rota ? `${cells} rota cells changed, ` : ''}${added} doctors added, ${updated} updated, ${weeks.length} consultant weeks, ${restr} leave restrictions${oc ? `, ${shifts} on-call shifts (${R.fmtUk(oc.from)} to ${R.fmtUk(oc.to)})` : ''}${missing.length ? '. ' + missing.join('; ') : ''}`);
+      return [];
+    },
+    // Update the rota from an uploaded file: only the ticked cells. Nothing else is touched, and it can be undone.
+    applyUpdates(state, by, changes, fileName) {
+      if (!Array.isArray(changes) || !changes.length) throw new Error('Tick at least one change.');
+      const res = applyCells(state, by, changes, fileName, 'Rota update from ' + (fileName || 'a file'));
+      log(state, by, 'Rota updated from a file', `${fileName || 'file'}: ${res.applied} cells changed${res.skipped ? `, ${res.skipped} skipped (already the same, or approved leave)` : ''}`);
+      return [];
+    },
+    // Undo a file update: put each cell back as it was, unless it has been changed again since.
+    undoImport(state, by, id) {
+      const imp = (state.imports || []).find((x) => x.id === id);
+      if (!imp || imp.undoneAt) throw new Error('That update has already been undone.');
+      let back = 0, kept = 0;
+      for (const c of imp.cells) {
+        const ov = (state.overrides[c.doctorId] || {})[c.date] || null, oc = (state.oncall[c.doctorId] || {})[c.date] || null;
+        if (JSON.stringify(ov) !== JSON.stringify(c.after.override) || oc !== c.after.oncall) { kept++; continue; }
+        state.overrides[c.doctorId] = state.overrides[c.doctorId] || {}; state.oncall[c.doctorId] = state.oncall[c.doctorId] || {};
+        if (c.before.override) state.overrides[c.doctorId][c.date] = c.before.override; else delete state.overrides[c.doctorId][c.date];
+        if (c.before.oncall) state.oncall[c.doctorId][c.date] = c.before.oncall; else delete state.oncall[c.doctorId][c.date];
+        back++;
+      }
+      imp.undoneAt = nowIso(); imp.undoneBy = by;
+      log(state, by, 'File update undone', `${imp.fileName || 'file'} (${R.fmtShort(imp.at.slice(0, 10))}): ${back} cells put back${kept ? `, ${kept} left as they are because they were changed again since` : ''}`);
       return [];
     },
     // Put back an earlier copy of the whole rota (from a backup).

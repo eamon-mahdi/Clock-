@@ -74,6 +74,16 @@ Authorisers can see and use these under **Set up → Backups**: download any cop
 
 For a full database export from your computer: `npx wrangler d1 export haematology-rota --remote --output backup.sql`.
 
+## Everyday changes from a spreadsheet: Update the rota
+
+**Set up → Data file → Update the rota** is the safe way to make frequent changes:
+
+1. Download the rota as it is now (CSV or Excel). The first line records when it was downloaded.
+2. Type over only the cells that need to change: a location code or an on-call shift code.
+3. Upload it on the same page. Every change is listed (now → becomes) with a tick box; untick any you don't want, then apply.
+
+It cannot erase anything: it only changes the cells that differ from the rota now. Blank cells, approved leave and NOT IN POST are never changed, and doctors, leave requests and other on-calls are not touched. Cells someone changed on the website after the file was downloaded are flagged and left unticked. Each update is listed under "Recent file updates" with an **Undo** button (cells changed again since are left as they are). For a handful of changes you can upload a short list instead: `templates/rota-changes-list.csv` (Date, Doctor, Change to).
+
 ## Setting the rota up from Excel
 
 **Set up → Data file** downloads the **rota data file**, one Excel workbook filled in with what is on the rota now. Its tabs:
@@ -85,4 +95,4 @@ For a full database export from your computer: `npx wrangler d1 export haematolo
 - **On-calls:** the trust on-calls (Date, Doctor, Shift).
 - **Rotation dates** and **Codes:** reference only.
 
-Edit it in Excel and upload it on the same page. Doctors are matched by name, so nobody is deleted. On-calls already on the rota for the dates in the On-calls tab are replaced. The Backups page downloads the same file with extra read-only tabs. A CSV holds only one tab (the Rota tab or the Doctors tab can be downloaded and uploaded as CSV); the Excel file is the one file that holds everything.
+Use it for setting up, new doctors and rotations. Edit it in Excel and upload it on the same page. Doctors are matched by name, so nobody is deleted. On-calls already on the rota for the dates in the On-calls tab are replaced. The Backups page downloads the same file with extra read-only tabs. A CSV holds only one tab (the Rota tab or the Doctors tab can be downloaded and uploaded as CSV); the Excel file is the one file that holds everything.
